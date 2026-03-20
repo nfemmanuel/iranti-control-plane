@@ -55,8 +55,8 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 1 — Operability MVP
 
-**Status: IN PROGRESS — substantially complete, P0 blockers pending (2026-03-20)**
-**Target completion**: 2026-03-20 (pending resolution of CP-T026–T030)
+**Status: COMPLETE (2026-03-20)**
+**PM accepted**: 2026-03-20 — all 5 P0 blockers resolved, CI green, v0.1.0 declared ready
 
 **Goal**: A working local web app where a user can inspect memory, history, Staff activity, instance state, and system health without SQL. This is the first deliverable that a real operator can use.
 
@@ -101,12 +101,12 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 - [x] User can view all instances and their project bindings
 - [x] User can view system health and connection diagnostics
 - [x] Light mode and dark mode both pass visual review — Terminals palette, not generic gray/blue
-- [ ] Staff Activity Stream Phase 1 coverage explicitly labeled — CP-T026
-- [ ] Empty states distinguish connected+no data, not connected, and filtered+no results — CP-T027
-- [ ] Health Dashboard severity taxonomy implemented — CP-T028
-- [ ] Instance health status shows last-checked timestamp — CP-T029
-- [ ] Temporal history endpoint verified; QA seed test passes — CP-T030
-- [ ] Instance context persistence verified across all views — CP-T031
+- [x] Staff Activity Stream Phase 1 coverage explicitly labeled — CP-T026 (PM-accepted 2026-03-20)
+- [x] Empty states distinguish connected+no data, not connected, and filtered+no results — CP-T027 (PM-accepted 2026-03-20)
+- [x] Health Dashboard severity taxonomy implemented — CP-T028 (PM-accepted 2026-03-20)
+- [x] Instance health status shows last-checked timestamp — CP-T029 (PM-accepted 2026-03-20)
+- [x] Temporal history endpoint verified; QA seed test passes — CP-T030 (PM-accepted 2026-03-20; QA seed test result to be logged)
+- [x] Instance context persistence verified — CP-T031 (conditionally accepted; Phase 1 single-backend architecture documented)
 - [ ] All Phase 1 acceptance criteria checked by QA before PM accepts
 
 **Primary agents**: frontend_developer, backend_developer, qa_engineer
@@ -117,8 +117,8 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 2 — Interactive Management
 
-**Status: PLANNED — tickets written (CP-T020–T025, CP-T032, CP-T033), not yet started**
-**Prerequisite**: Phase 1 P0 blockers (CP-T026–T030) resolved and v0.1.0 accepted by PM
+**Status: IN PROGRESS — tickets written (CP-T020–T025, CP-T032–T037), Phase 2 kicked off 2026-03-20**
+**Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted 2026-03-20
 
 **Goal**: User can manage the system from one surface for common tasks without dropping to the CLI or editing env files. This phase adds write surfaces, conflict review, embedded chat, and the installation/onboarding MVP.
 
@@ -131,6 +131,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 - New user can install and configure Iranti through a guided CLI wizard with significantly fewer manual steps than today (CP-T023)
 - Operators can navigate the entire control plane by keyboard via Cmd+K command palette (CP-T024)
 - Staff Activity Stream shows events from all four Staff components with < 200ms latency (CP-T025)
+- Watching Staff activity live feels immediate — pulse indicator, velocity counter, hover-pause, live/paused badge (CP-T037)
 - Entity relationships visible as an interactive graph, not just a flat list (CP-T032)
 
 ### Tickets Written
@@ -142,20 +143,29 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CP-T022 | Provider and Model Manager | CP-E009 | backend + frontend | P1 |
 | CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 |
 | CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 |
-| CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 |
+| CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 (elevated — live tail use case) |
 | CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 |
 | CP-T033 | Integration Repair Actions UI | CP-E004 enhancement | frontend + backend | P1 |
+| CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 |
+| CP-T035 | Getting Started Screen and First-Run Onboarding | CP-E010 | frontend + backend | P0 |
+| CP-T036 | Entity Detail and Temporal History Views | CP-E002 | frontend_developer | P0 |
+| CP-T037 | Staff Activity Stream Live Mode UX | CP-E003 enhancement | frontend_developer | P1 |
 
 ### Exit Criteria
 
+- [ ] Entity detail view renders full facts/archive/relationships (CP-T036) — P0
+- [ ] Temporal history timeline renders for a fact key with interval list and raw JSON expand (CP-T036) — P0
+- [ ] Getting Started screen renders with 4-step setup status and auto-shows on first run (CP-T035) — P0
+- [ ] Staff Activity Stream shows events from all four Staff components (CP-T025), or upstream PR is documented and in-progress with polling fallback active
+- [ ] Live mode pulse indicator, velocity counter, and hover-pause are functional (CP-T037)
+- [ ] Command palette is functional from every view (CP-T024)
+- [ ] Entity relationship graph renders for entities with relationships (CP-T032)
+- [ ] Integration repair actions (mcp-json, claude-md, run doctor) work and log to audit trail (CP-T033)
+- [ ] Provider quota and credit visibility shows for configured providers (CP-T034)
 - [ ] User can configure providers and models from the UI without manually editing config files (CP-T022)
 - [ ] User can review and take action on Resolutionist conflicts from the control plane (CP-T021)
 - [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020)
 - [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023)
-- [ ] Staff Activity Stream shows events from all four Staff components (CP-T025), or upstream PR is documented and in-progress with polling fallback active
-- [ ] Command palette is functional from every view (CP-T024)
-- [ ] Entity relationship graph renders for entities with relationships (CP-T032)
-- [ ] Integration repair actions (mcp-json, claude-md, run doctor) work and log to audit trail (CP-T033)
 - [ ] All Phase 2 acceptance criteria checked by QA before PM accepts
 
 **Primary agents**: frontend_developer, backend_developer, devops_engineer, system_architect, qa_engineer

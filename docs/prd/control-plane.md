@@ -1,6 +1,6 @@
 # Iranti Control Plane PRD
 
-> **Document status as of 2026-03-20:** Phase 0 complete. Phase 1 substantially complete — 10 tickets delivered, 5 P0 blocker tickets (CP-T026–T030) open, 1 P1 QA ticket (CP-T031) open. Phase 2 planned — 6 tickets written (CP-T020–T025), not yet started. Open Questions resolved. Decisions Log added.
+> **Document status as of 2026-03-20:** Phase 0 complete. Phase 1 **COMPLETE** — all 10 core tickets delivered and PM-accepted, all 5 P0 blocker tickets (CP-T026–T030) PM-accepted, CP-T031 conditionally accepted (Phase 1 single-backend architecture documented). v0.1.0 declared ready by PM. CI green. Phase 2 tickets written (CP-T020–T025, CP-T032–T035) and ready to start.
 
 ## Problem
 

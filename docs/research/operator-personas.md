@@ -190,4 +190,47 @@ Dev's bar is the highest of the three personas: the control plane needs to show 
 
 ---
 
-*Update this document when Phase 1 beta testing begins and actual user feedback is available to validate or revise these profiles.*
+---
+
+## Phase 2 Persona Evolution — Post-Phase 1 Retrospective
+
+**Date:** 2026-03-20
+
+### Marcus — Phase 2 Evolution
+
+Phase 1 delivered Marcus's primary job (Inspect Current Memory). With CP-T036 shipping in Phase 2, his secondary job (Inspect Temporal History) will also be met. Marcus's Phase 2 experience center of gravity shifts to:
+
+1. **Getting started / setup guidance (CP-T035):** Marcus hit two errors during initial setup. Once v0.2.0 ships, new Marcus-equivalent users should be able to get from zero to running Iranti without 45-minute debugging sessions. CP-T035's getting started screen addresses this directly.
+2. **Provider credit visibility (CP-T034):** Marcus doesn't know if his provider key still has credits. This is a recurring anxiety that CP-T034 resolves.
+3. **Passive Staff reassurance (CP-T025/CP-T037):** Marcus watches the Activity Stream for passive reassurance that Iranti is processing. With native emitter and live mode UX, the stream becomes the ambient health monitor he needs.
+
+**Phase 2 success bar for Marcus:** Opens control plane, sees "Iranti is healthy" at a glance, runs `iranti write`, watches the Librarian event appear in the stream within 1 second. Clicks a fact in Memory Explorer, views its temporal history. Closes the control plane feeling confident that Iranti is real and working.
+
+### Priya — Phase 2 Evolution
+
+Phase 1 gave Priya the read-only instance view. Her Phase 2 primary jobs are:
+
+1. **Conflict review (CP-T021):** Priya triggered a write conflict deliberately to test Resolutionist behavior — but had no way to see what happened. CP-T021's conflict review UI directly addresses her core evaluation question #3 ("What happens when two agents write conflicting facts?").
+2. **Provider configuration (CP-T022):** Priya rotated an API key and wasn't sure if the instance picked it up. CP-T022 gives her visibility and control over provider routing without hand-editing env files.
+3. **Embedded chat (CP-T020):** Priya evaluates Iranti for her team's workflow. Embedded chat lets her demonstrate the full product loop — write, retrieve, observe — without switching between terminal and browser.
+
+**Phase 2 success bar for Priya:** Opens the control plane, sees a pending conflict in the conflict review surface, reviews both fact versions, resolves it from the UI. Then opens Instance Manager, sees both her instances, verifies provider key status for each. Sends a chat message and watches the Librarian event appear in the stream.
+
+### Dev — Phase 2 Evolution
+
+Dev is the most critical persona for Phase 2. Phase 1 left him significantly underserved — temporal history was a placeholder, relationships were a flat list, Attendant and Resolutionist events were absent from the stream.
+
+**Dev's Phase 2 primary jobs:**
+
+1. **Live Staff tail while agents run (CP-T025 + CP-T037):** User signal confirmed — Dev (or a Dev-equivalent user) wants to watch Iranti process his agent's actions in real time. Not retrospective debugging: co-temporal observation. This is his most visceral Phase 2 job. The live mode UX (pulse indicator, velocity counter, auto-scroll) makes the stream feel like a terminal tail, not a log browser.
+2. **Temporal history frontend (CP-T036):** Dev's Phase 1 success definition is "views full temporal history including archive intervals with human-readable archive reasons without SQL." CP-T036 delivers this directly. After CP-T036 ships, Dev's most important Phase 1 gap is closed.
+3. **Conflict review (CP-T021):** Dev has pending escalations he hasn't resolved because the CLI workflow is annoying enough that he keeps deferring them. CP-T021 removes that friction.
+4. **Relationship graph (CP-T032):** Dev is the persona most likely to use the relationship graph — he tracks entities across multiple agent sessions and instances. The flat list is "the least defensible part of Phase 1" from his perspective (as noted in the Phase 1 retro).
+
+**Phase 2 success bar for Dev:** Opens Staff Activity Stream, runs `iranti_handshake` in a terminal, watches the Attendant event appear in < 1 second with the pulse dot hot. Navigates to Memory Explorer, opens an entity, clicks through to temporal history — sees full interval list including archive intervals with human-readable reasons. Opens the relationship graph for that entity, sees a visual graph. Reviews and resolves a pending escalation from the conflict review UI. Does all of this without opening Adminer, without SQL, without the filesystem.
+
+This is the definition of "control plane as a real operator tool rather than a curiosity." Dev's Phase 2 success is the design partner validation story for v0.2.0.
+
+---
+
+*Update this document when Phase 2 design partner testing begins and actual user feedback is available.*

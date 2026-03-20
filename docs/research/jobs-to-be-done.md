@@ -1,9 +1,9 @@
 # Iranti Control Plane — Jobs-to-be-Done Analysis
 
 **Author:** user_researcher
-**Date:** 2026-03-20
-**Phase:** Phase 1 research
-**Source:** PRD `docs/prd/control-plane.md`, operator persona synthesis
+**Date:** 2026-03-20 (Phase 1) | Updated: 2026-03-20 (Phase 2 addendum)
+**Phase:** Phase 1 research + Phase 2 addendum
+**Source:** PRD `docs/prd/control-plane.md`, operator persona synthesis, Phase 1 retrospective, user signal
 
 ---
 
@@ -286,4 +286,57 @@ The guided install experience is Phase 2. The PRD flags this as a known gap: "Ir
 
 ---
 
-*This document is a living artifact. Update as Phase 1 implementation reveals gaps between planned and actual job coverage.*
+---
+
+## Phase 2 Addendum — Job Refinements Based on Phase 1 Retrospective
+
+**Date:** 2026-03-20
+**Source:** Phase 1 retro findings, user signal during Phase 2 planning session
+
+### Job 2 Phase 2 Update: Temporal History
+
+Phase 1 shipped the backend for temporal history (CP-T010, CP-T030) but the frontend views are placeholders. CP-T036 (Phase 2 P0) closes this gap. Once CP-T036 ships, Job 2 will be approximately 95% covered. Remaining gap: diff view between adjacent intervals (Phase 3 candidate).
+
+### Job 3 Phase 2 Refinement: Watch Staff Activity — Active vs. Passive Mode
+
+The original Job 3 job statement describes a **passive** use case: "diagnose why a memory write happened." Phase 2 user research reveals a second, distinct form of this job:
+
+**Job 3b: Watch Staff Work Live During an Agent Run**
+
+*Job statement:* When I am actively running an agent (e.g., Claude Code using `iranti_write`, `iranti_attend`) and want to observe Iranti's internal processing in real time — not just after the fact — I want to see Staff events appear with sub-second latency as they occur, so I can develop intuition for how Iranti processes my agent's actions and verify correctness without waiting for post-run inspection.
+
+**What makes Job 3b different from Job 3:**
+- Job 3 is retrospective: "what did the Librarian decide about this write?"
+- Job 3b is co-temporal: "watch the Librarian decide, right now, as my agent writes"
+- Job 3 tolerates 2-5 second latency (it is diagnostic, not operational)
+- Job 3b requires <200ms latency to feel live — 2-second polling breaks the "live" feel entirely
+- Job 3 is satisfied by a structured event log; Job 3b requires ambient activity signals (pulse indicator, event velocity, auto-scroll tracking the live head)
+
+**Why this matters for Phase 2 prioritization:**
+- CP-T025 (native emitter injection) is the prerequisite for Job 3b — polling cannot deliver <200ms latency
+- CP-T037 (live mode UX) is the presentation layer for Job 3b — pulse, velocity, hover-pause
+- CP-T025 was already P1; user signal confirms it should be near the top of Wave 2 (not the bottom)
+- The PostHog competitor analysis (written in Phase 0) already identified this pattern as correct: "Auto-scroll pauses when the user scrolls up. A floating badge 'N new events' appears. This is the correct behavior." Phase 2 is delivering what Phase 0 research identified as the right pattern.
+
+**Acceptance signal for Job 3b:** A user can open the Staff Activity Stream, run `iranti_handshake` in a separate terminal, and see the Attendant event appear in the stream within 1 second — while the stream auto-scrolls to the new event. The user does not need to click refresh, scroll manually, or wait for a polling cycle.
+
+### Job Coverage Update (Phase 2 target vs. Phase 1 baseline)
+
+| Job | Phase 1 Coverage | Phase 2 Target Coverage | Key Phase 2 Tickets |
+|-----|-----------------|------------------------|---------------------|
+| 1. Inspect Current Memory | ~80% | ~90% | CP-T036 (entity detail) |
+| 2. Inspect Temporal History | ~20% (backend only) | ~95% | CP-T036 (temporal history view) |
+| 3a. Watch Staff Activity (passive) | ~50% | ~90% | CP-T025, CP-T037 |
+| 3b. Watch Staff Work Live (active) | ~0% | ~80% | CP-T025 (data), CP-T037 (UX) |
+| 4. Manage Instances and Projects | ~70% | ~80% | CP-T035 (getting started) |
+| 5. Configure Models and Providers | ~30% | ~70% | CP-T022, CP-T034 |
+| 6. Resolve Issues Without SQL | ~60% (visibility) | ~85% | CP-T033, CP-T021 |
+| 7. Use Chat as Operator Surface | 0% | ~70% | CP-T020 |
+| 8. Install Without Guesswork | ~15% | ~70% | CP-T023, CP-T035 |
+| 9. Understand Relationships Visually | ~10% (flat list) | ~80% | CP-T032, CP-T036 |
+
+*Job 9 is new — derived from the entity_relationships flat-list gap identified in the Phase 1 retrospective. Not in the original JTBD analysis because Phase 0 treated graph visualization as an enhancement; Phase 1 retro confirmed it is a core job for Dev (Power User).*
+
+---
+
+*This document is a living artifact. Update as Phase 2 implementation reveals gaps between planned and actual job coverage.*
