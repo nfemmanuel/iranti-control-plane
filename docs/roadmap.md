@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 substantially complete (P0 blockers open), Phase 2 tickets written and ready.
+> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED** (hold lifted 2026-03-20 after CP-D002 fix, all regression tests pass). Phase 2 in progress — Wave 2 completions accepted.
 
 ## Horizon
 
@@ -56,6 +56,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 ## Phase 1 — Operability MVP
 
 **Status: COMPLETE (2026-03-20)**
+**v0.1.0: SHIPPED** — hold lifted 2026-03-20 after CP-D002 fix (commit bbdb6ee). All regression tests REG-002 through REG-006 pass against live DB.
 **PM accepted**: 2026-03-20 — all 5 P0 blockers resolved, CI green, v0.1.0 declared ready
 
 **Goal**: A working local web app where a user can inspect memory, history, Staff activity, instance state, and system health without SQL. This is the first deliverable that a real operator can use.
@@ -117,9 +118,9 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 2 — Interactive Management
 
-**Status: IN PROGRESS — Wave 1 complete, Wave 2 active as of 2026-03-20 PM session 2**
-**v0.1.0 HOLD: ACTIVE** — CP-D002 defects block hold lift. QA re-run pending after backend fix.
-**Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted 2026-03-20
+**Status: IN PROGRESS — Wave 1 complete, Wave 2 completions accepted 2026-03-20 PM session 3**
+**v0.1.0 HOLD: LIFTED** — All regression tests pass after CP-D002 fix (commit bbdb6ee). Hold lifted 2026-03-20 by PM.
+**Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted and shipped 2026-03-20
 
 **Goal**: User can manage the system from one surface for common tasks without dropping to the CLI or editing env files. This phase adds write surfaces, conflict review, embedded chat, and the installation/onboarding MVP.
 
@@ -140,22 +141,23 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | ID | Title | Epic | Assigned | Priority | Status |
 |----|-------|------|----------|----------|--------|
 | CP-T020 | Embedded Chat Panel | CP-E007 | frontend + backend | P1 | Not started |
-| CP-T021 | Conflict and Escalation Review UI | CP-E008 | frontend + backend | P1 | Frontend PM-accepted; backend routes needed |
+| CP-T021 | Conflict and Escalation Review UI | CP-E008 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (frontend + backend complete; CP-D003 fix enabled routing) |
 | CP-T022 | Provider and Model Manager | CP-E009 | backend + frontend | P1 | Not started |
 | CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | Spec in progress |
-| CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 | Assigned Wave 2 |
-| CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec done; upstream PR description in progress |
+| CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (nav palette; search/recent deferred) |
+| CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec deliverables PM-ACCEPTED 2026-03-20; upstream PR ready for submission |
+| CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | Open — new ticket 2026-03-20 |
 | CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 | Not started |
 | CP-T033 | Integration Repair Actions UI | CP-E004 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 |
 | CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 | Not started |
 | CP-T035 | Getting Started Screen and First-Run Onboarding | CP-E010 | frontend + backend | P0 | PM-ACCEPTED 2026-03-20 |
 | CP-T036 | Entity Detail and Temporal History Views | CP-E002 | frontend_developer | P0 | PM-accepted (prior session) |
-| CP-T037 | Staff Activity Stream Live Mode UX | CP-E003 enhancement | frontend_developer | P1 | Assigned Wave 2 |
+| CP-T037 | Staff Activity Stream Live Mode UX | CP-E003 enhancement | frontend_developer | P1 | PM-ACCEPTED 2026-03-20 |
 | CP-T039 | staff_events migration | DevOps | devops_engineer | P0 | PM-accepted |
 | CP-T040 | v0.1.0 Release Notes + Known Issues | Documentation | technical_writer | P1 | PM-accepted 2026-03-20 |
 | CP-T041 | memory-explorer.md review | Documentation | technical_writer | P2 | PM-accepted 2026-03-20 |
 
-### v0.1.0 Hold Lift Criteria — Current Status
+### v0.1.0 Hold Lift Criteria — HOLD LIFTED 2026-03-20
 
 | Criterion | Status |
 |-----------|--------|
@@ -166,12 +168,13 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CI green on master | PASS |
 | staff_events missing table handled gracefully | PASS |
 | REG-001 (KB browse) | PASS |
-| REG-002 (Archive browse) | PASS WITH WARNING |
-| REG-003 (Entity detail — entity_relationships table) | **FAIL — CP-D002** |
-| REG-004 (Temporal history — agentId column) | **FAIL — CP-D002** |
-| REG-005 (archivedReason labels) | **FAIL — CP-D002** |
+| REG-002 (Archive browse) | PASS (two conflict-system archivedReason codes partially labeled — minor, non-blocking) |
+| REG-003 (Entity detail — entity_relationships table) | **PASS** — CP-D002 fix in commit bbdb6ee |
+| REG-004 (Temporal history — agentId column) | **PASS** — CP-D002 fix in commit bbdb6ee |
+| REG-005 (archivedReason labels) | **PASS** — CP-D002 fix in commit bbdb6ee |
+| REG-006 (Relationships endpoint) | **PASS** — 200, no SQL error |
 
-**NEXT GATE:** backend_developer fixes CP-D002 → QA re-runs REG-003/004/005 → PM reviews → lifts hold.
+**HOLD LIFTED:** PM wrote `project/iranti_control_plane v010_hold_status = lifted` 2026-03-20. v0.1.0 is shipped.
 
 ### Exit Criteria
 

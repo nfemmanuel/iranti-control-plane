@@ -297,5 +297,150 @@ Updated `docs/roadmap.md`:
 6. Assign frontend_developer to CP-T032 (Entity Relationship Graph) once CP-T037 and CP-T024 are complete
 7. Assign backend + frontend to CP-T034 (Provider Credit/Quota Visibility) — currently unassigned
 8. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed in any PM session
-9. Consider whether CP-T042/T043/T044/T045 should be formally ticketed for Phase 3
-10. Evaluate whether CP-T021 conflict review window is closing — if backend_developer cannot land escalation routes within 2 weeks, PM should escalate to product risk
+9. Consider whether CP-T043/T044/T045 should be formally ticketed for Phase 3 (CP-T042 is now a Phase 2 ticket)
+10. CP-T021 conflict review window resolved — backend routes now live, ticket fully accepted
+
+---
+
+---
+
+# PM Phase 2 Session 3 — 2026-03-20 (Hold Lift + Wave 2 Completions + New Feature)
+
+**PM:** `product_manager`
+**Date:** 2026-03-20 (third session block)
+**Triggered by:** QA confirmation that REG-003/004/005/002/006 all pass after CP-D002 fix (commit bbdb6ee). Wave 2 completions review. User feature request.
+
+---
+
+## Session Overview
+
+1. v0.1.0 hold officially lifted
+2. Wave 2 tickets reviewed and accepted (CP-D002, CP-D003, CP-T024, CP-T037, CP-T021, CP-T025 specs)
+3. New ticket CP-T042 created based on user feature request
+4. Roadmap updated to reflect Phase 1 completion, v0.1.0 shipped, hold lifted
+5. PostgreSQL + Prisma stack preference confirmed and written to Iranti
+
+---
+
+## v0.1.0 Hold Lift
+
+**HOLD LIFTED.**
+
+QA re-ran all regression tests against the live DB after CP-D002 fix (commit bbdb6ee):
+
+| Test | Result |
+|------|--------|
+| REG-003 (entity detail with relationships) | PASS — no SQL error, correct response shape |
+| REG-004 (temporal history) | PASS — no agentId column error |
+| REG-005 (archivedReason labels) | PASS — human-readable labels returned |
+| REG-002 (archive browse archivedReason) | PASS — labeled correctly (two conflict-system codes partially labeled — not a blocker) |
+| REG-006 (relationships endpoint) | PASS — 200, no SQL error |
+
+PM actions taken:
+- Wrote `project/iranti_control_plane v010_hold_status = "lifted"` to Iranti (the escalated conflict on `v010_hold` key was superseded by this write to `v010_hold_status` — both record the lift)
+- Wrote `ticket/cp_d001 pm_decision` = hold lifted, commit bbdb6ee
+- Updated `docs/roadmap.md` — Phase 1 marked COMPLETE, v0.1.0 SHIPPED, hold lift criteria table all green
+- Updated roadmap header and Phase 1/2 status blocks
+
+---
+
+## Wave 2 Ticket Acceptance Decisions
+
+### CP-D002 — EntityRelationship table + createdBy column + labelArchivedReason
+**Decision: ACCEPTED**
+QA verified all failing tests now pass. Fix confirmed in commit bbdb6ee. Ticket closed.
+
+### CP-D003 — Escalations router double-prefix + resolution_note column
+**Decision: ACCEPTED**
+Fix confirmed in commit 9a971a8. REG-006 passes. Directly unblocked CP-T021 backend routing. Ticket closed.
+
+### CP-T024 — Command Palette (Cmd+K)
+**Decision: ACCEPTED (with documented scope deferrals)**
+Navigation palette fully functional: 7 views, 2 actions, fuzzy match, keyboard nav (↑↓↵Esc), focus trap, focus restoration via `requestAnimationFrame`, portal to `document.body`, TypeScript clean.
+
+Scope deferrals (documented by implementer in file header comment):
+- Recent entities section (localStorage tracking) — deferred to `cp-t024-search` follow-on
+- Entity search API integration — deferred to `cp-t024-search` follow-on
+
+AC items for Recent and Search are not met. These are acceptable explicit scope cuts. The core palette is functional and ships. Remaining items tracked for follow-on.
+
+Note: The "Keyboard shortcut reference sheet" AC item from the ticket was marked Phase 3 / out of scope — this is now CP-T042 (brought into Phase 2 by user request).
+
+### CP-T037 — Staff Activity Stream Live Mode UX
+**Decision: ACCEPTED**
+Pulse indicator, velocity counter (evt/min, 60s window), hover-pause with buffer flush, Live/Paused badge with manual toggle all reported implemented. All AC items reported PASS by frontend_developer. QA spot-check on hover-pause + flush recommended in next QA pass.
+
+### CP-T021 — Conflict and Escalation Review UI (full ticket)
+**Decision: FULLY ACCEPTED**
+Frontend (ConflictReview.tsx) was previously accepted. Backend escalations.ts now confirmed live: `GET /escalations` with status filter, `POST /escalations/:id/resolve` with keep_existing/accept_challenger/custom. CP-D003 fix enabled correct routing. ESCALATIONS_API_AVAILABLE flag flipped to true. Ticket fully complete.
+
+### CP-T025 — Native Staff Emitter Injection (spec deliverables)
+**Decision: SPEC DELIVERABLES ACCEPTED**
+Two spec documents accepted:
+- `docs/specs/cp-t025-upstream-pr.md` (298 lines) — submission-quality upstream PR description. IStaffEventEmitter interface defined, all 4 Staff components covered, LISTEN/NOTIFY architecture, backward-compatibility via NoopEventEmitter default.
+- `docs/specs/cp-t025-fallback-confirmed.md` (229 lines) — 500ms polling fallback confirmed feasible for local-first use (4 queries/second). Detection mechanism specified.
+
+Upstream PR is ready for submission pending the PM upstream_approval gate. Full implementation (Parts 2–4 of the ticket) remains open and will be assigned when upstream disposition is determined.
+
+---
+
+## New Feature: CP-T042 — Command Palette Inline Help and Command Documentation
+
+**User request:** "commands manual" visible in the command palette — each command should show documentation/manual for what it does.
+
+PM created `docs/tickets/cp-t042.md` (CP-T042). Scope:
+
+1. **One-line descriptions** on every navigation command in the palette — PM-authored text for all 7 views. Renders as a second muted line below the label.
+2. **Shortcuts section** — visible when query is empty or user types "?", "help", or "shortcuts". Shows global shortcuts always; view-specific shortcuts only for confirmed-implemented bindings.
+3. **"?" footer trigger** — clickable button in palette footer that filters to the Shortcuts section.
+
+Priority: P2. Assigned: frontend_developer. Depends on CP-T024 (complete). Added to Phase 2 ticket table in roadmap.
+
+---
+
+## Stack Preference Confirmed
+
+User confirmed PostgreSQL + Prisma as the database stack. Written to Iranti: `project/iranti_control_plane db_preference`. Already the current stack — no change required.
+
+---
+
+## Roadmap Updates
+
+- Header updated: Phase 1 COMPLETE, v0.1.0 SHIPPED, hold lifted
+- Phase 1 block: added v0.1.0 SHIPPED line
+- Phase 2 block: status updated to Wave 2 completions accepted; hold = LIFTED
+- Hold lift criteria table: all green, HOLD LIFTED notice added
+- Ticket table: CP-T021, CP-T024, CP-T025, CP-T037 status updated; CP-T042 added
+
+---
+
+## PM Deliverables This Session
+
+- [x] `project/iranti_control_plane v010_hold_status` = `lifted` — written to Iranti
+- [x] `ticket/cp_d001 pm_decision` = hold lifted — written to Iranti
+- [x] `ticket/cp_d002 pm_decision` = accepted — written to Iranti
+- [x] `ticket/cp_d003 pm_decision` = accepted — written to Iranti
+- [x] `ticket/cp_t024 pm_decision` = accepted — written to Iranti
+- [x] `ticket/cp_t037 pm_decision` = accepted — written to Iranti
+- [x] `ticket/cp_t021 pm_decision_backend` = accepted — written to Iranti
+- [x] `ticket/cp_t025 pm_decision_specs` = accepted — written to Iranti
+- [x] `ticket/cp_t042 status` = open — written to Iranti
+- [x] `project/iranti_control_plane db_preference` = PostgreSQL + Prisma confirmed — written to Iranti
+- [x] `docs/tickets/cp-t042.md` — new ticket created
+- [x] `docs/roadmap.md` — hold lifted, Phase 1 complete, ticket table updated, CP-T042 added
+- [x] `docs/coordination/pm-phase2-session-2026-03-20.md` — this session record appended
+
+---
+
+## Open PM Actions (Next Session)
+
+1. Assign frontend_developer to CP-T042 (command palette inline help) — ready to start
+2. Assign frontend_developer to CP-T032 (Entity Relationship Graph) — CP-T037 and CP-T024 are now both complete
+3. Assign backend_developer + frontend_developer to CP-T034 (Provider Credit/Quota Visibility) — unassigned
+4. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed in any PM session
+5. Determine upstream PR submission path for CP-T025 — write `ticket/cp_t025 upstream_approval` when PM approves submission
+6. Review user_researcher competitor refresh when complete (LangSmith and Langfuse)
+7. Review devops_engineer CP-T023 wizard design spike when complete
+8. Formally ticket CP-T043/T044/T045 for Phase 3 if warranted after Phase 2 retrospective check
+9. Monitor CP-T022 (Provider Manager) — assigned to backend_developer Wave 2 Assignment 10, status unknown
+10. Design partner handoff is now unblocked — v0.1.0 hold is lifted. PM should initiate handoff sequence.
