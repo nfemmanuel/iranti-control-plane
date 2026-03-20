@@ -166,13 +166,20 @@ async function irantiFetchAttend(
 // LLM call via Iranti's /chat/completions (OpenAI-compatible)
 // ---------------------------------------------------------------------------
 //
-// Iranti exposes /chat/completions and /v1/chat/completions routes that proxy
-// to whatever LLM provider is configured in Iranti's own environment.
-// We do NOT call provider APIs directly — Iranti owns provider routing.
+// Iranti (v0.2.10) exposes /chat/completions and /v1/chat/completions routes
+// that proxy to whatever LLM provider is configured in Iranti's LLM_PROVIDER
+// env var. We do NOT call provider APIs directly — Iranti owns provider routing.
+//
+// IMPORTANT: the API key (X-Iranti-Key) must have the 'proxy:chat' scope.
+// Missing scope returns 403. Check your .env.iranti IRANTI_API_KEY scopes.
+//
+// Provider selection is Iranti-side only. The 'model' field is a hint;
+// the 'providerId' from the frontend selector is informational in the UI only.
+// Response usage fields are always 0 (Iranti v0.2.10 does not count tokens).
 //
 // Iranti routes (from src/api/server.ts):
-//   /health, /kb/..., /memory/..., /agents/..., /metrics,
-//   /chat/completions, /v1/chat/completions
+//   /health (no auth), /kb/..., /memory/..., /agents/..., /metrics,
+//   /chat/completions, /v1/chat/completions (all require X-Iranti-Key)
 
 interface CompletionResult {
   text: string
