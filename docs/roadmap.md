@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 unblocked.
+> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — kicked off 2026-03-20. Wave 1: CP-T050 (Staff Logs View) assigned to backend_developer + frontend_developer. Sequence: T050 → T049 → T048.
 
 ## Horizon
 
@@ -211,42 +211,77 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 3 — Advanced Operator Features
 
-**Status: OPEN — Phase 2 complete, Phase 3 unblocked as of 2026-03-20**
+**Status: IN PROGRESS — kicked off 2026-03-20**
+**Wave 1 assigned:** CP-T050 (Staff Logs View) → `backend_developer` + `frontend_developer`
+**Ticket sequence:** CP-T050 → CP-T049 → CP-T048
+**Coordination doc:** `docs/coordination/agent-assignments-phase3.md`
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
 
+### Phase 3 Success Metrics
+
+Drawn from the PRD and Phase 2 retrospective learnings:
+
+- Operators can answer "what did the Archivist do to this fact over its lifetime?" without touching SQL or reading raw logs — CP-T049
+- Operators can audit Staff activity across past sessions (not just the live tail) and export logs for debugging — CP-T050
+- A user with no Node.js installation can install and launch the Iranti Control Plane using a platform-native installer on Windows, macOS, or Linux — CP-T048
+- The `staff_events` table proves its value as a persistent audit surface: meaningful data is queryable via the Logs view, validating the CP-T039 migration investment
+- Zero regressions against Phase 1 and Phase 2 acceptance criteria across all Phase 3 deliveries
+
 ### Candidate Outcomes
 
-- Operators running multiple instances can compare state across instances
-- Power users can save workspaces, filters, and frequently-used views
-- Data can be exported for external analysis or imported for recovery/migration
-- Optional remote or team mode for multi-user shared operation (scope TBD)
+- Operators running multiple instances can compare state across instances (Phase 3+)
+- Power users can save workspaces, filters, and frequently-used views (Phase 3+)
+- Data can be exported for external analysis or imported for recovery/migration (Phase 3+ — CP-T050 export is a partial step)
+- Optional remote or team mode for multi-user shared operation (scope TBD — deferred pending demand signal)
 - Signed, distributable platform installer packages for all three major OS families — Windows `.msi`/`.exe`, macOS `.dmg`, Linux `.AppImage`/`.deb` (CP-T048)
 - Homebrew Cask distribution supplement for macOS (CP-T048 stretch goal)
-- Persistent cross-session conversation history in embedded chat
-- Full-text search across fact values (not just entityId/key)
+- Persistent Staff log history queryable across sessions (CP-T050 — Wave 1)
+- Archivist decision rationale visible per archived fact; operator flag and restore capability (CP-T049 — Wave 2)
+- Persistent cross-session conversation history in embedded chat (Phase 3+)
+- Full-text search across fact values (not just entityId/key) (Phase 3+)
+
+### Ticket Sequence and Wave Plan
+
+**Wave 1 (current):** CP-T050 — Staff Logs View
+- Rationale: clearest scope, no write-path complexity, uses existing `staff_events` table, validates CP-T039 investment, builds the operator audit surface that CP-T049 depends on for its Archivist History section
+- Assigned: `backend_developer` (logs endpoint + export) and `frontend_developer` (StaffLogs component, `/logs` route)
+
+**Wave 2 (after CP-T050 accepted):** CP-T049 — Archivist Transparency
+- Rationale: builds on CP-T050's log query patterns; extends Archive Explorer rather than creating new routes; write-path complexity (flag, restore) requires careful backend validation
+- Assigned: `backend_developer` + `frontend_developer` (Wave 2 kickoff by PM)
+
+**Wave 3 (after CP-T049 accepted):** CP-T048 — Platform Installer Packages
+- Rationale: packaging infrastructure benefits from a stable, feature-complete control plane; Node SEA ESM spike is the first task and must be validated before any CI pipeline work
+- Assigned: `devops_engineer` (Wave 3 kickoff by PM after CP-T049 acceptance)
 
 ### Tickets
 
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
-| CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | Open — ticket created 2026-03-20 |
-| CP-T049 | Archivist Transparency View | frontend + backend | P2 | Open — Phase 3 candidate, scope to be defined by PM |
-| CP-T050 | Staff Logs View | frontend_developer | P2 | Open — Phase 3 candidate, scope to be defined by PM |
+| CP-T050 | Staff Logs View | backend_developer + frontend_developer | P2 | **IN PROGRESS — Wave 1 assigned 2026-03-20** |
+| CP-T049 | Archivist Transparency and Operator Review | backend_developer + frontend_developer | P2 | Open — Wave 2, scope defined in ticket and coordination doc |
+| CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | Open — Wave 3, pending CP-T049 acceptance |
 
 ### Exit Criteria
 
-- [ ] Phase 3 success metrics defined (retrospective complete — see `docs/retrospectives/phase2-retrospective.md`)
-- [ ] Scope confirmed by PM before any Phase 3 tickets are cut
-- [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux
-- [ ] CP-T049: Archivist transparency view passes PM acceptance criteria (to be defined)
-- [ ] CP-T050: Staff logs view passes PM acceptance criteria (to be defined)
+- [x] Phase 3 success metrics defined — 2026-03-20 (above)
+- [x] Scope confirmed by PM before Phase 3 tickets are picked up — 2026-03-20
+- [x] Ticket sequence established: CP-T050 → CP-T049 → CP-T048 — 2026-03-20
+- [ ] CP-T050: Staff Logs View passes all 13 ACs — backend_developer + frontend_developer
+- [ ] CP-T049: Archivist Transparency passes all 9 ACs — backend_developer + frontend_developer
+- [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux — devops_engineer
 
-**Primary agents**: TBD based on Phase 2 outcomes
+**Primary agents**: backend_developer, frontend_developer, devops_engineer
 
-**Dependencies**: Phase 2 complete; CP-T023 (CLI wizard) must ship first to validate demand signal before investing in packaging infrastructure
+**Dependencies**:
+- Phase 2 complete and v0.2.0-beta declared — MET 2026-03-20
+- CP-T023 (CLI wizard) shipped — MET 2026-03-20 (demand signal for CP-T048 confirmed)
+- CP-T039 (staff_events migration) complete — MET (Wave 1 Phase 2)
+- CP-T050 must be PM-accepted before CP-T049 Wave 2 kickoff
+- CP-T049 must be PM-accepted before CP-T048 Wave 3 kickoff
 
-**Complexity**: Medium-High — individual features are well-understood; team mode introduces significant new complexity if included; CP-T048 packaging pipeline is non-trivial (code signing, notarization, multi-platform CI)
+**Complexity**: Medium-High — CP-T050 and CP-T049 are individually well-scoped; CP-T048 packaging pipeline is non-trivial (Node SEA spike, code signing decisions, multi-platform CI, clean-machine QA validation)
 
 ---
 
