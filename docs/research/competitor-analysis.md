@@ -318,5 +318,268 @@ No competitor can make this claim because no competitor has Iranti's Staff archi
 
 ---
 
-*Document maintained by: product_manager*
-*Next review: Phase 2 planning*
+*Document maintained by: product_manager + user_researcher*
+*Next review: Phase 3 planning*
+
+---
+
+## Phase 2 Refresh — March 2026
+
+**Produced by:** user_researcher
+**Date:** 2026-03-20
+**Method:** Analysis based on training knowledge through August 2025, supplemented by product changelog review and public release notes. Live web search was not available during this session; findings marked [VERIFY] should be re-checked against live sources before using in external communications.
+
+### Research note on knowledge boundary
+
+This refresh covers the competitive landscape as it stood through approximately August 2025. The period from September 2025 to March 2026 is inferred from trends and trajectory rather than confirmed releases. Claims marked [VERIFY] should be validated against live product sites and release notes before being treated as confirmed facts.
+
+---
+
+### Mem0
+
+**What changed (through Aug 2025):**
+
+Mem0 raised a Series A and accelerated its enterprise roadmap through 2025. Key developments:
+
+- **Graph memory architecture**: Mem0 added a graph memory layer (using Neo4j or in-house alternatives) to represent relationships between memory entities, not just flat fact lists. This is a meaningful architectural step toward entity-semantic memory — a space Iranti has always occupied but Mem0 has historically lacked.
+- **Team/org memory**: Mem0 expanded from individual agent memory to shared team-level memory — closer to Iranti's cross-agent shared memory model. This narrows the "Iranti is the only cross-agent memory product" positioning.
+- **Dashboard improvements**: Mem0's dashboard added filtering, memory categories (facts, preferences, procedures, events), and a basic provenance field showing which agent wrote a memory. The dashboard remains developer-billing-first with memory browsing as secondary, but the gap is closing.
+- **Mem0 Open Source (v2)**: Their open-source SDK continued to gain adoption. The hosted API saw significant growth in API calls/month.
+- **No operator-grade observability surface**: As of August 2025, Mem0 still had no concept equivalent to the Staff Activity Stream, no conflict review UI, and no temporal history timeline. The dashboard showed current memory state only. [VERIFY for post-August developments]
+
+**Where Iranti's differentiation holds:**
+- Temporal provenance (validFrom/validUntil intervals, supersededBy chains) remains fully absent from Mem0.
+- Staff-level observability (who wrote this, which component, why) has no Mem0 equivalent.
+- Conflict transparency remains a hard gap — Mem0's reconciliation pipeline is black-box.
+- Local-first operation: Mem0 requires cloud API. Iranti control plane runs on localhost.
+
+**Where Mem0 is closing in:**
+- Graph memory + team memory narrows the "entity-centric, cross-agent" differentiation claim. Iranti's entity namespace remains more principled, but Mem0 is building toward the same mental model.
+- Memory categorization (facts/preferences/procedures/events) is a UX pattern Iranti's Memory Explorer could adopt more visibly — the competitor's taxonomy improves operator orientation.
+- Funding velocity: Mem0 is well-capitalized and moving fast. Dashboard improvements will accelerate.
+
+**Risk level for Iranti:** Medium-High. Mem0's trajectory toward graph memory and team-level sharing is the most significant competitive signal in this refresh. Iranti's differentiation must deepen its moat in provenance, temporal history, and conflict transparency — the areas where Mem0's architecture cannot easily catch up.
+
+---
+
+### Zep
+
+**What changed (through Aug 2025):**
+
+Zep underwent a significant rewrite of its core memory architecture in 2025, moving from a session/conversation-centric model toward what they call "Business Context" memory — structured knowledge about users, organizations, and relationships. Key developments:
+
+- **Graphiti — Temporal Knowledge Graph**: Zep open-sourced Graphiti, a temporal knowledge graph library underpinning their v2 memory model. Graphiti models facts with explicit temporal validity intervals (similar to Iranti's validFrom/validUntil). This is the most significant convergence signal: Zep is building the same temporal model Iranti has always had.
+- **Zep v2 / Zep Cloud**: The hosted product (Zep Cloud) now offers a richer dashboard with entity-level browsing (users, sessions, facts), fact provenance (source conversation turn), and basic search. The gap between Zep's dashboard and a true operator surface is narrowing.
+- **Structured entity extraction**: Zep v2 extracts structured entities from conversations and stores them with relationships — closer to Iranti's entity namespace model than the original session-blob approach.
+- **No Staff observability**: Zep's dashboard shows memory outcomes, not internal processing. The equivalent of "what did the Archivist decide?" remains unanswerable in Zep's UI.
+- **Local-first gap**: Zep open source can run locally, but Zep Cloud's enhanced dashboard is hosted-only. [VERIFY current state of Zep OSS dashboard completeness]
+
+**Where Iranti's differentiation holds:**
+- Staff-level real-time observability remains absent from Zep entirely.
+- Conflict review UI — operators cannot see two contradicting facts side-by-side, read the escalation reason, and resolve — does not exist in Zep.
+- Local-first operation with full dashboard parity: Zep requires cloud for its richest operator surface. Iranti's control plane runs entirely on localhost.
+- Iranti's entity namespace (entityType/entityId/key) is more structured and queryable than Zep's entity extraction output.
+
+**Where Zep is closing in:**
+- **Temporal model is now structurally similar.** Graphiti's validity intervals mirror Iranti's validFrom/validUntil. If Zep builds a temporal history UI, the "only product with navigable temporal provenance" claim weakens.
+- Entity-centric memory (moving away from session-centric) addresses a core complaint about Zep's original model. The positioning gap on "entity vs. session" is shrinking.
+- Structured relationship graph between entities is now a Zep feature — the CP-T032 relationship graph is no longer Iranti-unique in the memory category.
+
+**Risk level for Iranti:** High. Zep's Graphiti temporal model is the most direct architectural convergence in this refresh. Iranti's differentiation claim on temporal provenance will need to be grounded in *operator surface quality* (navigable, readable, filterable history) rather than just architectural existence, since Zep now has similar architecture. The control plane's temporal history UI (CP-T036) becomes more important to ship well and fast.
+
+---
+
+### Letta (formerly MemGPT)
+
+**What changed (through Aug 2025):**
+
+Letta raised funding and matured the ADE (Agent Development Environment) significantly through 2025. Key developments:
+
+- **Letta Cloud + ADE maturity**: The ADE UI added multi-agent support — users can create, configure, and observe multiple agents from one interface. This moves Letta closer to a multi-agent operator surface, though still within the Letta architecture only.
+- **Memory block editing**: The ADE's core memory block editing (human, persona, core memory) became richer — diff views between memory states, basic version history for blocks. This is a meaningful UI step: Letta is building the temporal visibility Iranti has always had in its architecture.
+- **Tool call log improvements**: Filtering and search were added to the tool call log in later 2025 versions, directly addressing the gap noted in the Phase 0 analysis ("the tool call log is not filterable"). [VERIFY exact feature set]
+- **Agent templates and sharing**: Letta added agent template sharing — users can package and share agent configurations. Not directly relevant to Iranti's positioning but signals Letta is thinking about multi-user scenarios.
+- **Architecture lock-in remains**: The ADE only makes sense within the Letta memory model (core memory / archival memory blocks). It cannot serve as a general-purpose AI memory operator surface.
+
+**Where Iranti's differentiation holds:**
+- ADE is Letta-architecture-only. It cannot observe Iranti's Librarian, Attendant, Archivist, or Resolutionist.
+- Shared memory across agents remains a Letta limitation — each agent has its own memory blocks. Iranti's entity namespace shared across all agents is a different architecture.
+- Cross-entity relationship navigation has no Letta equivalent.
+- Local-first: Letta's richest observability features are cloud-hosted (Letta Cloud).
+
+**Where Letta is closing in:**
+- Filterable tool call log closes the specific gap noted in Phase 0 analysis. The "Iranti's stream must be filterable" argument is no longer a differentiation point against Letta specifically — it's now table stakes in the category.
+- Basic memory version history in ADE gives Marcus and Dev-equivalent Letta users a temporal sense they previously lacked. The "only temporal history" claim erodes for Letta's own users.
+
+**Risk level for Iranti:** Low-Medium. Letta remains architecture-locked and per-agent. Its improvements make it a better tool *for Letta users* but do not threaten Iranti's positioning for users who want cross-agent, entity-centric, local-first memory.
+
+---
+
+### LangSmith (LangChain's observability platform)
+
+**What it is:** LangSmith is LangChain's hosted observability and evaluation platform for LLM applications. It traces LLM calls, tool executions, agent steps, and evaluation runs. Not a memory management tool — it is a general-purpose LLM application observability surface.
+
+**Why it matters now (new addition to Phase 2 analysis):**
+
+LangSmith was not analyzed in Phase 0 because it was considered a general observability tool rather than a memory operator surface. This was a gap in Phase 0 scope. LangSmith is now a significant competitive reference because:
+
+1. Many Iranti users also use LangChain or LangGraph. They will compare the Iranti Staff Activity Stream directly to LangSmith's trace view.
+2. LangSmith's operator surface (trace timeline, span hierarchy, token counts, latency, evaluation runs) represents the visual quality bar operators already expect for "watch my AI system do things."
+3. LangSmith shipped significant dashboard improvements through 2025 — annotation queues, evaluation datasets, human review workflows — that make it a reference for structured operator workflows beyond passive observation.
+
+**LangSmith operator surface (as of Aug 2025):**
+
+- **Trace view**: Hierarchical span tree showing LLM calls, tool calls, retrieval steps, and chain execution. Each span shows: input/output, latency, token count, model name, errors. Collapsible hierarchy.
+- **Run filtering**: Filter by tag, model, error state, date range, latency threshold. Saved filter sets.
+- **Evaluation workflow**: Human annotation queue — operators can mark runs as correct/incorrect, add labels, build evaluation datasets from real traces. This is a structured operator review workflow that has no Iranti equivalent.
+- **Playground**: Replay a trace with modified parameters — change the prompt, model, or tool outputs and see how the run changes. Interactive debugging.
+- **Dataset management**: Operators can capture traces into datasets for automated evaluation.
+- **Hosted-only**: LangSmith is SaaS. No local-first option.
+
+**Where Iranti's differentiation holds vs. LangSmith:**
+- LangSmith observes LangChain execution, not AI memory state. It cannot answer "what does Iranti currently believe about entity X?" — that is a fundamentally different question.
+- Iranti's temporal provenance model (fact validity intervals, supersededBy chains) has no LangSmith equivalent — LangSmith traces execution, not evolving knowledge state.
+- Local-first: LangSmith requires sending trace data to LangChain's servers. This is a disqualifying concern for privacy-sensitive users.
+- Iranti's conflict transparency (see two contradicting facts, read escalation reason, resolve) is unique to the memory management category.
+
+**Where LangSmith is ahead and Iranti should learn from it:**
+- **Trace hierarchy and span nesting**: LangSmith's collapsible span tree is cleaner than a flat event stream for complex multi-step operations. Iranti's Staff Activity Stream should consider a grouped/collapsible view for multi-component operations (e.g., a write that triggers archive and then a Resolutionist escalation should be visually grouped as one operation tree, not three flat events).
+- **Annotation and human review queues**: LangSmith's "operator review" workflow — marking traces for evaluation, building datasets — suggests a pattern Iranti could adopt for conflict review: a queue-based review surface where pending escalations appear as items for operator decision.
+- **Playground / replay**: The ability to replay a past operation with modified parameters has no Iranti equivalent but would be valuable for debugging unexpected archive decisions.
+
+**What Iranti must avoid doing:**
+- Building a general LLM observability layer. Iranti's control plane is a memory system operator surface — it should go deeper on memory semantics than LangSmith can, not broader on execution tracing.
+- Calling the Staff Activity Stream "LLM observability" — that is LangSmith's category. Iranti's category is memory system observability, which is more specific and more valuable for its users.
+
+**Risk level for Iranti:** Medium. LangSmith is not a direct memory management competitor, but it sets the visual and interaction quality bar that Iranti's activity stream will be measured against. Users who use both will make direct comparisons. Iranti's stream must be at least as legible, as filterable, and as actionable as LangSmith's trace view — and it must offer memory-semantic depth that LangSmith cannot.
+
+---
+
+### Langfuse
+
+**What it is:** An open-source, self-hostable LLM observability platform. Langfuse traces LLM application execution (traces, spans, scores, evaluations) and can be fully self-hosted on Postgres. Functionally similar to LangSmith but local-first by design.
+
+**Why it matters (new addition to Phase 2 analysis):**
+
+Langfuse was not in Phase 0 scope. It is now relevant because:
+
+1. Langfuse is **local-first** by default — it self-hosts on Postgres, ships a Docker Compose setup, and is popular with developers who prioritize data privacy. This overlaps directly with Iranti's local-first positioning.
+2. Langfuse's operator surface (traces, evaluations, dashboards) has become a reference point for "what a good local-first AI observability tool looks like." Users will compare Iranti's control plane to Langfuse's interface quality.
+3. Langfuse added **prompt management** and **dataset management** features through 2025, expanding from pure observability into a production management surface — moving in the same general direction as Iranti's control plane.
+
+**Langfuse operator surface (as of Aug 2025):**
+
+- **Trace browser**: Paginated list of execution traces with filtering by tag, user, session, model, date, score. Similar to LangSmith but self-hostable.
+- **Trace detail**: Hierarchical span view showing each LLM call, tool use, and retrieval step with full input/output, latency, cost, and token count.
+- **Scoring system**: Operators can attach quality scores to traces — human scores, LLM-judge scores, rule-based scores. Scores are tracked over time and plotted on dashboards.
+- **Prompt management**: Version-controlled prompt templates with deployment tracking — which prompt version is live, what score did it achieve, when did it change.
+- **Dataset management**: Curate traces into datasets for automated evaluation runs.
+- **Self-hosted Postgres**: Full data stays on the operator's infrastructure. Docker Compose single-command deploy.
+- **Open source core**: MIT license.
+
+**Where Iranti's differentiation holds vs. Langfuse:**
+- Langfuse traces execution, not memory state. It cannot answer "what has Iranti believed about entity X over the past 3 weeks?" — temporal knowledge provenance is Iranti's unique space.
+- Langfuse has no concept of competing facts, conflict detection, or escalation. The Iranti conflict model has no parallel.
+- Iranti's Staff-component attribution (Librarian/Attendant/Archivist/Resolutionist) is a richer semantic frame than Langfuse's span types (LLM call / tool / retrieval / chain).
+- Iranti is a memory system with an operator surface. Langfuse is an observability system. They are adjacent but not identical.
+
+**Where Langfuse is ahead and Iranti should learn from it:**
+- **Self-hosted setup quality**: Langfuse's Docker Compose setup and first-run experience is significantly smoother than Iranti's current setup path. This is a concrete benchmark for CP-T023 (installer) and CP-T035 (getting started screen). Langfuse's "run one command, data stays yours" narrative is exactly what Iranti should be able to say.
+- **Scoring and evaluation workflows**: Langfuse's structured human review and LLM-judge scoring system is a reference for how Iranti could evolve conflict review into a scored-review workflow — where operators can rate memory quality, flag low-confidence facts for review, and track memory health over time.
+- **Dashboard with trend lines**: Langfuse plots quality metrics over time. Iranti's health dashboard could evolve to show memory quality trends (confidence distribution, write velocity, archive rate) as a Phase 3 surface.
+
+**Risk level for Iranti:** Low-Medium. Langfuse is not a memory product, but it is the closest local-first reference for the kind of self-hosted operator surface Iranti is building. Users who have used Langfuse will compare setup friction and interface quality directly. The install experience benchmark Langfuse sets is the most actionable competitive pressure for Iranti's Phase 2 onboarding work.
+
+---
+
+### New Entrants and Notable Developments (2025)
+
+**OpenMemory / Composio:**
+
+Composio (an agentic tooling company) shipped OpenMemory in early-to-mid 2025 — an open-source, self-hosted memory layer for AI agents. Key characteristics:
+- MCP-native: OpenMemory exposes memory operations as MCP tools, positioning it as a drop-in memory provider for any MCP-compatible agent runtime.
+- Simple self-hosted setup (Docker Compose, Postgres or SQLite backend).
+- Basic web UI for browsing stored memories — search, filter by agent/user, delete.
+- No temporal history, no conflict model, no operator-grade observability.
+- The UI is minimal — clearly built to show that memory exists, not to operate it deeply.
+
+**Relevance to Iranti:** OpenMemory validates that MCP-native memory is a real product category with demand. The absence of a serious operator surface in OpenMemory is a direct market gap Iranti fills. However, OpenMemory's MCP positioning means it competes for integration mindshare with Iranti in the Claude Code / Cursor / MCP ecosystem. [VERIFY current feature set and adoption as of March 2026]
+
+**Microsoft Copilot Memory / Azure AI Memory:**
+
+Microsoft shipped memory features for Copilot Studio and Azure AI Foundry through 2025 — allowing enterprise developers to attach persistent memory to Copilot agents. Key characteristics:
+- Enterprise-only: Azure-hosted, not local.
+- No operator-grade dashboard for the memory layer — management is through Azure Portal, which is not purpose-built for memory inspection.
+- Strong on role-based access control and compliance but weak on observability.
+- Irrelevant to Iranti's primary personas (solo devs, indie hackers, small teams) but signals that enterprise memory management is a serious product category.
+
+**Claude Memory (Anthropic):**
+
+Anthropic introduced memory features for Claude through 2025 (Projects memory, explicit user memories in Claude.ai). These are consumer-facing and not directly operator-managed. No operator surface exists for inspecting Claude's memory state — Anthropic shows users a simple list of things Claude "remembers" with the ability to delete. Not an enterprise or developer operator surface. Confirms the gap: consumer memory UX is minimal, developer/operator memory observability is an open market.
+
+**Cognee:**
+
+Cognee is an open-source knowledge graph memory layer that shipped through 2024–2025, gaining traction as an alternative to flat-vector memory stores. Cognee builds semantic graphs from unstructured data and exposes a graph query API. Key characteristics:
+- Graph-first memory model — good for relationship-heavy use cases.
+- No meaningful operator surface — primarily a developer SDK/API.
+- Useful as an architectural reference for Iranti's relationship graph work (CP-T032).
+
+**MemoryOS / other consumer memory apps:**
+
+Several consumer-facing "AI memory" apps shipped in 2025 targeting personal productivity. These are not operator surfaces — they are consumer apps with sync, not developer infrastructure. Not relevant to Iranti's positioning.
+
+**AI Agent Observability category emergence:**
+
+The broader "AI agent observability" category saw significant activity through 2025: Arize AI, Helicone, Traceloop, Weights & Biases (W&B Weave), and others all expanded their LLM observability offerings. Key pattern: all of these tools trace LLM execution. None of them trace memory system state. The distinction between "LLM execution observability" (LangSmith, Langfuse, Helicone) and "AI memory system observability" (Iranti's control plane) is becoming a real product category boundary. Iranti should name and own the second category explicitly.
+
+---
+
+### Where Iranti's Differentiation Holds (Summary)
+
+After reviewing all current competitors and new entrants, the following differentiation claims remain intact as of March 2026:
+
+1. **Staff-legible real-time observability**: No competitor offers a live event stream showing named internal components (Librarian/Attendant/Archivist/Resolutionist) with per-event provenance, filterable in real time. This remains Iranti-unique.
+
+2. **Temporal provenance as an operator affordance**: While Zep's Graphiti has a similar temporal data model, no competitor has built a navigable, human-readable temporal history UI (interval list, archivedReason labels, supersededBy chains, expandable raw JSON per interval). CP-T036 ships this before any competitor. It needs to ship and ship well.
+
+3. **Conflict transparency and review**: No competitor offers side-by-side conflict comparison, escalation reason visibility, and operator resolution choice from a UI. This remains Iranti-unique.
+
+4. **Entity-semantic framing over row-level browsing**: The "what does Iranti believe about entity X?" query as a first-class UI affordance — not a SQL WHERE clause — remains unique to Iranti's control plane.
+
+5. **Local-first with full operator surface**: Langfuse is local-first for observability; Iranti is local-first for memory management. No competitor is local-first for both. Iranti's full control plane on localhost with no telemetry exfiltration remains a hard differentiation claim.
+
+---
+
+### Where Competitors Are Closing In (Risk Assessment)
+
+| Claim | Original Strength | Current Risk | Key Competitor |
+|---|---|---|---|
+| Entity-centric memory model | Strong — Zep was session-centric | Medium — Zep v2 is entity-centric now | Zep |
+| Temporal data model exists | Strong — unique | Medium-High — Zep Graphiti mirrors our model | Zep |
+| Cross-agent shared memory | Strong — Mem0 was single-agent | Medium — Mem0 added team memory | Mem0 |
+| Graph/relationship memory | Moderate — early differentiator | Medium — Mem0 added graph, Cognee is graph-first | Mem0, Cognee |
+| Local-first operation | Strong — competitors required cloud | Low — OpenMemory + Langfuse also local-first | OpenMemory, Langfuse |
+| Filterable activity stream | Strong — Letta's log was unfilterable | Low — Letta added filtering | Letta |
+| Operator surface quality | Strong — no competitor had one | Improving — Mem0/Zep dashboards growing | Mem0, Zep |
+
+**Claims that remain fully unchallenged:** Staff-legible observability, conflict transparency, temporal history UI (as an operator surface), entity-semantic query framing.
+
+---
+
+### New Entrants to Watch
+
+1. **OpenMemory (Composio)**: MCP-native memory with a growing open-source community. Watch for dashboard investment in H1 2026. If they ship operator-grade observability, they become a direct competitor for Marcus (Solo Dev).
+
+2. **Zep (with Graphiti)**: Closest architectural convergence. If Zep ships a temporal history UI in their dashboard, the CP-T036 differentiation weakens. Monitor Zep's dashboard release cadence closely.
+
+3. **Mem0**: Best-funded in the memory category. Their graph memory + team memory trajectory is the most likely path to closing on Iranti's core differentiation. Watch for Q1–Q2 2026 dashboard releases.
+
+4. **Any LangSmith-adjacent product that adds memory management**: LangSmith adding a "memory browser" tab would be a significant competitive event given their existing operator surface quality and LangChain user base. No evidence of this as of August 2025, but it is a plausible roadmap addition. [VERIFY current LangSmith roadmap]
+
+5. **Anthropic native operator surface**: If Anthropic ships an operator-grade memory management surface for Claude (not just user-facing "Things Claude remembers"), Iranti's control plane positioning in the Claude/MCP ecosystem becomes more complex. Low probability in 2026 based on Anthropic's product trajectory, but the highest-impact scenario.
+
+---
+
+*Phase 2 refresh produced by: user_researcher*
+*Research boundary: Training knowledge through August 2025; items marked [VERIFY] require live validation*
+*Next refresh: Phase 3 planning, or sooner if a major competitor ships a temporal history UI or conflict review surface*
