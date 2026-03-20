@@ -1,0 +1,46 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "iranti"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "iranti claude-hook --event SessionStart --project-env \"C:\\\\Users\\\\NF\\\\Documents\\\\Projects\\\\iranti-control-plane\\\\.env.iranti\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "iranti claude-hook --event UserPromptSubmit --project-env \"C:\\\\Users\\\\NF\\\\Documents\\\\Projects\\\\iranti-control-plane\\\\.env.iranti\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "mcp__iranti__iranti_handshake",
+      "mcp__iranti__iranti_search",
+      "mcp__iranti__iranti_query",
+      "mcp__iranti__iranti_write",
+      "mcp__iranti__iranti_ingest",
+      "mcp__iranti__iranti_observe",
+      "mcp__iranti__iranti_attend",
+      "mcp__iranti__iranti_relate",
+      "mcp__iranti__iranti_who_knows",
+      "Write",
+      "Bash"
+    ]
+  }
+}

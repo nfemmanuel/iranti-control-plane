@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "iranti": {
+      "command": "iranti",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
