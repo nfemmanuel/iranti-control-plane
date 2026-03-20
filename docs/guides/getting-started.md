@@ -271,7 +271,6 @@ Phase 2 is currently in progress as of 2026-03-20. The following features are ac
 | **Provider and Model Manager write path** | CP-T022 | Phase 3 — read-only provider status already shipped (CP-T034/CP-T046) |
 | **CLI Setup Wizard** (`iranti setup`) | CP-T023 | In progress |
 | **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Upstream PR pending — enables live Attendant + Resolutionist events |
-| **Entity Detail + Temporal History** | CP-T036 | In progress — frontend |
 
 **Note on the Staff Activity Stream:** The live mode UI (status badge, velocity counter, hover-pause) has shipped in Phase 2 (CP-T037). Event coverage for all four Staff components remains partial: Librarian and Archivist events are emitted; Attendant and Resolutionist events will not appear until native emitter injection ships (CP-T025). The stream UI labels this limitation explicitly.
 
