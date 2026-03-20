@@ -296,3 +296,5 @@ There is no database migration to reverse — the `staff_events` table is manage
 3. **`emitted_at` column**: The control plane's `staff_events` table migration (in the control plane repo) will need an `emitted_at TIMESTAMPTZ` column added to support latency measurement between `emit()` call time and SSE delivery time. This is a control plane migration concern, not an upstream package concern — the `emittedAt` field is already part of `StaffEvent` and `buildStaffEvent()` fills it correctly.
 
 4. **Multi-instance `instanceId`**: If the Iranti server is ever run as multiple instances against the same database, an `instanceId` column on `staff_events` would allow routing events correctly. This is not required for the initial release and can be deferred.
+
+5. **`context_loaded` injection point**: One Attendant injection point (`context_loaded`) was not identifiable from the compiled output. It is documented as a follow-up item in `diffs/attendant-changes.md`. All other required injection points are fully specified.

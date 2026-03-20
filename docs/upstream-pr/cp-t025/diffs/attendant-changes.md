@@ -267,3 +267,15 @@ the eviction runs outside the `AttendantInstance` class.
 | Insert `attend_completed` emit | End of `attend()`, before `return result` |
 | Insert `observe_completed` emit | End of `observe()`, before `return result` |
 | Insert `session_expired` emit | In `onContextLow()` or session eviction path (may also require change in `src/attendant/registry.ts`) |
+
+---
+
+## Unresolved Injection Point: `context_loaded`
+
+**Status:** Not identified from compiled output — follow-up item for upstream maintainer.
+
+**Expected behavior:** The `context_loaded` event should fire when an Attendant session loads prior context from the knowledge base during a `reconvene` or `handshake` operation. The `handshake_completed` event (IP1) captures much of the same information via `briefSize` metadata, but `context_loaded` would be a more granular signal useful for latency tracing.
+
+**What we know:** The compiled `dist/` output does not expose a clear `contextLoaded` or `loadContext` function boundary. The behavior may be embedded within the `handshake` or `reconvene` path without a dedicated function call.
+
+**Recommendation for upstream maintainer:** Search for where prior session context is fetched from the KB during agent initialization (likely a `SELECT ... WHERE agentId = $1 ORDER BY createdAt DESC LIMIT N` query). Emit `context_loaded` immediately after that fetch resolves, before the `briefSize` is calculated. This is Phase 2 scope — if the injection point is non-trivial, it may be deferred to the follow-up PR that handles `session_expired`.
