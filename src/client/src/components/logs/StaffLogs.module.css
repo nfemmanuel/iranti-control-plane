@@ -1,0 +1,792 @@
+/* Iranti Control Plane — Staff Logs View */
+/* Route: /logs */
+/* CP-T050 — Persistent, filterable log history over staff_events */
+/* Option B: Terminals visual system — matches MemoryExplorer layout contract */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Filter bar — sticky at top
+   ────────────────────────────────────────────────────────────────── */
+
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filterInput {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  width: 140px;
+  transition: border-color 0.1s;
+}
+
+.filterInputWide {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  width: 220px;
+  flex-shrink: 0;
+  transition: border-color 0.1s;
+}
+
+.filterInput:focus,
+.filterInputWide:focus {
+  border-color: var(--color-accent-primary);
+  outline: none;
+}
+
+.filterInput::placeholder,
+.filterInputWide::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.filterSelect {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+  min-width: 90px;
+}
+
+.filterSelect:focus {
+  border-color: var(--color-accent-primary);
+  outline: none;
+}
+
+.filterDateInput {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  transition: border-color 0.1s;
+  /* datetime-local inputs have a color-scheme issue in dark mode — fix inline below */
+  color-scheme: dark;
+}
+
+.filterDateInput:focus {
+  border-color: var(--color-accent-primary);
+  outline: none;
+}
+
+/* Light mode: datetime-local should use light color-scheme */
+[data-theme="light"] .filterDateInput {
+  color-scheme: light;
+  color: var(--color-text-primary);
+}
+
+/* Component checkboxes / pills */
+
+.componentToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.componentToggle:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-default);
+}
+
+.componentToggleChecked {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-default);
+}
+
+.filterCheckbox {
+  accent-color: var(--color-accent-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Separator within filter rows */
+.filterSep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--color-border-subtle);
+  margin: 0 var(--space-1);
+  flex-shrink: 0;
+}
+
+/* Header row: actions right-aligned */
+.filterHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.filterHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.filterHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Clear + Export buttons */
+
+.clearBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.clearBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.exportBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.exportBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
+.exportBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Export format toggle */
+.exportFormatGroup {
+  display: inline-flex;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.exportFormatBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.exportFormatBtn:last-child {
+  border-right: none;
+}
+
+.exportFormatBtnActive {
+  background: var(--color-bg-elevated);
+  color: var(--color-accent-primary);
+}
+
+.exportFormatBtn:hover:not(.exportFormatBtnActive) {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Status bar
+   ────────────────────────────────────────────────────────────────── */
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 4px var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  min-height: 28px;
+}
+
+.statusCount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Table region
+   ────────────────────────────────────────────────────────────────── */
+
+.tableRegion {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+  table-layout: fixed;
+}
+
+/* Column widths for 8-column layout */
+.table colgroup col:nth-child(1) { width: 100px; }   /* Timestamp */
+.table colgroup col:nth-child(2) { width: 110px; }   /* Component */
+.table colgroup col:nth-child(3) { width: 14%; }     /* Event type */
+.table colgroup col:nth-child(4) { width: 11%; }     /* Agent */
+.table colgroup col:nth-child(5) { width: 18%; }     /* Entity */
+.table colgroup col:nth-child(6) { width: 60px; }    /* Level */
+.table colgroup col:nth-child(7) { width: auto; }    /* Reason */
+.table colgroup col:nth-child(8) { width: 32px; }    /* Expand */
+
+/* Header */
+
+.table thead th {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-border-default);
+  height: var(--table-header-height);
+  padding: 0 var(--space-3);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-align: left;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+/* Data rows */
+
+.dataRow {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dataRow:hover {
+  background: var(--color-bg-elevated);
+}
+
+.dataRowExpanded {
+  background: var(--color-accent-subtle);
+}
+
+.dataRowExpanded:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* Cells — base */
+
+.table td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Individual cell styles */
+
+.cellTimestamp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.cellComponent {
+  /* color applied inline from staff token */
+}
+
+.componentBadge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 5px;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  /* Border and text color applied inline via CSS variable */
+  border: 1px solid currentColor;
+  opacity: 0.9;
+}
+
+.cellEventType {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.cellAgent {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.cellEntity {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.entitySep {
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.cellLevel {
+  /* level badge rendered inline */
+}
+
+.levelBadge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.levelBadgeInfo {
+  color: var(--color-text-tertiary);
+  background: transparent;
+}
+
+.levelBadgeWarning {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+}
+
+.levelBadgeError {
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+}
+
+.levelBadgeAudit {
+  color: var(--color-text-tertiary);
+  background: transparent;
+}
+
+.levelBadgeDebug {
+  color: var(--color-text-tertiary);
+  background: transparent;
+  font-style: italic;
+}
+
+.cellReason {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellExpand {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  user-select: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Expanded row
+   ────────────────────────────────────────────────────────────────── */
+
+.expandedRowContainer {
+  background: var(--color-bg-elevated);
+}
+
+.expandedRowTd {
+  padding: 0 !important;
+  height: auto !important;
+  border-bottom: 2px solid var(--color-accent-border) !important;
+}
+
+.expandedContent {
+  padding: var(--space-3) var(--section-padding) var(--space-4);
+}
+
+.expandedGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+.expandedField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.expandedLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.expandedValue {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.expandedValueMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.expandedPayloadBlock {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.expandedPre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 240px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.expandedActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.expandedActionButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.expandedActionButton:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty states
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyStateBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+  margin: 0;
+}
+
+.emptyStateCode {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--color-text-primary);
+}
+
+.emptyStateCtaBtn {
+  margin-top: var(--space-3);
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.emptyStateCtaBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.errorStateIcon {
+  font-size: 28px;
+  color: var(--color-status-warning);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.errorStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.errorStateBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 480px;
+  margin: 0;
+}
+
+.errorStateDetail {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  max-width: 480px;
+  word-break: break-all;
+  margin: 0;
+}
+
+.errorStateActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.errorStateCtaBtn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.errorStateCtaBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
+.errorRetryButton {
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.errorRetryButton:hover {
+  background: var(--color-status-warning-bg);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Pagination
+   ────────────────────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--section-padding);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  flex-shrink: 0;
+}
+
+.paginationCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.paginationButton {
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.paginationButton:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.paginationButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.paginationPage {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 60px;
+  text-align: center;
+}
+
+.paginationPageSize {
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}

@@ -8,6 +8,7 @@ import { ArchiveExplorer } from './components/memory/ArchiveExplorer'
 import { EntityDetail } from './components/memory/EntityDetail'
 import { TemporalHistory } from './components/memory/TemporalHistory'
 import { ActivityStream } from './components/stream/ActivityStream'
+import { StaffLogs } from './components/logs/StaffLogs'
 import { InstanceManager } from './components/instances/InstanceManager'
 import { HealthDashboard } from './components/health/HealthDashboard'
 import { GettingStarted } from './components/onboarding/GettingStarted'
@@ -69,6 +70,7 @@ createRoot(rootEl).render(
                 <Route path="memory/:entityType/:entityId/:key" element={<TemporalHistory />} />
                 <Route path="archive" element={<ArchiveExplorer />} />
                 <Route path="activity" element={<ActivityStream />} />
+                <Route path="logs" element={<StaffLogs />} />
                 <Route path="instances" element={<InstanceManager />} />
                 <Route path="instances/:id" element={<InstanceManager />} />
                 <Route path="health" element={<HealthDashboard />} />
