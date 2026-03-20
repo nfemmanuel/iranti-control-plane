@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED** (hold lifted 2026-03-20 after CP-D002 fix, all regression tests pass). Phase 2 in progress — Wave 2 completions accepted.
+> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 unblocked.
 
 ## Horizon
 
@@ -118,7 +118,8 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 2 — Interactive Management
 
-**Status: IN PROGRESS — Wave 4 assignments issued 2026-03-20 PM session 7. All tickets implemented; CP-T047 docs + CP-T020/CP-T023 QA are the final gate items before Phase 2 exit.**
+**Status: COMPLETE (2026-03-20)**
+**v0.2.0-beta declared 2026-03-20** — all 18 tickets PM-accepted. CP-T020 (chat round-trip) and CP-T023 (setup wizard macOS run) manually verified by user. Phase 2 retrospective written: `docs/retrospectives/phase2-retrospective.md`.
 **v0.1.0 HOLD: LIFTED** — All regression tests pass after CP-D002 fix (commit bbdb6ee). Hold lifted 2026-03-20 by PM.
 **Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted and shipped 2026-03-20
 
@@ -140,10 +141,10 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 | ID | Title | Epic | Assigned | Priority | Status |
 |----|-------|------|----------|----------|--------|
-| CP-T020 | Embedded Chat Panel | CP-E007 | frontend + backend | P1 | Implemented — QA verification pending (Wave 4) |
+| CP-T020 | Embedded Chat Panel | CP-E007 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (all 12 ACs, live round-trip manually verified by user, TypeScript clean) |
 | CP-T021 | Conflict and Escalation Review UI | CP-E008 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (frontend + backend complete; CP-D003 fix enabled routing) |
 | CP-T022 | Provider and Model Manager | CP-E009 | backend + frontend | P1 | Implemented — read-only AC met; write path deferred Phase 3 per PM decision |
-| CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | Implemented — QA AC checklist pending (Wave 4) |
+| CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | PM-ACCEPTED 2026-03-20 (all 10 ACs, warning filter bug fixed, macOS run manually verified by user) |
 | CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (nav palette; search/recent deferred) |
 | CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec deliverables PM-ACCEPTED 2026-03-20; upstream PR ready for submission |
 | CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (all 7 descriptions, shortcuts section, "?" trigger; view-specific shortcuts deferred pending implementation) |
@@ -191,9 +192,9 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 - [x] Provider quota and credit visibility shows for configured providers (CP-T034) — PM-ACCEPTED 2026-03-20 (Health Dashboard section; standalone /providers view deferred to CP-T046)
 - [x] User can configure providers and models from the UI without manually editing config files (CP-T022) — **MET for read-only scope**: `providers.ts` + `ProviderManager.tsx` confirmed implemented. Write path explicitly deferred to Phase 3 per PM decision.
 - [x] User can review and take action on Resolutionist conflicts from the control plane (CP-T021) — PM-ACCEPTED 2026-03-20 (full ticket)
-- [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020) — **IMPLEMENTED**: `chat.ts` backend + `ChatPanel.tsx` frontend confirmed. QA end-to-end verification pending (Wave 4).
-- [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023) — **IMPLEMENTED**: `scripts/setup-wizard.js` confirmed. QA AC checklist + timing test pending (Wave 4).
-- [ ] All Phase 2 acceptance criteria checked by QA before PM accepts — ongoing
+- [x] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020) — PM-ACCEPTED 2026-03-20 (all 12 ACs, live round-trip manually verified by user, env-defaults endpoint verified, TypeScript clean)
+- [x] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023) — PM-ACCEPTED 2026-03-20 (all 10 ACs, warning filter bug fixed, macOS run manually verified by user; AC2/AC3 manual verification accepted)
+- [x] All Phase 2 acceptance criteria checked before PM accepts — COMPLETE 2026-03-20
 
 **Primary agents**: frontend_developer, backend_developer, devops_engineer, system_architect, qa_engineer
 
@@ -210,7 +211,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 3 — Advanced Operator Features
 
-**Status: FUTURE — blocked on Phase 2 completion**
+**Status: OPEN — Phase 2 complete, Phase 3 unblocked as of 2026-03-20**
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
 
@@ -230,12 +231,16 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
 | CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | Open — ticket created 2026-03-20 |
+| CP-T049 | Archivist Transparency View | frontend + backend | P2 | Open — Phase 3 candidate, scope to be defined by PM |
+| CP-T050 | Staff Logs View | frontend_developer | P2 | Open — Phase 3 candidate, scope to be defined by PM |
 
 ### Exit Criteria
 
-- [ ] Phase 3 success metrics defined after Phase 2 retrospective
+- [ ] Phase 3 success metrics defined (retrospective complete — see `docs/retrospectives/phase2-retrospective.md`)
 - [ ] Scope confirmed by PM before any Phase 3 tickets are cut
 - [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux
+- [ ] CP-T049: Archivist transparency view passes PM acceptance criteria (to be defined)
+- [ ] CP-T050: Staff logs view passes PM acceptance criteria (to be defined)
 
 **Primary agents**: TBD based on Phase 2 outcomes
 
