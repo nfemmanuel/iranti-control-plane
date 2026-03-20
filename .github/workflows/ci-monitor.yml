@@ -1,0 +1,48 @@
+name: CI Monitor
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-ci-health:
+    name: Check CI Health
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: write
+    steps:
+      - name: Check last CI run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUNS=$(gh run list \
+            --repo ${{ github.repository }} \
+            --workflow ci.yml \
+            --branch master \
+            --limit 5 \
+            --json databaseId,status,conclusion,name,createdAt,url)
+
+          echo "Recent CI runs:"
+          echo "$RUNS" | jq -r '.[] | "\(.createdAt) \(.status) \(.conclusion // "—") \(.url)"'
+
+          LATEST=$(echo "$RUNS" | jq -r '[.[] | select(.status == "completed")] | first')
+          CONCLUSION=$(echo "$LATEST" | jq -r '.conclusion')
+          RUN_URL=$(echo "$LATEST" | jq -r '.url')
+
+          echo ""
+          echo "Latest completed: $CONCLUSION"
+
+          if [[ "$CONCLUSION" == "failure" ]]; then
+            echo "::error::CI is RED — $RUN_URL"
+            echo ""
+            echo "=== Failed step logs ==="
+            RUN_ID=$(echo "$LATEST" | jq -r '.databaseId')
+            gh run view "$RUN_ID" \
+              --repo ${{ github.repository }} \
+              --log-failed 2>&1 | grep -E '(error TS|Error:|FAIL|##\[error\])' | head -40 || true
+          else
+            echo "CI is GREEN."
+          fi
