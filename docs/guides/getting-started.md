@@ -34,7 +34,15 @@ Before you start, you need the following already running:
 
 - **PostgreSQL with pgvector.** Iranti stores facts in PostgreSQL and uses pgvector for semantic search. Both must be running. In the default local setup, Iranti's database is named `iranti`, running on `localhost:5432`, accessible as the `postgres` user with no password. If you're using Docker, the container is typically named `iranti_db`.
 
-- **Your `.env.iranti` file.** The control plane reads this file to connect to Iranti's database and check provider key presence. It should be in your Iranti runtime root (typically `~/.iranti/.env.iranti`). At minimum, it needs `DATABASE_URL` set. Provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are read for health checks but are never displayed.
+- **Your `.env.iranti` file at the project root.** The control plane reads `.env.iranti` from the `iranti-control-plane/` project root at startup. This file must contain `DATABASE_URL` at minimum. Provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are read for health checks but are never displayed.
+
+  **Important:** If you have Iranti installed, your credentials are at `~/.iranti/instances/local/.env` (or `~/.iranti/.env.iranti` in older installs). You must copy them to the project root:
+
+  ```bash
+  cp ~/.iranti/instances/local/.env .env.iranti
+  ```
+
+  If the file is missing or `DATABASE_URL` is absent, all data views will fail with a database connection error. See KI-008 in `docs/reference/known-issues.md` for details.
 
 ---
 

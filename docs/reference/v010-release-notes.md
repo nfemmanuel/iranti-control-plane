@@ -51,6 +51,8 @@ The control plane uses the "Terminals" visual palette (CP-T017):
 
 QA seed testing revealed that all SQL queries in the control plane server used snake_case column names (`entity_type`, `entity_id`, `valid_from`) while the Iranti Prisma database schema uses camelCase (`entityType`, `entityId`, `validFrom`). This caused all data read paths to fail on a live database. The fix applied explicit column aliasing in all queries. All data paths — Memory Explorer, Archive Explorer, Entity Detail, Temporal History, and Staff Activity Stream — are confirmed working with a live Iranti database.
 
+**Note (2026-03-20):** Post-fix QA testing identified two additional schema mismatches (CP-D002): the entity detail and relationships endpoints use incorrect table/column names. These are being patched. Entity detail and temporal history views may return errors until CP-D002 is resolved. All other views (Memory Explorer, Archive, Health, Instances) are unaffected.
+
 ---
 
 ## How to Install
@@ -83,7 +85,8 @@ See `docs/reference/known-issues.md` for the full known-issues list.
 - **KI-003** — Attendant and Resolutionist events absent from Staff Activity Stream (P1, Phase 2 fix)
 - **KI-005** — `staff_events` migration must be run manually (P1, workaround: `npm run migrate`)
 - **KI-006** — Instance Manager repair actions write to `process.cwd()` regardless of `projectId` (P1, Phase 2 gap)
-- **KI-007** — Getting Started screen and repair button UI are backend-only, frontend not yet implemented (P1, in implementation)
+- **KI-007** — Getting Started screen and repair button UI: frontend implemented, pending QA end-to-end verification (P2, testing gap)
+- **KI-008** — `DATABASE_URL` must be in project-root `.env.iranti`; if absent, all data views fail (Warning, workaround: `cp ~/.iranti/instances/local/.env .env.iranti`)
 
 ---
 

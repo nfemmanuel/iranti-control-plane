@@ -20,7 +20,8 @@ Each issue has a stable ID (KI-NNN) that can be referenced in bug reports and Gi
 | KI-004 | Search uses ILIKE substring matching only — no full-text ranked search | Memory Explorer, Archive Explorer | P2 | Known, Phase 2 fix |
 | KI-005 | `staff_events` migration must be run manually — no auto-migration on first run | Activity Stream | P1 | Known, workaround: `npm run migrate` |
 | KI-006 | Instance Manager repair actions write to `process.cwd()` regardless of `projectId` | Instance Manager | P1 | Known, Phase 2 gap |
-| KI-007 | Getting Started / First-Run screen and repair button UI are backend-only — frontend not yet implemented | Getting Started, Instance Manager | P1 | In implementation |
+| KI-007 | Getting Started / First-Run screen and repair button UI — implemented but not yet QA-verified end-to-end | Getting Started, Instance Manager | P2 | Frontend shipped; pending QA |
+| KI-008 | DATABASE_URL must be in project-root `.env.iranti` | All data views (KB, Archive, Health, Instances) | Warning | Open |
 
 ---
 
@@ -156,27 +157,55 @@ The repair action endpoints (`/api/control-plane/repair/mcp-json`, `/api/control
 
 ---
 
-### KI-007 — Getting Started / First-Run screen and repair button UI are backend-only
+### KI-007 — Getting Started / First-Run screen and repair button UI — implemented but not yet QA-verified
 
 **Affected views:** Getting Started (first-run), Instance Manager (repair actions)
 
-**Severity:** P1
+**Severity:** P2
 
-**Status:** In implementation
+**Status:** Frontend shipped; pending QA end-to-end verification
 
 **Description:**
 
-Two frontend surfaces are backed by completed server endpoints but do not yet have a functional UI:
+Both frontend surfaces are now implemented and wired to their backend routes. They have not yet been QA-verified end-to-end on a live Iranti instance.
 
-1. **Getting Started / First-Run screen (CP-T035):** The setup detection and preflight check endpoints (`/api/control-plane/setup/status`, `/api/control-plane/setup/check`) are implemented on the server. The frontend first-run experience that would guide new users through initial configuration does not yet exist.
+1. **Getting Started / First-Run screen (CP-T035):** The four-step setup status screen is implemented at `src/client/src/components/onboarding/GettingStarted.tsx`. It is wired to the setup detection and preflight endpoints (`/api/control-plane/setup/status`, `/api/control-plane/setup/check`) in `src/server/routes/control-plane/setup.ts`.
 
-2. **Repair action buttons (CP-T033):** The repair endpoints (`/api/control-plane/repair/mcp-json`, `/api/control-plane/repair/claude-md`, `/api/control-plane/repair/doctor`) are implemented on the server. The Instance Manager page does not yet show repair buttons — it is read-only in v0.1.0.
+2. **Repair action buttons (CP-T033):** Repair buttons are implemented in the Health Dashboard (`HealthDashboard.tsx`) and Instance Manager (`InstanceManager.tsx`). The Doctor results drawer (`src/client/src/components/instances/DoctorDrawer.tsx`) and a confirmation modal (`src/client/src/components/ui/ConfirmationModal.tsx`) are wired to the repair endpoints in `src/server/routes/control-plane/repair.ts` (`/api/control-plane/repair/mcp-json`, `/api/control-plane/repair/claude-md`, `/api/control-plane/repair/doctor`).
 
-**Workaround:** For repair operations, use the existing Iranti CLI directly (`iranti doctor`, manual `.mcp.json` editing). The Health Dashboard and Instance Manager show the current state of integration files so you can identify what needs to be fixed.
+This is now a **testing gap**, not a missing feature. No workaround is required to access these surfaces — they are navigable in the UI.
 
-**Phase 2 fix:** Both surfaces are actively in implementation. The Getting Started screen (CP-T035) and repair action UI (CP-T033) will ship in Phase 2.
+**Note:** The underlying KI-006 issue (repair actions write to `process.cwd()` regardless of `projectId`) remains open and affects multi-project setups. This is a separate backend correctness gap.
 
 **Ticket:** CP-T035 (first-run screen), CP-T033 (repair actions UI)
+
+---
+
+### KI-008 — DATABASE_URL must be in project-root `.env.iranti`
+
+**Affected views:** All data views (Memory Explorer, Archive Explorer, Entity Detail, Temporal History, Health Dashboard, Instance Manager)
+
+**Severity:** Warning
+
+**Status:** Open
+
+**Description:**
+
+The control plane server reads `.env.iranti` from the **project root** (`iranti-control-plane/`) at startup using `dotenv`. If `DATABASE_URL` is only present in your Iranti runtime root (`~/.iranti/.env.iranti` or `~/.iranti/instances/local/.env`) and not copied to the project root, all data views will fail with database connection errors. The Health Dashboard will show a Critical `DB Reachability` failure.
+
+This is a common stumble for first-time users who have a working Iranti install but have not copied the credentials to the control plane project directory.
+
+**Workaround:** Copy your Iranti environment file to the project root:
+
+```bash
+cp ~/.iranti/instances/local/.env .env.iranti
+```
+
+If your Iranti instance lives at a different path (e.g., `~/.iranti/.env.iranti`), adjust accordingly. The file must be named `.env.iranti` and placed at the root of the `iranti-control-plane/` directory.
+
+**Phase 2 fix:** The Getting Started screen (CP-T035) will detect this condition and surface it as a setup step with a clear remediation prompt.
+
+**Ticket:** KI-008 (discovered during QA, 2026-03-20)
 
 ---
 
