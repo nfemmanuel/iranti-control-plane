@@ -90,6 +90,14 @@ function getOllamaBaseUrl(): string {
   return getEnvVar('OLLAMA_BASE_URL')
 }
 
+function getTogetherKey(): string {
+  return getEnvVar('TOGETHER_API_KEY')
+}
+
+function getGroqKey(): string {
+  return getEnvVar('GROQ_API_KEY')
+}
+
 function getDefaultProvider(): string | null {
   const val =
     getEnvVar('IRANTI_DEFAULT_PROVIDER') ||
@@ -165,6 +173,38 @@ async function checkReachability(providerId: string): Promise<boolean> {
           break
         }
 
+        case 'together': {
+          try {
+            const key = getTogetherKey()
+            if (!key.trim()) { reachable = false; break }
+            const res = await fetch('https://api.together.xyz/v1/models', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${key}` },
+              signal: controller.signal,
+            })
+            reachable = res.status < 500
+          } catch {
+            reachable = false
+          }
+          break
+        }
+
+        case 'groq': {
+          try {
+            const key = getGroqKey()
+            if (!key.trim()) { reachable = false; break }
+            const res = await fetch('https://api.groq.com/openai/v1/models', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${key}` },
+              signal: controller.signal,
+            })
+            reachable = res.status < 500
+          } catch {
+            reachable = false
+          }
+          break
+        }
+
         default:
           reachable = false
       }
@@ -205,6 +245,8 @@ providersRouter.get(
       const anthropicKey = getAnthropicKey()
       const openaiKey = getOpenaiKey()
       const ollamaBaseUrl = getOllamaBaseUrl()
+      const togetherKey = getTogetherKey()
+      const groqKey = getGroqKey()
       const defaultProvider = getDefaultProvider()
       const checkedAt = new Date().toISOString()
 
@@ -224,6 +266,16 @@ providersRouter.get(
 
       if (ollamaBaseUrl.trim()) {
         detections.push({ id: 'ollama', name: 'Ollama', envVar: 'OLLAMA_BASE_URL', key: ollamaBaseUrl })
+      }
+
+      // Together AI — only shown when TOGETHER_API_KEY is set (per AC)
+      if (togetherKey.trim()) {
+        detections.push({ id: 'together', name: 'Together AI', envVar: 'TOGETHER_API_KEY', key: togetherKey })
+      }
+
+      // Groq — only shown when GROQ_API_KEY is set (per AC)
+      if (groqKey.trim()) {
+        detections.push({ id: 'groq', name: 'Groq', envVar: 'GROQ_API_KEY', key: groqKey })
       }
 
       // Run reachability checks in parallel — only for providers with a key/URL present
@@ -447,6 +499,90 @@ providersRouter.get(
           break
         }
 
+        case 'together': {
+          const key = getTogetherKey()
+          if (!key.trim()) {
+            response = { providerId: 'together', models: [], source: 'fallback', fetchedAt }
+          } else {
+            try {
+              const controller = new AbortController()
+              const timeout = setTimeout(() => controller.abort(), 8000)
+              let live: ModelEntry[] | null = null
+              try {
+                const res = await fetch('https://api.together.xyz/v1/models', {
+                  headers: { Authorization: `Bearer ${key}` },
+                  signal: controller.signal,
+                })
+                if (res.ok) {
+                  const json = await res.json() as Array<{ id?: string; name?: string; type?: string }>
+                  if (Array.isArray(json)) {
+                    live = json
+                      .filter(m => m.id)
+                      .map(m => ({
+                        id: m.id ?? '',
+                        name: m.name ?? m.id ?? '',
+                        family: (m.id ?? '').split('/')[0] ?? '',
+                        context: 0,
+                      }))
+                  }
+                }
+              } finally {
+                clearTimeout(timeout)
+              }
+              response = {
+                providerId: 'together',
+                models: live ?? [],
+                source: live ? 'live' : 'fallback',
+                fetchedAt,
+              }
+            } catch {
+              response = { providerId: 'together', models: [], source: 'fallback', fetchedAt }
+            }
+          }
+          break
+        }
+
+        case 'groq': {
+          const key = getGroqKey()
+          if (!key.trim()) {
+            response = { providerId: 'groq', models: [], source: 'fallback', fetchedAt }
+          } else {
+            try {
+              const controller = new AbortController()
+              const timeout = setTimeout(() => controller.abort(), 8000)
+              let live: ModelEntry[] | null = null
+              try {
+                const res = await fetch('https://api.groq.com/openai/v1/models', {
+                  headers: { Authorization: `Bearer ${key}` },
+                  signal: controller.signal,
+                })
+                if (res.ok) {
+                  const json = await res.json() as { data?: Array<{ id: string }> }
+                  if (Array.isArray(json.data)) {
+                    live = json.data.map(m => ({
+                      id: m.id,
+                      name: m.id,
+                      family: m.id.split('-')[0] ?? m.id,
+                      context: 0,
+                    }))
+                  }
+                }
+              } finally {
+                clearTimeout(timeout)
+              }
+              response = {
+                providerId: 'groq',
+                models: live ?? [],
+                source: live ? 'live' : 'fallback',
+                fetchedAt,
+              }
+            } catch {
+              response = { providerId: 'groq', models: [], source: 'fallback', fetchedAt }
+            }
+          }
+          break
+        }
+
         default:
           res.status(404).json({
             error: `Unknown provider: ${providerId}`,
@@ -576,29 +712,131 @@ providersRouter.get(
           break
         }
 
-        case 'groq':
-          result = {
-            supported: false,
-            providerId: 'groq',
-            providerName: 'Groq',
-            reason:
-              'Groq exposes rate limit headers only — no persistent balance available.',
-            cached: false,
-            cachedAt: null,
+        case 'groq': {
+          const groqKey = getGroqKey()
+          if (!groqKey.trim()) {
+            result = {
+              supported: false,
+              providerId: 'groq',
+              providerName: 'Groq',
+              reason: 'Groq API key not configured.',
+              cached: false,
+              cachedAt: null,
+            }
+          } else {
+            // Attempt to capture rate limit headers from the models endpoint.
+            // Groq returns x-ratelimit-* headers on authenticated requests.
+            let rateLimits: Record<string, unknown> | null = null
+            try {
+              const controller = new AbortController()
+              const timeout = setTimeout(() => controller.abort(), 6000)
+              try {
+                const groqRes = await fetch('https://api.groq.com/openai/v1/models', {
+                  method: 'GET',
+                  headers: { Authorization: `Bearer ${groqKey}` },
+                  signal: controller.signal,
+                })
+                const limitRequests = groqRes.headers.get('x-ratelimit-limit-requests')
+                const remainingRequests = groqRes.headers.get('x-ratelimit-remaining-requests')
+                const resetRequests = groqRes.headers.get('x-ratelimit-reset-requests')
+                if (remainingRequests !== null) {
+                  rateLimits = {
+                    requestsPerMinute: limitRequests !== null ? Number(limitRequests) : null,
+                    requestsRemaining: Number(remainingRequests),
+                    requestsResetAt: resetRequests ?? null,
+                  }
+                }
+              } finally {
+                clearTimeout(timeout)
+              }
+            } catch {
+              // headers absent or request failed — fall through with null rateLimits
+            }
+            const cachedAt = new Date().toISOString()
+            result = {
+              supported: rateLimits !== null,
+              providerId: 'groq',
+              providerName: 'Groq',
+              balance: null,
+              rateLimits,
+              warningThreshold: { triggered: false, message: null },
+              cached: false,
+              cachedAt,
+              reason: rateLimits === null
+                ? 'Groq rate limit headers were not returned by the models endpoint. No persistent balance available.'
+                : undefined,
+            }
+            if (rateLimits !== null) {
+              quotaCache.set(providerId, { data: result, cachedAt: new Date() })
+            }
           }
           break
+        }
 
-        case 'together':
-          result = {
-            supported: false,
-            providerId: 'together',
-            providerName: 'Together AI',
-            reason:
-              'Together AI quota API integration coming in a future release.',
-            cached: false,
-            cachedAt: null,
+        case 'together': {
+          const togetherKey = getTogetherKey()
+          if (!togetherKey.trim()) {
+            result = {
+              supported: false,
+              providerId: 'together',
+              providerName: 'Together AI',
+              reason: 'Together AI API key not configured.',
+              cached: false,
+              cachedAt: null,
+            }
+          } else {
+            // Attempt the Together AI billing endpoint defensively.
+            // Any parse or network failure returns supported:false — never a 500.
+            let balance: { remaining: number; currency: string } | null = null
+            let togetherReason: string | undefined
+            try {
+              const controller = new AbortController()
+              const timeout = setTimeout(() => controller.abort(), 8000)
+              try {
+                const togetherRes = await fetch('https://api.together.xyz/v1/billing/credit', {
+                  method: 'GET',
+                  headers: {
+                    Authorization: `Bearer ${togetherKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  signal: controller.signal,
+                })
+                if (togetherRes.ok) {
+                  const json = await togetherRes.json() as Record<string, unknown>
+                  // Together AI billing shape: { balance: number, ... } or similar
+                  const raw = json['balance'] ?? json['credit'] ?? json['remaining_balance']
+                  if (typeof raw === 'number') {
+                    balance = { remaining: raw, currency: 'USD' }
+                  } else {
+                    togetherReason = 'Together AI balance API response format unexpected — check Together AI Console.'
+                  }
+                } else {
+                  togetherReason = `Together AI balance API returned ${togetherRes.status} — check Together AI Console.`
+                }
+              } finally {
+                clearTimeout(timeout)
+              }
+            } catch {
+              togetherReason = 'Together AI balance API response format unexpected — check Together AI Console.'
+            }
+            const cachedAt = new Date().toISOString()
+            result = {
+              supported: balance !== null,
+              providerId: 'together',
+              providerName: 'Together AI',
+              balance,
+              rateLimits: null,
+              warningThreshold: { triggered: false, message: null },
+              cached: false,
+              cachedAt,
+              reason: togetherReason,
+            }
+            if (balance !== null) {
+              quotaCache.set(providerId, { data: result, cachedAt: new Date() })
+            }
           }
           break
+        }
 
         case 'replicate':
           result = {

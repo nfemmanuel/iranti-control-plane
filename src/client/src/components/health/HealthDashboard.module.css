@@ -610,3 +610,15 @@
 .retryBtn:hover {
   background: var(--color-accent-subtle);
 }
+
+/* CP-T046: Link inside the unreachable-provider banner */
+.providerBannerLink {
+  color: var(--color-status-warning);
+  text-decoration: underline;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.providerBannerLink:hover {
+  color: var(--color-text-primary);
+}

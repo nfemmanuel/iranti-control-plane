@@ -5,8 +5,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
-import type { HealthResponse, HealthCheck, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
+import type { HealthResponse, HealthCheck, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { ProviderStatusSection } from './ProviderStatus'
@@ -443,6 +444,19 @@ export function HealthDashboard() {
     staleTime: 0,
   })
 
+  // CP-T046: Providers query for the unreachable-provider banner
+  const { data: providersData } = useQuery<ProvidersResponse, Error>({
+    queryKey: ['providers'],
+    queryFn: () => apiFetch<ProvidersResponse>('/providers'),
+    staleTime: 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
+
+  // Configured providers that have a key but are not reachable
+  const unreachableProviders = (providersData?.providers ?? []).filter(
+    p => p.keyPresent && !p.reachable
+  )
+
   manualRefetchRef.current = refetch
 
   const handleManualRefresh = async () => {
@@ -538,6 +552,21 @@ export function HealthDashboard() {
           <div>
             <strong>Operational with warnings.</strong>
             {' '}Iranti is running, but some capabilities may be degraded. Review the items below.
+          </div>
+        </div>
+      )}
+
+      {/* CP-T046: Unreachable provider banner — shown when any configured provider cannot be reached */}
+      {unreachableProviders.length > 0 && (
+        <div className={styles.setupBannerWarning} role="alert">
+          <span className={styles.setupBannerIcon} aria-hidden="true">⚠</span>
+          <div>
+            <strong>One or more providers are unreachable</strong>
+            {' '}— check your API keys and network.
+            {' '}
+            <Link to="/providers" className={styles.providerBannerLink}>
+              Open Provider Manager
+            </Link>
           </div>
         </div>
       )}

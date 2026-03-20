@@ -12,6 +12,7 @@ import { InstanceManager } from './components/instances/InstanceManager'
 import { HealthDashboard } from './components/health/HealthDashboard'
 import { GettingStarted } from './components/onboarding/GettingStarted'
 import { ConflictReview } from './components/conflicts/ConflictReview'
+import { ProviderManager } from './components/providers/ProviderManager'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
 import { LoadingPage } from './components/ui/LoadingPage'
 import './styles/tokens.css'
@@ -73,6 +74,7 @@ createRoot(rootEl).render(
                 <Route path="health" element={<HealthDashboard />} />
                 <Route path="getting-started" element={<GettingStarted />} />
                 <Route path="conflicts" element={<ConflictReview />} />
+                <Route path="providers" element={<ProviderManager />} />
                 <Route path="settings" element={<PlaceholderView label="Settings — Phase 2" />} />
               </Route>
             </Routes>
