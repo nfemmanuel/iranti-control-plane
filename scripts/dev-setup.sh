@@ -60,6 +60,11 @@ echo "Installing root dependencies..."
 npm install
 echo "OK: Root deps installed"
 
+# Install git hooks
+echo "Activating git hooks (.githooks/pre-push)..."
+git config core.hooksPath .githooks
+echo "OK: Git hooks activated (pre-push typecheck enabled)"
+
 echo ""
 echo "=== Setup complete ==="
 echo ""

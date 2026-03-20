@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Iranti Control Plane pre-push hook
+# Runs server typecheck to catch TS errors before they hit CI.
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+echo "→ Pre-push: type checking server..."
+cd src/server && npx tsc --noEmit
+echo "✓ Server typecheck passed."
+
+# Client typecheck requires node_modules — skip if not installed
+if [ -d "src/client/node_modules" ]; then
+  echo "→ Pre-push: type checking client..."
+  cd ../client && npx tsc --noEmit
+  echo "✓ Client typecheck passed."
+else
+  echo "ℹ Client node_modules not found — skipping client typecheck (install with: npm install --prefix src/client)"
+fi

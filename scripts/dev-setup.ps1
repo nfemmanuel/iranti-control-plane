@@ -66,6 +66,12 @@ npm install
 if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: Root dep install failed." -ForegroundColor Red; exit 1 }
 Write-Host "OK: Root deps installed" -ForegroundColor Green
 
+# Install git hooks
+Write-Host "Activating git hooks (.githooks/pre-push)..."
+git config core.hooksPath .githooks
+if ($LASTEXITCODE -ne 0) { Write-Host "WARNING: Could not set git hooks path. Run manually: git config core.hooksPath .githooks" -ForegroundColor Yellow }
+else { Write-Host "OK: Git hooks activated (pre-push typecheck enabled)" -ForegroundColor Green }
+
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Cyan
 Write-Host ""

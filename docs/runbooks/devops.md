@@ -5,6 +5,29 @@ Last updated: 2026-03-20
 
 ---
 
+## Protocol Reference
+
+The authoritative development protocol document is at:
+
+**[docs/protocols/development.md](../protocols/development.md)**
+
+All contributors — human and agent — must follow the protocols defined there before pushing to master or marking any ticket complete.
+
+### CI Incident Response — Quick Summary
+
+When CI fails on master:
+
+1. **Detect** — Check within 15 minutes: `gh run list --limit 3 --repo nfemmanuel/iranti-control-plane`
+2. **Triage** — Get the failure logs: `gh run view {run_id} --log-failed`
+3. **Identify root cause** — Typecheck failure, build failure, or test failure (see sections 3–5 below)
+4. **Fix** — Push a fix within one build cycle
+5. **Verify** — Confirm CI green: `gh run list --limit 3 --repo nfemmanuel/iranti-control-plane`
+6. **Log** — Write to Iranti: entity `project/iranti_control_plane`, key `ci_incident_log`
+
+Master must never stay red. If you cannot fix it within one build cycle, write a blocker to Iranti (`blocker/ci-<topic>`) and notify the PM.
+
+---
+
 ## 1. CI Pipeline Structure
 
 The CI pipeline is defined in `.github/workflows/ci.yml`. It runs on every push and pull request targeting `master` or `main`.
