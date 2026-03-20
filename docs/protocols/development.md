@@ -73,6 +73,31 @@ If the latest run fails, do not continue other work. Fix it immediately per the 
 
 ---
 
+## 1a. Raw SQL Column Name Verification (Step 0 for SQL changes)
+
+**This check was added after CP-D001 (2026-03-20): a P0 defect where all data routes failed on the live DB because SQL used snake_case column names while the Prisma schema uses camelCase.**
+
+If you write or modify any raw SQL in this codebase, you must complete the following before pushing:
+
+### Step 0 — Verify SQL column names against the Prisma schema
+
+1. **Identify every column name** used in your SQL: in WHERE clauses, ORDER BY clauses, explicit SELECT lists, JOIN conditions, and INSERT column lists.
+
+2. **Cross-check against the Prisma schema** or the live DB:
+   - Check `src/server/prisma/schema.prisma` (if it exists in this repo) for field names
+   - OR run `\d tablename` in psql against the live `iranti_local` database to see actual column names
+   - Prisma by default maps camelCase field names (e.g., `entityType`) to camelCase column names (e.g., `"entityType"`) in the database. Do NOT assume snake_case unless the table was created outside of Prisma.
+
+3. **Quote all non-trivial column names** using double quotes in SQL: `"entityType"`, `"createdAt"`, `"valueSummary"`. Unquoted camelCase identifiers are lowercased by PostgreSQL, causing `column "entitytype" does not exist` errors.
+
+4. **Exception — non-Prisma tables:** The `staff_events` table is created by a manual migration (not Prisma) and intentionally uses snake_case column names. Do not quote snake_case column names for this table.
+
+5. **Do NOT rely on serializer fallbacks** to catch column name errors. Serializer dual-read patterns (`row.entity_type ?? row.entityType`) run after rows are returned. If the column name in a WHERE or ORDER BY clause is wrong, PostgreSQL errors before any row is returned, and the serializer never runs.
+
+**Rule:** If you add raw SQL to this codebase, the PR is not ready for review until you have verified every column name against the source of truth (Prisma schema or live `\d tablename` output).
+
+---
+
 ## 2. Agent Completion Protocol
 
 An agent may not write `status: completed` to Iranti for a ticket until all of the following steps are confirmed.

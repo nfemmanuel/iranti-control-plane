@@ -12,7 +12,7 @@ Design partner outreach for Iranti Control Plane begins when v0.1.0 ships and th
 
 **Target:** 3 design partners, one per persona archetype.
 **Session format:** 60-minute unmoderated observation with 15-minute debrief.
-**Timing:** Begin outreach when CP-T036 is merged and CI is green. First session target: within 1 week of v0.2.0 release.
+**Timing:** Begin outreach when all of the following are true: (1) CP-T036 is merged and CI is green ✓ (done as of 2026-03-20), (2) CP-D001 fix is merged and QA has confirmed REG-001–REG-005 pass, (3) v0.1.0 hold is lifted by PM, (4) `docs/research/design-partner-brief.md` exists and is ready to hand off. First session target: within 1 week of v0.2.0 release.
 
 ---
 
@@ -29,7 +29,7 @@ Marcus has been using Iranti with Claude Code for 6 weeks. One instance, one pro
 **Pre-session setup:**
 - Confirm Marcus has a running Iranti instance with at least 5 facts in `knowledge_base`
 - Confirm at least one fact has been superseded (so temporal history is real)
-- Share the control plane URL: `http://localhost:3001/control-plane` (or whichever port his instance runs on)
+- Share the control plane URL: `http://localhost:3002/control-plane` (or whichever port his instance runs on — verify against Marcus's actual `.env` before the session)
 - Do not explain anything about the UI before the session
 
 **Session tasks (give verbally, one at a time):**
@@ -85,6 +85,8 @@ Priya is evaluating Iranti for a 3-person team. Two instances (personal + team t
 2. "Last week you rotated a provider API key on one of your instances. Can you verify from the control plane that the key is correctly configured — without opening a terminal?"
 
 3. "You suspect one of your agent sessions wrote a conflicting fact. Can you find any pending conflicts or escalations in the control plane? What do you see?"
+
+   *(Facilitator note: if CP-T021 Escalation Review has not shipped by session time, this task becomes an open exploration. Do not guide Priya — observe where she goes and what she finds or does not find. The observation IS the finding: if she cannot locate conflict information, that is evidence CP-T021 is a priority.)*
 
 4. "Imagine you're onboarding a team member who has never set up Iranti. Walk me through what you'd show them in the control plane to help them understand if their setup is working."
 
@@ -166,7 +168,7 @@ value: {
   "persona": "marcus|priya|dev",
   "date": "YYYY-MM-DD",
   "taskSuccess": { "task1": true/false, "task2": true/false, ... },
-  "adminirOpened": false,
+  "adminerOpened": false,
   "sqlUsed": false,
   "topUnmetNeed": "...",
   "topPositiveFeedback": "...",

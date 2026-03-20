@@ -190,7 +190,8 @@ Priya can create a second local instance for a new team member from the control 
 - CP-T023 (CLI wizard) must establish the `instances.json` registry format
 - Multi-instance data isolation (Candidate 1) must be complete for creating instances to be meaningful from the control plane
 
-**Ticket stub:** CP-T039 — Create Instance and Rebind Project from UI
+**Ticket stub:** CP-T047 — Create Instance and Rebind Project from UI
+*(Originally noted as CP-T039 but that number is reserved for the staff_events migration task — Phase 2.)*
 
 ---
 
@@ -234,6 +235,18 @@ Dev saves a "morning audit" workspace: Memory Explorer filtered to confidence < 
 
 ---
 
+## PM Audit Notes — 2026-03-20
+
+**Ticket number conflict:** CP-T039 has been assigned to the staff_events migration task (devops_engineer, Phase 2). The "Create Instance and Rebind Project" Phase 3 stub listed below as CP-T039 must be renumbered to **CP-T047** when Phase 3 tickets are cut. Do not create a file named `cp-t039.md` for that item.
+
+**Entity Aliases urgency:** CP-T038 was expected in Phase 2 per PM Decision 2. Monitor design partner sessions closely. If Priya or Dev surface multi-agent alias confusion during Phase 2 validation, promote CP-T038 from Phase 3 candidate to Phase 2 addition and cut the ticket immediately.
+
+**Missing candidates (not yet in this list):**
+- Model routing rules and quota alerting — follow-on to Phase 2 Provider Manager (CP-T022). As providers gain usage, operators will want alert thresholds and per-task model routing rules. Add before Phase 3 ticket cut.
+- Bulk conflict resolution — if operators accumulate many pending escalations, single-resolution UI (CP-T021) becomes a bottleneck. A bulk select-and-resolve flow should be considered for Phase 3.
+
+---
+
 ## Phase 3 Priority Ordering (Provisional)
 
 Based on persona impact, PRD priority, and effort-to-value ratio:
@@ -246,7 +259,7 @@ Based on persona impact, PRD priority, and effort-to-value ratio:
 | 4 | Persistent Chat History | CP-T043 | Low-medium effort, completes the chat panel use case |
 | 5 | Saved Workspaces | CP-T046 | Medium effort, high daily-use value for power users |
 | 6 | Multi-Instance Data Isolation | CP-T040 | High effort but critical for team evaluation |
-| 7 | Create Instance / Rebind Project | CP-T039 | Medium-high effort, depends on CP-T040 |
+| 7 | Create Instance / Rebind Project | CP-T047 | Medium-high effort, depends on CP-T040. Note: stub was CP-T039 but that number is taken (staff_events migration). |
 | 8 | macOS Installer | CP-T044 | High effort, validate demand first |
 | 9 | Remote / Team Mode | CP-T045 | Very high effort, validate demand with design partners |
 
