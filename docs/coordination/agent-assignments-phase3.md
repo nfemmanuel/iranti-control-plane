@@ -10,8 +10,10 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 1
+Current wave: Wave 2
 Ticket sequence: CP-T050 → CP-T049 → CP-T048
+
+CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 
 ---
 
@@ -35,7 +37,7 @@ CP-T048 is categorically higher-complexity than T049 and T050 — it requires a 
 
 ### Assignment 1 — CP-T050 (Staff Logs View) — `backend_developer`
 
-**Status:** Assigned — 2026-03-20
+**Status:** ACCEPTED — 2026-03-20
 **Ticket:** `docs/tickets/cp-t050.md`
 **Priority:** P2
 **Phase:** 3, Wave 1
@@ -121,7 +123,7 @@ controlPlaneRouter.use('/logs', logsRouter)
 
 ### Assignment 2 — CP-T050 (Staff Logs View) — `frontend_developer`
 
-**Status:** Assigned — 2026-03-20
+**Status:** ACCEPTED — 2026-03-20
 **Ticket:** `docs/tickets/cp-t050.md`
 **Priority:** P2
 **Phase:** 3, Wave 1
@@ -181,32 +183,111 @@ Create `src/client/src/components/logs/StaffLogs.tsx` implementing:
 
 ---
 
-## Wave 2 (planned — not yet assigned)
+## Wave 2
 
-### Assignment 3 — CP-T049 (Archivist Transparency) — `backend_developer` + `frontend_developer`
+### Assignment 3 — CP-T049 (Archivist Transparency) — `backend_developer`
 
-**Status:** Planned — will be assigned after Wave 1 (CP-T050) is PM-accepted
+**Status:** Assigned — 2026-03-20
 **Ticket:** `docs/tickets/cp-t049.md`
 **Priority:** P2
 **Phase:** 3, Wave 2
 
-Wave 2 kickoff will be issued by PM after CP-T050 backend and frontend are accepted. Both agents pick up CP-T049 together.
+**Files to read before starting:**
+- `docs/tickets/cp-t049.md` — full ticket with all acceptance criteria and resolved OQs
+- `src/server/routes/control-plane/events.ts` — existing `staff_events` query patterns, `buildEventWhereClause`, `serializeEventRow`, table-existence cache; your archivist-events endpoint follows the same pattern filtered to `staff_component = 'Archivist'` + `entity_type/entity_id/key`
+- `src/server/routes/control-plane/index.ts` — route registration; you must add `archiveRouter` (or extend existing archive router) for the new endpoints
+- `src/server/routes/control-plane/kb.ts` — write path patterns to reuse for the restore endpoint
+- `src/server/migrations/` — examine existing migrations for the archive table schema; your flag storage (new `archive_flags` table or JSONB on `archive`) requires a migration
 
-**Backend scope summary (preview):**
-- New endpoint: `GET /api/control-plane/archive/:id/archivist-events` — returns `staff_events` filtered to `staff_component = 'Archivist'` and `entity_type/entity_id/key` matching the archive row
-- New endpoint: `POST /api/control-plane/archive/:id/flag` — stores a flag with operator note (OQ-1: backend_developer decides `archive_flags` table vs JSONB — document the choice)
-- New endpoint: `DELETE /api/control-plane/archive/:id/flag` — clears the flag
-- New endpoint: `POST /api/control-plane/archive/:id/restore?confirm=true` — writes archived fact's `valueRaw`/`valueSummary` to `knowledge_base`, archives the currently-active fact as `operator_superseded`, logs `fact_restored_by_operator` to `staff_events`
-- `GET /archive` must accept `?flagged=true` filter to support the Flagged Facts queue
+**What to build:**
 
-**Frontend scope summary (preview):**
-- Extend `ArchiveExplorer.tsx` expanded row: add "Archivist History" timeline section and "Flag for Review" button
-- Add "Flagged" filter to Archive Explorer filter bar
-- Add Flagged Facts review queue (sub-tab or toggle)
-- Implement Restore Fact action with confirmation dialog
+1. **`GET /api/control-plane/archive/:id/archivist-events`** — Returns all `staff_events` rows where `staff_component = 'Archivist'` and the row's `entity_type`, `entity_id`, `key` match the archive fact identified by `:id`. Look up the archive row to get its `entity_type/entity_id/key`, then query `staff_events`. Return `{ items: StaffEvent[], total: number }`. Graceful degradation: if `staff_events` table does not exist, return `{ items: [], total: 0 }` (not 503 — this is a supplemental view, not a primary endpoint). Empty result is a valid state and is expected until CP-T025 is active.
 
-**PM decision on OQ-2 (resolved):** Restore Fact action is only available from the Flagged review queue in the initial release.
-**PM decision on OQ-3 (resolved):** If the fact's entity/key is currently active, the restore supersedes the current active fact with `operator_superseded` — show this explicitly in the confirmation dialog.
+2. **Flag storage decision (OQ-1):** Choose between a new `archive_flags` table (clean relational, requires migration, safer cascade delete) or a JSONB `metadata` column on the `archive` table (simpler, no new table). PM accepts either — document your choice as a comment at the top of the file and in your report. If using a new table, provide the migration SQL.
+
+3. **`POST /api/control-plane/archive/:id/flag`** — Body: `{ note: string }` (max 500 chars, required). Stores the flag with: archive record ID, operator note, `flaggedAt` timestamp. Returns `201` with the created flag record. If already flagged, upserts (update note + timestamp). Validate that `:id` is a valid archive row.
+
+4. **`DELETE /api/control-plane/archive/:id/flag`** — Removes the flag for the given archive row. Returns `204`. Returns `404` if not flagged.
+
+5. **`POST /api/control-plane/archive/:id/restore?confirm=true`** — Requires `?confirm=true` query param (consistent with CP-T033 pattern). Only available on flagged facts (return `409 RESTORE_NOT_FLAGGED` if not flagged). Steps:
+   - Fetch the archive row by `:id`.
+   - Check if `knowledge_base` has an active row for the same `entity_type/entity_id/key`.
+     - If yes: archive it with `archived_reason = 'operator_superseded'`, then continue.
+     - If no: proceed directly.
+   - Insert the archived fact's `value_raw`, `value_summary`, `confidence`, `entity_type`, `entity_id`, `key` into `knowledge_base` as a new active row with `created_by = 'control_plane_operator'`, `source = 'operator_restore'`.
+   - Log a `staff_events` row: `staff_component = 'Archivist'`, `action_type = 'fact_restored_by_operator'`, `metadata` includes `{ archiveId: id, entityType, entityId, key, flagNote: <operator note>, restoredAt }`.
+   - Return `201` with `{ restoredKbId: <new knowledge_base id> }`.
+   - Return `400` if `?confirm=true` is absent. Return `404` if archive row not found.
+
+6. **`GET /archive` flagged filter** — Extend the existing archive endpoint to accept `?flagged=true`. When set, join against the flag store and return only flagged facts. Add a `flagged` boolean field (and `flagNote`, `flaggedAt`) to the archive row serializer when present.
+
+**PM decisions already resolved:**
+- OQ-2: Restore is only available on flagged facts.
+- OQ-3: If the entity/key is active in `knowledge_base`, supersede it with `operator_superseded` and proceed. The frontend will display this in the confirmation dialog.
+
+**Acceptance criteria to verify:**
+- ACs 1, 2, 5, 6, 7, 8 from `cp-t049.md` are backend-owned; verify all
+- TypeScript compiles with zero errors, no `any` in new code
+- `vitest run` passes (no regressions)
+- Manually test: fetch archivist-events for a known archive row (empty state OK), POST /flag with a note, GET /archive?flagged=true, DELETE /flag, POST /restore?confirm=true (with and without existing active KB row), POST /restore without `?confirm=true` (must return 400)
+- Commit as: `feat(backend): implement Archivist transparency endpoints — flag, restore, archivist-events (CP-T049)`
+
+**Report back to PM with:**
+- OQ-1 decision (flag storage mechanism chosen) and rationale
+- Which ACs passed; any that required assumptions
+- Whether the restore correctly handles the active KB row supersession case
+- Migration SQL provided or JSONB approach confirmed
+- CI status
+
+---
+
+### Assignment 4 — CP-T049 (Archivist Transparency) — `frontend_developer`
+
+**Status:** Assigned — 2026-03-20
+**Ticket:** `docs/tickets/cp-t049.md`
+**Priority:** P2
+**Phase:** 3, Wave 2
+
+**Dependency:** Backend Assignment 3 endpoints must be merged before the Flagged Facts queue and Restore action can be fully tested. The Archivist History section (GET archivist-events) and Flag for Review button (POST flag) can be developed in parallel using the known endpoint contracts. Coordinate with `backend_developer` on timing.
+
+**Files to read before starting:**
+- `docs/tickets/cp-t049.md` — full ticket with all acceptance criteria and PM decisions on OQ-2 and OQ-3
+- `src/client/src/components/memory/ArchiveExplorer.tsx` — the existing component you are extending. Read thoroughly: `ExpandedArchiveRow`, `ArchiveFilterState`, `filterReducer`, the query param construction, and the table row rendering. Every new UI element slots into this existing structure.
+- `src/client/src/components/stream/ActivityStream.tsx` — timeline/event display patterns to reuse for the Archivist History section
+- `docs/specs/visual-tokens.md` — Terminals palette; all new components must use CSS tokens, no hardcoded colors
+- `src/client/src/api/types.ts` — existing `ArchiveFact` type; you must extend it to include optional `flagged`, `flagNote`, `flaggedAt` fields returned by the updated `GET /archive?flagged=true`
+
+**What to build:**
+
+1. **Archivist History section in `ExpandedArchiveRow`** — After the existing expanded grid fields, add an "Archivist History" section. On mount (when the row is expanded), call `GET /api/control-plane/archive/:id/archivist-events`. Render as a compact timeline (most recent first): each event shows timestamp, `actionType`, and `metadata.summary ?? reason ?? actionType` as a one-line description. Empty state: "No Archivist events recorded for this fact. Events require CP-T025 native emitter injection." Do not show a spinner for longer than 2s — fall back to empty state on error. Use a `useQuery` key scoped to `['archivist-events', fact.id]`.
+
+2. **"Flag for Review" button in `ExpandedArchiveRow`** — Below the Archivist History section. If the fact is already flagged (`fact.flagged === true`), show "Flagged for Review" as a read-only indicator with the flag note and a "Clear Flag" button. If not flagged, show a "Flag for Review" button. Clicking it reveals an inline text input (max 500 chars) and a "Confirm Flag" button. On confirm, call `POST /api/control-plane/archive/:id/flag` with `{ note }`. On success, invalidate the `['archive', ...]` query to refresh the row. On error, show inline error message. Flagged rows must show a visible "Flagged" indicator (small badge or icon) in the main table row — add this to the `<tr>` rendering block.
+
+3. **"Flagged" filter in Archive Explorer filter bar** — Add a "Flagged only" toggle/checkbox to the filter bar (second filter row, after the resolution state select). When active, appends `flagged=true` to the `GET /archive` query params. Update `ArchiveFilterState` and `filterReducer` to include `flaggedOnly: boolean`. Update the query param construction block accordingly.
+
+4. **Flagged Facts review queue** — Add a sub-tab toggle above the table (or a tab row in the filter bar area): "All Facts" | "Flagged for Review". When "Flagged for Review" is active, it functions as a persistent `flaggedOnly=true` filter. The view shows the same table but adds a visible "Restore" action column. This can be implemented as a `viewMode: 'all' | 'flagged'` state variable rather than a separate route — no new route is required.
+
+5. **Restore Fact confirmation dialog** — In the Flagged Facts view, each row shows a "Restore" button. Clicking it opens a confirmation dialog (modal overlay or inline alert) that states: "This is an operator override. The Archivist may re-archive this fact on its next processing cycle if the same conditions apply." If the fact's entity/key is currently active in `knowledge_base`, the dialog must additionally say: "A currently-active fact for this entity/key exists and will be superseded with reason operator_superseded." On confirm, call `POST /api/control-plane/archive/:id/restore?confirm=true`. On success, show inline success feedback ("Fact restored. KB ID: [id]") and invalidate the archive query. On error (409, 404, 400), show the error message inline without closing the dialog. "Cancel" closes without action.
+
+6. **Type additions** — Extend `ArchiveFact` in `src/client/src/api/types.ts` to include `flagged?: boolean`, `flagNote?: string | null`, `flaggedAt?: string | null`. Add `ArchivistEvent` type (reuse or alias `StaffEvent`). Add `FlagResponse` and `RestoreResponse` types. No `any`.
+
+**Acceptance criteria to verify:**
+- ACs 1, 2, 3, 4, 5, 6, 8, 9 from `cp-t049.md` are frontend-owned; verify all
+- TypeScript compiles with zero errors, no `any` in new component tree
+- Light mode and dark mode both visually verified for all new elements
+- Archivist History section renders with empty state when no events exist
+- Flag for Review flow: button → input → confirm → row shows "Flagged" indicator
+- Flagged filter in filter bar correctly filters to flagged-only rows
+- Flagged Facts queue shows restore button; confirmation dialog shows warning text verbatim
+- Restore success path shows KB ID feedback inline
+- Commit as: `feat(frontend): implement Archivist transparency UI — history, flagging, restore (CP-T049)`
+
+**Report back to PM with:**
+- Which ACs passed
+- Description (or screenshot notes) of light and dark mode appearance for the Archivist History timeline, flag indicator, and restore confirmation dialog
+- Whether the confirmation dialog warning text is exactly as specified
+- Any edge cases found in the flag/unflag/restore cycle
+- CI status
 
 ---
 
