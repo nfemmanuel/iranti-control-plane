@@ -1,58 +1,29 @@
 /* Iranti Control Plane — Memory Explorer */
 /* Route: /memory */
-/* Displays the KB facts table with filter bar, sortable columns, row expansion, */
-/* temporal history links, entity jump links, and raw JSON toggle. */
-/*                                                                               */
-/* CP-T013 SCAFFOLD — API connection stubbed. Wire to CP-T010 when ready.       */
-/* TODO: connect to GET /api/control-plane/kb                                   */
+/* CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5 */
 
-import { useState, useCallback, useReducer } from 'react'
+import { Fragment, useState, useReducer, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '../../api/client'
+import type { KBFact, KBListResponse } from '../../api/types'
 import styles from './MemoryExplorer.module.css'
 
+export type { KBFact }
+
 /* ------------------------------------------------------------------ */
-/*  Types — mirror the CP-T010 API response shape                      */
+/*  Query params / filter state                                        */
 /* ------------------------------------------------------------------ */
 
-export interface KBFact {
-  id: string
+interface FilterState {
+  search: string
   entityType: string
   entityId: string
   key: string
-  valueSummary: string
-  valueRaw: string           // JSON string — full value
-  confidence: number         // 0–100
   source: string
-  agentId: string
-  validFrom: string | null
-  validUntil: string | null
-  updatedAt: string
-  conflictLog?: string | null
-}
-
-export interface KBQueryParams {
-  entityType?: string
-  entityId?: string
-  key?: string
-  source?: string
-  createdBy?: string
-  minConfidence?: number
-  search?: string
-  activeOnly?: boolean
-  limit?: number
-  offset?: number
-  sortBy?: SortColumn
-  sortDir?: 'asc' | 'desc'
-}
-
-/* ------------------------------------------------------------------ */
-/*  Filter state                                                        */
-/* ------------------------------------------------------------------ */
-
-interface FilterState extends Omit<KBQueryParams, 'limit' | 'offset' | 'sortBy' | 'sortDir'> {
-  search: string
-  activeOnly: boolean
+  createdBy: string
   minConfidence: number
+  activeOnly: boolean
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -99,61 +70,23 @@ interface SortState {
 interface PaginationState {
   offset: number
   limit: number
-  total: number
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const
 type PageSize = typeof PAGE_SIZE_OPTIONS[number]
 
 /* ------------------------------------------------------------------ */
-/*  Stub data — removed when CP-T010 API is wired                      */
+/*  Debounce hook                                                       */
 /* ------------------------------------------------------------------ */
 
-// TODO(CP-T013): Remove stub data once GET /api/control-plane/kb is connected
-const STUB_FACTS: KBFact[] = [
-  {
-    id: '1',
-    entityType: 'agent',
-    entityId: 'product_manager',
-    key: 'role',
-    valueSummary: 'Product Manager',
-    valueRaw: '"Product Manager"',
-    confidence: 92,
-    source: 'handshake',
-    agentId: 'product_manager',
-    validFrom: '2026-03-18T09:00:00.000Z',
-    validUntil: null,
-    updatedAt: '2026-03-20T09:58:00.000Z',
-  },
-  {
-    id: '2',
-    entityType: 'project',
-    entityId: 'iranti_control_plane',
-    key: 'phase',
-    valueSummary: 'Phase 1',
-    valueRaw: '"Phase 1"',
-    confidence: 95,
-    source: 'product_manager',
-    agentId: 'product_manager',
-    validFrom: '2026-03-20T00:00:00.000Z',
-    validUntil: null,
-    updatedAt: '2026-03-20T10:45:00.000Z',
-  },
-  {
-    id: '3',
-    entityType: 'decision',
-    entityId: 'visual_direction',
-    key: 'decision',
-    valueSummary: 'Option B: Terminals — emerald/mint on near-black, system font stack',
-    valueRaw: '{"option":"B","name":"Terminals","approved_by":"product_manager"}',
-    confidence: 99,
-    source: 'product_manager_review',
-    agentId: 'product_manager',
-    validFrom: '2026-03-20T10:46:36.000Z',
-    validUntil: null,
-    updatedAt: '2026-03-20T10:46:36.000Z',
-  },
-]
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return debounced
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -170,15 +103,10 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`
 }
 
-function formatConfidence(conf: number): string {
-  return String(conf)
-}
-
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                      */
 /* ------------------------------------------------------------------ */
 
-// Sort indicator
 function SortIndicator({ column, sort }: { column: SortColumn; sort: SortState }) {
   if (sort.column !== column) {
     return <span className={styles.sortInactive} aria-hidden="true">⇅</span>
@@ -190,17 +118,15 @@ function SortIndicator({ column, sort }: { column: SortColumn; sort: SortState }
   )
 }
 
-// Confidence bar
 function ConfidenceBar({ value }: { value: number }) {
   const level = value >= 90 ? 'high' : value >= 70 ? 'medium' : 'low'
   return (
     <span className={styles.confidence} data-level={level} title={`Confidence: ${value}`}>
-      {formatConfidence(value)}
+      {value}
     </span>
   )
 }
 
-// Expanded row detail
 function ExpandedRowDetail({
   fact,
   onViewHistory,
@@ -214,6 +140,12 @@ function ExpandedRowDetail({
   const handleViewRelated = () => {
     navigate(`/memory/${encodeURIComponent(fact.entityType)}/${encodeURIComponent(fact.entityId)}`)
   }
+
+  const parsedRaw = (() => {
+    if (!fact.valueRaw) return null
+    try { return JSON.parse(fact.valueRaw) }
+    catch { return fact.valueRaw }
+  })()
 
   return (
     <tr className={styles.expandedRowContainer}>
@@ -230,7 +162,7 @@ function ExpandedRowDetail({
             </div>
             <div className={styles.expandedField}>
               <span className={styles.expandedLabel}>Value</span>
-              <span className={styles.expandedValue}>{fact.valueSummary}</span>
+              <span className={styles.expandedValue}>{fact.valueSummary ?? '—'}</span>
             </div>
             <div className={styles.expandedField}>
               <span className={styles.expandedLabel}>Source</span>
@@ -250,34 +182,27 @@ function ExpandedRowDetail({
             </div>
             <div className={styles.expandedField}>
               <span className={styles.expandedLabel}>Valid until</span>
-              <span className={styles.expandedValue}>{fact.validUntil ?? '—  (currently valid)'}</span>
+              <span className={styles.expandedValue}>{fact.validUntil ?? '— (currently valid)'}</span>
             </div>
           </div>
 
-          {showRaw && (
+          {showRaw && parsedRaw !== null && (
             <div className={styles.expandedRawBlock}>
-              <span className={styles.expandedLabel}>Raw JSON</span>
-              <pre className={styles.expandedRawPre}>{JSON.stringify(JSON.parse(fact.valueRaw), null, 2)}</pre>
+              <span className={styles.expandedLabel}>
+                Raw JSON{fact.valueRawTruncated ? ' (truncated — view entity for full value)' : ''}
+              </span>
+              <pre className={styles.expandedRawPre}>{JSON.stringify(parsedRaw, null, 2)}</pre>
             </div>
           )}
 
           <div className={styles.expandedActions}>
-            <button
-              className={styles.expandedActionButton}
-              onClick={() => onViewHistory(fact)}
-            >
+            <button className={styles.expandedActionButton} onClick={() => onViewHistory(fact)}>
               View History
             </button>
-            <button
-              className={styles.expandedActionButton}
-              onClick={() => setShowRaw(r => !r)}
-            >
+            <button className={styles.expandedActionButton} onClick={() => setShowRaw(r => !r)}>
               {showRaw ? 'Hide Raw JSON' : 'View Raw JSON'}
             </button>
-            <button
-              className={styles.expandedActionButton}
-              onClick={handleViewRelated}
-            >
+            <button className={styles.expandedActionButton} onClick={handleViewRelated}>
               View Related Entities →
             </button>
           </div>
@@ -287,7 +212,6 @@ function ExpandedRowDetail({
   )
 }
 
-// Filter bar
 function FilterBar({
   filters,
   dispatch,
@@ -316,7 +240,7 @@ function FilterBar({
           type="text"
           className={styles.filterInput}
           placeholder="Entity type"
-          value={filters.entityType ?? ''}
+          value={filters.entityType}
           onChange={setField('entityType')}
           aria-label="Filter by entity type"
         />
@@ -324,7 +248,7 @@ function FilterBar({
           type="text"
           className={styles.filterInput}
           placeholder="Entity ID"
-          value={filters.entityId ?? ''}
+          value={filters.entityId}
           onChange={setField('entityId')}
           aria-label="Filter by entity ID"
         />
@@ -332,7 +256,7 @@ function FilterBar({
           type="text"
           className={styles.filterInput}
           placeholder="Key"
-          value={filters.key ?? ''}
+          value={filters.key}
           onChange={setField('key')}
           aria-label="Filter by key"
         />
@@ -340,7 +264,7 @@ function FilterBar({
           type="text"
           className={styles.filterInput}
           placeholder="Source"
-          value={filters.source ?? ''}
+          value={filters.source}
           onChange={setField('source')}
           aria-label="Filter by source"
         />
@@ -363,7 +287,7 @@ function FilterBar({
           type="text"
           className={styles.filterInput}
           placeholder="Created by"
-          value={filters.createdBy ?? ''}
+          value={filters.createdBy}
           onChange={setField('createdBy')}
           aria-label="Filter by creator agent"
         />
@@ -389,7 +313,6 @@ function FilterBar({
   )
 }
 
-// Skeleton row (loading state)
 function SkeletonRow() {
   return (
     <tr className={styles.skeletonRow} aria-hidden="true">
@@ -405,7 +328,6 @@ function SkeletonRow() {
   )
 }
 
-// Empty state
 function EmptyState({ filters }: { filters: FilterState }) {
   const hasFilters =
     filters.search ||
@@ -438,7 +360,6 @@ function EmptyState({ filters }: { filters: FilterState }) {
   )
 }
 
-// Error state
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <tr>
@@ -462,17 +383,19 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 function PaginationControls({
   pagination,
+  total,
   onPageChange,
   onPageSizeChange,
 }: {
   pagination: PaginationState
+  total: number
   onPageChange: (offset: number) => void
   onPageSizeChange: (limit: PageSize) => void
 }) {
-  const { offset, limit, total } = pagination
+  const { offset, limit } = pagination
   const currentPage = Math.floor(offset / limit) + 1
   const totalPages = Math.max(1, Math.ceil(total / limit))
-  const start = offset + 1
+  const start = total > 0 ? offset + 1 : 0
   const end = Math.min(offset + limit, total)
 
   return (
@@ -522,22 +445,41 @@ export function MemoryExplorer() {
   const [filters, dispatch] = useReducer(filterReducer, DEFAULT_FILTERS)
   const [sort, setSort] = useState<SortState>({ column: 'updatedAt', dir: 'desc' })
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
-  const [pagination, setPagination] = useState<PaginationState>({
-    offset: 0,
-    limit: 25,
-    total: STUB_FACTS.length,
+  const [pagination, setPagination] = useState<PaginationState>({ offset: 0, limit: 25 })
+
+  // Debounce the search field to avoid a new request on every keystroke
+  const debouncedSearch = useDebounced(filters.search, 300)
+
+  // Build the effective query params (use debounced search)
+  const queryParams = {
+    ...(filters.entityType && { entityType: filters.entityType }),
+    ...(filters.entityId && { entityId: filters.entityId }),
+    ...(filters.key && { key: filters.key }),
+    ...(filters.source && { source: filters.source }),
+    ...(filters.createdBy && { createdBy: filters.createdBy }),
+    ...(filters.minConfidence > 0 && { minConfidence: filters.minConfidence }),
+    ...(debouncedSearch && { search: debouncedSearch }),
+    ...(filters.activeOnly && { activeOnly: true }),
+    limit: pagination.limit,
+    offset: pagination.offset,
+  }
+
+  const { data, isLoading, error, refetch } = useQuery<KBListResponse, Error>({
+    queryKey: ['kb', queryParams],
+    queryFn: () => apiFetch<KBListResponse>('/kb', queryParams as Record<string, string | number | boolean | undefined>),
   })
 
-  // TODO(CP-T013): Replace with useQuery from TanStack Query once CP-T010 API is ready
-  // const { data, isLoading, error, refetch } = useQuery({
-  //   queryKey: ['kb', filters, sort, pagination.offset, pagination.limit],
-  //   queryFn: () => fetchKBFacts({ ...filters, sortBy: sort.column, sortDir: sort.dir,
-  //                                  limit: pagination.limit, offset: pagination.offset }),
-  // })
-  const isLoading = false
-  const error: string | null = null
-  const facts = STUB_FACTS
-  const refetch = useCallback(() => { /* TODO */ }, [])
+  // Reset to page 1 when filters change
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    if (prevFiltersRef.current !== filters) {
+      setPagination(p => ({ ...p, offset: 0 }))
+      prevFiltersRef.current = filters
+    }
+  }, [filters])
+
+  const facts = data?.items ?? []
+  const total = data?.total ?? 0
 
   const handleSort = (column: SortColumn) => {
     setSort(prev =>
@@ -545,7 +487,6 @@ export function MemoryExplorer() {
         ? { ...prev, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
         : { column, dir: 'desc' }
     )
-    // Reset to first page on sort change
     setPagination(p => ({ ...p, offset: 0 }))
   }
 
@@ -561,10 +502,8 @@ export function MemoryExplorer() {
 
   return (
     <div className={styles.page}>
-      {/* Sticky filter bar */}
       <FilterBar filters={filters} dispatch={dispatch} />
 
-      {/* Scrollable table region */}
       <div className={styles.tableRegion}>
         <table className={styles.table} aria-label="Knowledge base facts">
           <thead>
@@ -613,7 +552,7 @@ export function MemoryExplorer() {
             {isLoading && Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)}
 
             {!isLoading && error && (
-              <ErrorState message={error} onRetry={refetch} />
+              <ErrorState message={error.message} onRetry={() => void refetch()} />
             )}
 
             {!isLoading && !error && facts.length === 0 && (
@@ -621,9 +560,8 @@ export function MemoryExplorer() {
             )}
 
             {!isLoading && !error && facts.map(fact => (
-              <>
+              <Fragment key={fact.id}>
                 <tr
-                  key={fact.id}
                   className={`${styles.dataRow} ${expandedRowId === fact.id ? styles.dataRowExpanded : ''}`}
                   onClick={() => handleRowClick(fact.id)}
                   aria-expanded={expandedRowId === fact.id}
@@ -638,7 +576,7 @@ export function MemoryExplorer() {
                   </td>
                   <td className={styles.cellKey}>{fact.key}</td>
                   <td className={styles.cellSummary}>
-                    <span className={styles.summaryText}>{fact.valueSummary}</span>
+                    <span className={styles.summaryText}>{fact.valueSummary ?? '—'}</span>
                   </td>
                   <td className={styles.cellConfidence}>
                     <ConfidenceBar value={fact.confidence} />
@@ -648,27 +586,28 @@ export function MemoryExplorer() {
                   <td className={styles.cellMeta}>
                     {fact.validFrom ? new Date(fact.validFrom).toLocaleDateString() : '—'}
                   </td>
-                  <td className={styles.cellMeta}>{formatRelativeTime(fact.updatedAt)}</td>
+                  <td className={styles.cellMeta}>
+                    {fact.updatedAt ? formatRelativeTime(fact.updatedAt) : fact.createdAt ? formatRelativeTime(fact.createdAt) : '—'}
+                  </td>
                 </tr>
 
                 {expandedRowId === fact.id && (
                   <ExpandedRowDetail
-                    key={`${fact.id}-expanded`}
                     fact={fact}
                     onViewHistory={handleViewHistory}
                   />
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
       <PaginationControls
         pagination={pagination}
+        total={total}
         onPageChange={offset => setPagination(p => ({ ...p, offset }))}
-        onPageSizeChange={limit => setPagination(p => ({ ...p, limit, offset: 0, total: p.total }))}
+        onPageSizeChange={limit => setPagination(p => ({ ...p, limit, offset: 0 }))}
       />
     </div>
   )

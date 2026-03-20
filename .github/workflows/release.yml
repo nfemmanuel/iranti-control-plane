@@ -18,11 +18,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
+            package.json
             src/client/package.json
             src/server/package.json
 
       - name: Install deps
         run: |
+          npm install
           npm install --prefix src/client
           npm install --prefix src/server
 
@@ -36,6 +38,7 @@ jobs:
           mkdir -p release
           cp -r src/server/dist release/server
           cp -r public/control-plane release/client
+          cp package.json release/package.json
           tar -czf iranti-control-plane-${{ github.ref_name }}.tar.gz release/
 
       - uses: softprops/action-gh-release@v2

@@ -18,16 +18,16 @@ cd iranti-control-plane
 # 2. Create .env.iranti at the repo root
 #    DATABASE_URL=postgresql://user:password@localhost:5432/iranti
 
-# 3. Setup (installs all dependencies)
+# 3. Install all dependencies (server, client, and root workspace tools)
 bash scripts/dev-setup.sh      # macOS/Linux
 # or: .\scripts\dev-setup.ps1  # Windows PowerShell
+# or manually: npm install && npm run setup
 
 # 4. Run the migration (creates required tables)
-npm run migrate --prefix src/server
+npm run migrate
 
-# 5. Start the dev servers
-npm run dev --prefix src/server   # API server on port 3002
-npm run dev --prefix src/client   # Frontend on port 5173
+# 5. Start the dev servers (server + client together)
+npm run dev
 ```
 
 Open http://localhost:5173 for the frontend dev server.
@@ -60,6 +60,22 @@ DATABASE_URL=postgresql://iranti:iranti@localhost:5432/iranti
 | `public/control-plane/` | Client build output (generated) |
 
 ## Development
+
+### Root workspace scripts
+
+The root `package.json` provides convenience scripts that orchestrate both server and client. Run these from the repo root:
+
+| Script | Command | Description |
+|---|---|---|
+| `dev` | `npm run dev` | Start server and client concurrently with labeled output |
+| `build` | `npm run build` | Build client then server for production |
+| `start` | `npm run start` | Start the compiled server (production mode) |
+| `migrate` | `npm run migrate` | Run database migrations |
+| `setup` | `npm run setup` | Install server and client dependencies |
+
+> `npm run dev` uses `concurrently` (a root devDependency). Run `npm install` at the repo root — or use `dev-setup.sh` / `dev-setup.ps1` — before using it.
+
+### Run processes individually
 
 ```bash
 # Server (port 3002, hot-reloaded via tsx watch)

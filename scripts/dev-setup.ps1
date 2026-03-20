@@ -60,13 +60,22 @@ npm install --prefix src/client
 if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: Client dep install failed." -ForegroundColor Red; exit 1 }
 Write-Host "OK: Client deps installed" -ForegroundColor Green
 
+# Install root deps (provides concurrently for npm run dev)
+Write-Host "Installing root dependencies..."
+npm install
+if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: Root dep install failed." -ForegroundColor Red; exit 1 }
+Write-Host "OK: Root deps installed" -ForegroundColor Green
+
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "To start development:"
+Write-Host "To start development (server + client together):"
+Write-Host "  npm run dev                        # both server and client (recommended)"
+Write-Host ""
+Write-Host "To run each process individually:"
 Write-Host "  npm run dev --prefix src/server   # server only (port 3002)"
 Write-Host "  npm run dev --prefix src/client   # client only (port 5173)"
 Write-Host ""
 Write-Host "To run migrations (creates required tables):"
-Write-Host "  npm run migrate --prefix src/server"
+Write-Host "  npm run migrate"
 Write-Host ""

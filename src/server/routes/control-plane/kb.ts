@@ -142,6 +142,7 @@ interface KBFilters {
   createdBy?: string
   minConfidence?: number
   search?: string
+  activeOnly?: boolean
 }
 
 interface ArchiveFilters extends KBFilters {
@@ -190,6 +191,9 @@ function buildKBWhereClause(
   if (filters.minConfidence !== undefined) {
     params.push(filters.minConfidence)
     clauses.push(`${t}confidence >= $${params.length}`)
+  }
+  if (filters.activeOnly) {
+    clauses.push(`(${t}valid_until IS NULL OR ${t}valid_until > NOW())`)
   }
 
   return clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -304,6 +308,7 @@ kbRouter.get('/kb', async (req: Request, res: Response, next: NextFunction) => {
       createdBy: req.query.createdBy as string | undefined,
       minConfidence: parseMinConfidence(req.query.minConfidence as string | undefined),
       search: req.query.search as string | undefined,
+      activeOnly: req.query.activeOnly === 'true',
     }
 
     const params: unknown[] = []

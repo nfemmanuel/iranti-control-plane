@@ -157,8 +157,17 @@ function buildEventWhereClause(filters: EventFilters, params: unknown[]): string
   clauses.push(`level = $${params.length}`)
 
   if (filters.staffComponent) {
-    params.push(filters.staffComponent)
-    clauses.push(`staff_component = $${params.length}`)
+    const components = filters.staffComponent.split(',').map(s => s.trim()).filter(Boolean)
+    if (components.length === 1) {
+      params.push(components[0])
+      clauses.push(`staff_component = $${params.length}`)
+    } else if (components.length > 1) {
+      const placeholders = components.map((c, i) => {
+        params.push(c)
+        return `$${params.length}`
+      })
+      clauses.push(`staff_component IN (${placeholders.join(', ')})`)
+    }
   }
   if (filters.actionType) {
     params.push(filters.actionType)
@@ -364,8 +373,8 @@ eventsRouter.get('/stream', async (req: Request, res: Response, next: NextFuncti
 
       for (const row of result.rows) {
         const event = serializeEventRow(row as Record<string, unknown>)
-        res.write(`data: ${JSON.stringify(event)}\n`)
         res.write(`id: ${event.eventId}\n`)
+        res.write(`data: ${JSON.stringify(event)}\n`)
         res.write('\n')
         lastHeartbeatTime = Date.now()
         pollCursor = new Date(event.timestamp)

@@ -55,13 +55,21 @@ echo "Installing client dependencies..."
 npm install --prefix src/client
 echo "OK: Client deps installed"
 
+# Install root deps (provides concurrently for npm run dev)
+echo "Installing root dependencies..."
+npm install
+echo "OK: Root deps installed"
+
 echo ""
 echo "=== Setup complete ==="
 echo ""
-echo "To start development:"
+echo "To start development (server + client together):"
+echo "  npm run dev                        # both server and client (recommended)"
+echo ""
+echo "To run each process individually:"
 echo "  npm run dev --prefix src/server   # server only (port 3002)"
 echo "  npm run dev --prefix src/client   # client only (port 5173)"
 echo ""
 echo "To run migrations (creates required tables):"
-echo "  npm run migrate --prefix src/server"
+echo "  npm run migrate"
 echo ""
