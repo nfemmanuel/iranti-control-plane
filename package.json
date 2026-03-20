@@ -1,0 +1,19 @@
+{
+  "name": "iranti-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:server": "cd src/server && npm run dev",
+    "dev:client": "cd src/client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:client": "cd src/client && npm run build",
+    "build:server": "cd src/server && npm run build",
+    "build": "npm run build:client && npm run build:server",
+    "start": "cd src/server && npm start",
+    "migrate": "cd src/server && npm run migrate",
+    "setup": "npm install --prefix src/server && npm install --prefix src/client"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
