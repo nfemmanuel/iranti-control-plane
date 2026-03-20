@@ -157,6 +157,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CP-T039 | staff_events migration | DevOps | devops_engineer | P0 | PM-accepted |
 | CP-T040 | v0.1.0 Release Notes + Known Issues | Documentation | technical_writer | P1 | PM-accepted 2026-03-20 |
 | CP-T041 | memory-explorer.md review | Documentation | technical_writer | P2 | PM-accepted 2026-03-20 |
+| CP-T047 | Documentation Round 5: Getting Started Guide Polish | Documentation | technical_writer | P2 | Open — issued 2026-03-20 |
 
 ### v0.1.0 Hold Lift Criteria — HOLD LIFTED 2026-03-20
 
@@ -219,20 +220,28 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 - Power users can save workspaces, filters, and frequently-used views
 - Data can be exported for external analysis or imported for recovery/migration
 - Optional remote or team mode for multi-user shared operation (scope TBD)
-- Signed macOS installer or Homebrew formula (if Phase 2 wizard adoption validates demand)
+- Signed, distributable platform installer packages for all three major OS families — Windows `.msi`/`.exe`, macOS `.dmg`, Linux `.AppImage`/`.deb` (CP-T048)
+- Homebrew Cask distribution supplement for macOS (CP-T048 stretch goal)
 - Persistent cross-session conversation history in embedded chat
 - Full-text search across fact values (not just entityId/key)
+
+### Tickets
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | Open — ticket created 2026-03-20 |
 
 ### Exit Criteria
 
 - [ ] Phase 3 success metrics defined after Phase 2 retrospective
 - [ ] Scope confirmed by PM before any Phase 3 tickets are cut
+- [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux
 
 **Primary agents**: TBD based on Phase 2 outcomes
 
-**Dependencies**: Phase 2 complete
+**Dependencies**: Phase 2 complete; CP-T023 (CLI wizard) must ship first to validate demand signal before investing in packaging infrastructure
 
-**Complexity**: Medium-High — individual features are well-understood; team mode introduces significant new complexity if included
+**Complexity**: Medium-High — individual features are well-understood; team mode introduces significant new complexity if included; CP-T048 packaging pipeline is non-trivial (code signing, notarization, multi-platform CI)
 
 ---
 
