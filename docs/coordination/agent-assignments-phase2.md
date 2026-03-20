@@ -1,8 +1,8 @@
 # Phase 2 Agent Assignments — 2026-03-20
 
 **Issued by:** `product_manager`
-**Date:** 2026-03-20
-**Status:** Active — all agents assigned for Phase 2 wave 1 kickoff
+**Date:** 2026-03-20 (Wave 1 initial) | **Wave 2 update:** 2026-03-20 (PM session 2)
+**Status:** Wave 2 assignments added — see bottom of this file for new assignments
 
 Two agents already running at session start (do not re-assign):
 - `frontend_developer` → CP-T036 (Entity Detail + Temporal History Views)
@@ -422,3 +422,399 @@ When any agent writes `status: completed` to Iranti for a ticket, the PM will:
 5. Write `entity: ticket/cp_tXXX`, `key: pm_review` with the decision
 
 No ticket is done until PM has written acceptance.
+
+---
+
+---
+
+# Wave 2 Assignments — 2026-03-20 (PM Session 2)
+
+**Issued by:** `product_manager`
+**Context:** Wave 1 sprint completed. QA regression FAILED (CP-D002 found). v0.1.0 hold remains. New assignments prioritized: CP-D002 fix is P0 blocker for everything.
+
+## Completed since Wave 1
+
+| Agent | Work | PM Decision |
+|-------|------|-------------|
+| technical_writer | CP-T040 (release notes + known issues) | ACCEPTED |
+| technical_writer | CP-T041 (memory-explorer.md review) | ACCEPTED |
+| frontend_developer | CP-T035 (GettingStarted.tsx + AppShell integration) | FRONTEND ACCEPTED — backend pending |
+| frontend_developer | CP-T033 (ConfirmationModal, DoctorDrawer, repair buttons) | FRONTEND ACCEPTED — backend pending |
+| frontend_developer | CP-T021 (ConflictReview.tsx) | FRONTEND ACCEPTED — backend blocked |
+| devops_engineer | CP-T039 (staff_events migration) | ACCEPTED (previously) |
+| system_architect | CP-T025 (emitter spec) | SPEC ACCEPTED — upstream PR pending |
+| qa_engineer | REG-001–REG-005 | FAIL — CP-D002 raised |
+
+---
+
+## Assignment 6: `backend_developer` → CP-D002 (P0 DEFECT — URGENT) then CP-T021 escalation routes
+
+**Priority:** CP-D002 is P0 blocker. Fix before anything else.
+**Phase:** 1 close-out (CP-D002) + Phase 2 (CP-T021 backend)
+
+### Prompt for backend_developer
+
+You are the `backend_developer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "backend_developer"`, task: "CP-D002 P0 defect fix — entity_relationships table name + agentId column mismatch — then CP-T021 escalation routes"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — READ THE DEFECT FIRST (CP-D002, fix before anything else):**
+
+Query Iranti: `entity: blocker/cp_d002`, `key: pm_assessment` for the full defect list.
+
+**THREE SPECIFIC BUGS TO FIX in `src/server/routes/control-plane/kb.ts`:**
+
+**Bug 1 — entity_relationships table name (affects entity detail and relationships routes):**
+- The SQL queries around line 558 and 649 reference `entity_relationships` as the table name.
+- The actual Prisma table name is `"EntityRelationship"` (PascalCase, must be quoted in SQL).
+- Column names are also wrong: code uses `fromEntityType`, `fromEntityId`, `toEntityType`, `toEntityId`.
+- Actual column names: `fromType`, `fromId`, `toType`, `toId`.
+- Fix: update the FROM clause to `FROM "EntityRelationship"` and all column references to `"fromType"`, `"fromId"`, `"toType"`, `"toId"`.
+
+**Bug 2 — agentId column name in history endpoint (affects temporal history):**
+- The temporal history route (around line 400–450 in kb.ts) has an explicit SELECT that names `"agentId"` as a column.
+- The actual column in both `knowledge_base` and `archive` tables is `"createdBy"`.
+- Fix: replace `"agentId"` with `"createdBy"` in all explicit SELECTs in the history endpoint.
+
+**Bug 3 (minor) — serializeArchiveRow() missing labelArchivedReason():**
+- The archive browse serializer `serializeArchiveRow()` returns raw `archivedReason` codes (e.g., `"superseded"`) without passing them through `labelArchivedReason()`.
+- The history endpoint already applies `labelArchivedReason()` correctly.
+- Fix: call `labelArchivedReason(row.archivedReason)` in `serializeArchiveRow()` before returning the value.
+
+**Step 4 — After fixing CP-D002:**
+- Run `cd src/server && npx tsc --noEmit` — must exit 0
+- Run `cd src/server && npx vitest run tests/unit` — all tests must pass
+- Push and confirm CI green: `gh run list --limit 3 --repo nfemmanuel/iranti-control-plane`
+- Write to Iranti: `entity: blocker/cp_d002`, `key: fix_status` = "resolved" with commit SHA
+- Notify PM that CP-D002 fix is pushed — PM will trigger QA re-run of REG-003, REG-004, REG-005
+
+**Step 5 — ONLY AFTER CP-D002 FIX IS CONFIRMED MERGED AND CI GREEN: Implement CP-T021 escalation routes**
+
+**PM decision on escalation data source (read entity: ticket/cp_t021, key: pm_escalation_backend_decision):**
+
+The PM has decided: escalation data lives in the `archive` table. Rows where `resolutionState IS NULL AND supersededBy IS NOT NULL` are pending escalations. The archive row UUID is the escalation ID.
+
+**Implement two new routes in a new file `src/server/routes/control-plane/escalations.ts`:**
+
+**Route 1: `GET /api/control-plane/escalations`**
+- Query param: `?status=pending|resolved` (default: pending)
+- For `status=pending`: query `archive` WHERE `resolutionState IS NULL AND supersededBy IS NOT NULL`
+- For each pending archive row, also fetch the current `knowledge_base` row for the same `entityType/entityId/key` — this is the "existing fact" in the comparison
+- For `status=resolved`: query `archive` WHERE `resolutionState IS NOT NULL`
+- Response shape (see ConflictReview.tsx for the expected PendingEscalation and ResolvedEscalation interfaces):
+```typescript
+interface EscalationListResponse {
+  pending: PendingEscalation[];    // when status=pending
+  resolved: ResolvedEscalation[];  // when status=resolved
+  total: number;
+}
+```
+
+**Route 2: `POST /api/control-plane/escalations/:id/resolve`**
+- `:id` is the archive row UUID
+- Body: `{ resolution: "keep_existing" | "accept_challenger" | "custom", customValue?: string }`
+- For `keep_existing`: set `archive.resolutionState = "resolved_keep_existing"` — no KB change
+- For `accept_challenger`: set `archive.resolutionState = "resolved_accept_challenger"`, then write a new KB fact using the archive row's `valueRaw` and `valueSummary` (this supersedes the current fact)
+- For `custom`: validate `customValue` is valid JSON, write as new KB fact, set `resolutionState = "resolved_custom"`
+- All: update `archive.updatedAt` and log to `staff_events` table with `componentName: "Resolutionist"`, `eventType: "conflict_resolved"`, `agentId: "control_plane_operator"`, payload includes resolution choice and entity context
+- Return: `{ id, resolution, resolvedAt, entityType, entityId, key }`
+- Validation: if resolution is "custom" and `customValue` is missing or invalid JSON, return 400
+- If archive row not found or already resolved, return 404
+
+**Wire both routes in `src/server/routes/control-plane/index.ts` or equivalent router file.**
+
+**Confirm with PM before implementing if:** the `archive` table structure does not support this query pattern, or if the `resolutionState` values differ from what PM specified.
+
+**Step 6 — After CP-T021 backend:**
+- TypeScript must compile: `cd src/server && npx tsc --noEmit`
+- Write to Iranti: `entity: ticket/cp_t021`, `key: backend_status` — what was implemented, any schema surprises
+- In `src/client/src/components/conflicts/ConflictReview.tsx`: flip `ESCALATIONS_API_AVAILABLE = true` and wire the two fetch calls (GET escalations, POST resolve) to the real endpoints
+
+**Step 7 — Report back to PM with:**
+- CP-D002: what was fixed, commit SHA, CI status
+- CP-T021: did archive table structure match PM's expectation? Any deviations?
+- TypeScript compilation status for both fixes
+- Any risks or open questions
+
+---
+
+## Assignment 7: `qa_engineer` → CP-D002 Regression Re-run (after backend fix)
+
+**Priority:** P0 — immediately after backend_developer pushes CP-D002 fix
+**Blocking:** v0.1.0 hold lift
+
+### Prompt for qa_engineer
+
+You are the `qa_engineer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "qa_engineer"`, task: "CP-D002 regression re-run — REG-003, REG-004, REG-005 against live DB after backend fix"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Wait for backend_developer to write `entity: blocker/cp_d002`, `key: fix_status` = "resolved" before starting.**
+
+Query Iranti for that key. If not yet resolved, do not proceed — wait for the signal.
+
+**Step 4 — Re-run only the failing tests:**
+
+From `docs/test-plans/phase2-test-plan.md`, re-run:
+- **REG-003:** `GET /api/control-plane/entities/agent/test_agent_001` — should return 200 with entity detail and relationships (no SQL error about entity_relationships table)
+- **REG-004:** `GET /api/control-plane/entities/test/temporal_history_check/history/test_value` — should return 200 with temporal history intervals (no SQL error about agentId column)
+- **REG-005:** Same as REG-004 but verify `archivedReason` labels are human-readable (e.g., "Superseded" not "superseded")
+
+Also verify:
+- **REG-002 re-check:** archive browse endpoint — verify `archivedReason` values are now human-readable (labelArchivedReason fix)
+- **REG-006:** re-run relationships endpoint (was blocked by same entity_relationships bug as REG-003)
+
+**Step 5 — Write results to Iranti:**
+- `entity: ticket/cp_d001`, `key: qa_regression_result_v2` — all test results with pass/fail and detail
+- `entity: ticket/cp_d001`, `key: regression_gate_status_v2` — overall verdict
+
+**Step 6 — If all gate tests pass, notify PM explicitly:**
+Write `entity: project/iranti_control_plane`, `key: qa_regression_v2_verdict` = "PASS" with date and QA sign-off.
+
+**If any still fail:** Write failure detail with exact SQL error, endpoint, and what changed vs v1 result. PM will triage.
+
+**Step 7 — Alongside the regression re-run, complete the Phase 2 QA test plan if not done:**
+Read `docs/test-plans/phase2-test-plan.md`. If Phase 2 test cases for CP-T035 (setup status endpoint), CP-T033 (repair endpoints), and CP-T021 (escalations) are not yet written, add them.
+
+**Step 8 — Report back to PM with:**
+- REG-003, REG-004, REG-005 re-run results
+- Overall verdict: v0.1.0 hold lift criteria met or not
+- Any new defects found
+- Phase 2 test plan status
+
+---
+
+## Assignment 8: `frontend_developer` → CP-T037 (Live Mode UX) + CP-T024 (Command Palette)
+
+**Priority:** P1 (CP-T037) + P2 (CP-T024)
+**Phase:** 2, Wave 2
+
+### Prompt for frontend_developer
+
+You are the `frontend_developer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "frontend_developer"`, task: "CP-T037 Staff Activity Stream live mode UX + CP-T024 command palette"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files before starting:**
+- `docs/tickets/cp-t037.md` — Live Mode UX acceptance criteria
+- `docs/tickets/cp-t024.md` — Command Palette acceptance criteria
+- `docs/protocols/development.md` — Steps 1–6 mandatory before marking done
+- `src/client/src/components/stream/ActivityStream.tsx` — current ActivityStream component
+- `src/client/src/components/shell/AppShell.tsx` — shell structure you are working within
+
+**Step 4 — CP-T037: Staff Activity Stream Live Mode UX**
+
+The ActivityStream component exists from Phase 1. This ticket adds:
+
+1. **Pulse indicator** — a visual "live" badge that pulses (CSS animation) when the stream is receiving events. Should dim or stop pulsing when paused or when no events have arrived in the last 10 seconds.
+
+2. **Velocity counter** — a rolling "events per minute" counter updated every 5 seconds. Display format: `{N} evt/min`. Should drop to 0 if no events for 60 seconds.
+
+3. **Hover-pause** — when the user hovers over the event list, the stream pauses (new events are buffered, not rendered). A "Paused (hover)" indicator replaces the live badge. On mouse leave, resume rendering (flush buffer). The buffer should match the existing 500-event client-side buffer.
+
+4. **Live/Paused badge** — a persistent badge in the stream header: `● LIVE` (emerald, pulsing) when streaming, `⏸ PAUSED` (amber) when paused manually or by hover. Clicking the badge toggles the manual pause.
+
+5. **Phase 2 coverage note** — update the Phase 1 coverage indicator to note: "All 4 Staff components: Librarian, Archivist (current via polling), Attendant, Resolutionist (Phase 2 — pending CP-T025)". This is informational, not a blocker.
+
+**Note on CP-T025 dependency:** CP-T037 improves the live UX of the existing polling stream. CP-T025 (native emitter) is not required for CP-T037 to ship. The pulse/velocity/hover-pause work with the current 2-second polling adapter.
+
+**Step 5 — CP-T024: Command Palette (Cmd+K)**
+
+Implement a global command palette reachable from any view via Cmd+K (Mac) / Ctrl+K (Windows/Linux).
+
+**Requirements:**
+- A full-screen overlay with a centered search input and filtered results list
+- Keyboard navigation: arrow keys to select, Enter to navigate, Escape to close
+- Results organized in groups: Navigation (Memory, Archive, Activity, Instances, Health, Conflicts, Getting Started), Actions (filtered suggestions based on current view context)
+- Fuzzy search across command labels
+- Must be reachable from every view — mount in AppShell, not inside any individual view
+- Close on click-outside and on Escape
+- Trap focus within the palette while open (accessibility)
+- Transitions: fade-in/fade-out, not instant show/hide
+
+**Do NOT** build a full search-across-KB feature in this ticket. The palette is for navigation and in-app actions only. KB search is a Phase 3 item.
+
+**Step 6 — Protocol compliance:**
+- `cd src/client && npx tsc --noEmit` must exit 0
+- `cd src/server && npx tsc --noEmit` must exit 0 (no regressions)
+- Both light and dark mode verified for all new components
+
+**Step 7 — Write to Iranti:**
+- `entity: ticket/cp_t037`, `key: frontend_status` — what was implemented, AC check
+- `entity: ticket/cp_t024`, `key: frontend_status` — what was implemented, AC check
+
+**Step 8 — Report back to PM with:**
+- Both tickets: what was built, AC check per ticket
+- Any UX decisions made (e.g., hover-pause interaction model, command palette grouping structure)
+- TypeScript and visual mode status
+
+---
+
+## Assignment 9: `system_architect` → CP-T025 Upstream PR (from spec)
+
+**Priority:** P1
+**Phase:** 2, Wave 2
+
+### Prompt for system_architect
+
+You are the `system_architect` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "system_architect"`, task: "CP-T025 upstream emitter PR — convert spec to actionable PR description and fallback design confirmation"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read the completed spec:**
+- `docs/specs/cp-t025-emitter-design.md` — your 1,035-line spec from Wave 1
+
+**Step 4 — Your deliverable:**
+
+The spec is done. Now produce two outputs:
+
+**Output A — Upstream PR description (`docs/specs/cp-t025-upstream-pr.md`):**
+A ready-to-submit GitHub PR description for the Iranti upstream repository. Audience: the Iranti maintainer. Must include:
+- What the PR does (one paragraph, plain English)
+- Why: the use case (control plane live tail)
+- What changes: specific files modified, with the interface definition included inline
+- The IStaffEventEmitter interface and no-op default implementation
+- Injection point summary (one table: component, action, event type, injection location)
+- Testing: how to verify the emitter fires correctly
+- Rollout safety: no-op default means the emitter is safe to merge without the control plane deployed
+
+**Output B — Fallback design confirmation (`docs/specs/cp-t025-fallback-confirmed.md`):**
+A 1-page document confirming the enhanced polling fallback design:
+- Poll interval: 500ms against `staff_events` table
+- Attendant proxy: what `knowledge_base` writes to watch for Attendant activity
+- Resolutionist proxy: what `archive` writes to watch for Resolutionist activity
+- SSE broadcast: how the fallback event is shaped into a StaffEvent for the frontend
+- When the fallback is triggered: upstream PR rejected, or control plane is running without upstream patch
+
+**Step 5 — Write to Iranti:**
+- `entity: ticket/cp_t025`, `key: upstream_pr_status` — "pr_description_written, awaiting maintainer submission"
+- `entity: ticket/cp_t025`, `key: fallback_status` — "fallback_design_confirmed"
+
+**Step 6 — Report back to PM with:**
+- PR description path and key decisions made
+- Fallback design — is the 500ms polling feasible without DB overload? What is the estimated query cost per minute?
+- Any risks in the upstream PR that PM should know before submitting
+
+---
+
+## Assignment 10: `backend_developer` (follow-on) → CP-T022 Provider and Model Manager
+
+**Priority:** P1 — start ONLY after CP-D002 fix is merged and CI green
+**Phase:** 2, Wave 2
+
+### Prompt for backend_developer (follow-on after CP-D002 + CP-T021)
+
+You are the `backend_developer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "backend_developer"`, task: "CP-T022 provider and model manager — read-only API for configured providers and model catalog"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files:**
+- `docs/tickets/cp-t022.md` — full ticket with acceptance criteria
+- `docs/prd/control-plane.md` sections 5 and 10 — Provider Manager product intent
+- `src/server/routes/control-plane/health.ts` — provider check logic already exists here
+
+**Step 4 — PM pre-decision on CP-T022 write scope:**
+
+The write path for CP-T022 (actually changing the default provider from the UI) requires either:
+(a) Programmatic API in the Iranti server to change provider config, or
+(b) Writing to `.env.iranti` directly from the control plane server.
+
+**PM decision for Phase 2:** Implement read-only first. No `.env.iranti` writes in Phase 2. The provider manager shows what is configured and whether each provider key is present and reachable. Provider configuration remains a manual CLI/env operation. Write surfaces are Phase 3 scope.
+
+**Implement these read-only endpoints:**
+
+1. `GET /api/control-plane/providers` — list configured providers with status:
+```typescript
+interface ProviderStatus {
+  id: string;            // "anthropic", "openai", "ollama"
+  name: string;          // "Anthropic", "OpenAI", "Ollama"
+  keyPresent: boolean;
+  keyEnvVar: string;     // e.g., "ANTHROPIC_API_KEY"
+  reachable: boolean;    // ping the provider health endpoint
+  lastChecked: string;   // ISO timestamp
+  isDefault: boolean;    // whether this is the configured default provider
+  models?: ModelInfo[];  // if available from provider API
+}
+```
+
+2. `GET /api/control-plane/providers/:providerId/models` — list available models for a provider (if the provider exposes a models list API). For Anthropic: static list from known models. For OpenAI: call `/v1/models`. For Ollama: call `/api/tags`.
+
+**Step 5 — Write to Iranti:**
+- `entity: ticket/cp_t022`, `key: backend_status` — what endpoints were implemented, any limitations found
+
+**Step 6 — Report back to PM with:**
+- Endpoint shapes implemented
+- Provider reachability check: how are you probing each provider's health?
+- Model list: which providers return a dynamic model list vs. static?
+- Any surprises about the provider configuration structure in `.env.iranti`
+
+---
+
+## Wave 2 Status Summary (as of 2026-03-20 PM session 2)
+
+| Agent | Current Assignment | Priority |
+|-------|-------------------|----------|
+| backend_developer | CP-D002 fix (P0 URGENT) → CP-T021 escalation routes → CP-T022 provider API | P0→P1→P1 |
+| qa_engineer | Wait for CP-D002 fix, then re-run REG-003/004/005 → Phase 2 test plan | P0 gate |
+| frontend_developer | CP-T037 (live mode UX) + CP-T024 (command palette) | P1 + P2 |
+| system_architect | CP-T025 upstream PR description + fallback confirmation | P1 |
+| technical_writer | CP-T040 and CP-T041 ACCEPTED — next: see Assignment 11 below | P2 |
+| user_researcher | Assignment 4 from Wave 1 (competitor refresh + design partner brief) | P1 |
+| devops_engineer | CP-T023 wizard design (from Wave 1 Assignment 3) | P1 |
+
+---
+
+## Assignment 11: `technical_writer` → Phase 2 doc updates (round 2)
+
+**Priority:** P2
+**Blocked on:** CP-D002 fix merged (so docs accurately describe fixed behavior)
+
+### Prompt for technical_writer
+
+You are the `technical_writer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "technical_writer"`, task: "Phase 2 doc round 2 — known-issues update, DATABASE_URL gap, v0.1.0 release notes correction"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Three specific tasks:**
+
+**Task A — Update KI-007 in `docs/reference/known-issues.md`:**
+KI-007 currently says "Getting Started screen and repair button UI are backend-only — frontend not yet implemented." This is now incorrect. The frontend IS implemented (CP-T035 GettingStarted.tsx, CP-T033 ConfirmationModal + DoctorDrawer + repair buttons). Update KI-007 to reflect the current state: both surfaces exist in the frontend and are pending QA verification and full backend completion (setup routes, repair routes). The severity should reflect: the UI exists, the backend routes exist, but end-to-end is not yet QA-verified. Revise the description accordingly.
+
+**Task B — Add KI-008 for the DATABASE_URL documentation gap:**
+QA discovered that `DATABASE_URL` was missing from `.env.iranti` at the project root. The getting-started guide does not make this requirement explicit enough. Add a new known issue:
+
+```
+KI-008 | DATABASE_URL must be set in .env.iranti at the project root | All data views | P1 | Known, workaround: copy .env.iranti from your Iranti runtime root (~/.iranti/.env.iranti) to the project root
+```
+
+Also update `docs/guides/getting-started.md` prerequisites section to explicitly state: "Your `.env.iranti` file must be present at the project root (the `iranti-control-plane` directory), not just in the Iranti runtime root. If you only have it in `~/.iranti/.env.iranti`, copy it: `cp ~/.iranti/.env.iranti ./`."
+
+**Task C — Update CP-D001 status note in release notes:**
+The v0.1.0-release-notes.md says CP-D001 is "FIXED." This remains true, but QA has now found two additional defects (CP-D002). Update the "Defect Resolved" section to note: "Note: QA testing after the CP-D001 fix identified two additional schema mismatches (CP-D002). These are being fixed. The entity detail and temporal history views may show SQL errors until CP-D002 is resolved."
+
+**Step 4 — Write to Iranti:**
+- `entity: agent/technical_writer`, `key: phase2_docs_round2` — summary of what was updated
+
+**Step 5 — Report back to PM with:**
+- What was updated in each document
+- Any other documentation gaps found during this pass
+
+---
