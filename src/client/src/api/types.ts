@@ -62,9 +62,37 @@ export interface ArchiveFact {
   properties: Record<string, unknown> | null
   conflictLog: Record<string, unknown> | null
   createdAt: string
+  /** CP-T049: flagging fields */
+  flagged: boolean
+  flagNote: string | null
+  flaggedAt: string | null
 }
 
 export interface ArchiveListResponse extends PaginatedResponse<ArchiveFact> {}
+
+/* ------------------------------------------------------------------ */
+/*  Archive Flag / Restore (CP-T049)                                   */
+/* ------------------------------------------------------------------ */
+
+export interface ArchiveEventsResponse {
+  events: StaffEvent[]
+  archiveId: string
+}
+
+export interface FlagResponse {
+  flagged: true
+  flaggedAt: string
+  note: string | null
+}
+
+export interface UnflagResponse {
+  flagged: false
+}
+
+export interface RestoreResponse {
+  restored: true
+  superseded: boolean
+}
 
 /* ------------------------------------------------------------------ */
 /*  Relationships                                                       */

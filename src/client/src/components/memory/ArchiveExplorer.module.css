@@ -1,0 +1,435 @@
+/* Iranti Control Plane — Archive Explorer — CP-T049 extension styles */
+/* All new styles for: Archivist History timeline, Flag control,      */
+/* Flagged badge, Flagged queue, Restore flow.                        */
+/* Uses only existing CSS tokens from tokens.css.                     */
+
+/* ──────────────────────────────────────────────────────────────────
+   Flagged badge — amber/warning, inline in table cell
+   ────────────────────────────────────────────────────────────────── */
+
+.flaggedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Flagged filter toggle — active label highlight
+   ────────────────────────────────────────────────────────────────── */
+
+.flaggedFilterActive {
+  color: var(--color-status-warning);
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Archivist History section
+   ────────────────────────────────────────────────────────────────── */
+
+.archivistHistory {
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+}
+
+.archivistHistoryToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-sunken);
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+  letter-spacing: 0.02em;
+}
+
+.archivistHistoryToggle:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.archivistHistoryChevron {
+  font-size: 10px;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.archivistHistoryBody {
+  padding: var(--space-3);
+  background: var(--color-bg-sunken);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.archivistHistoryLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.archivistHistoryEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+}
+
+.archivistHistoryEmptyTitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.archivistHistoryEmptyNote {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Archivist History timeline
+   ────────────────────────────────────────────────────────────────── */
+
+.historyTimeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.historyTimelineItem {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  position: relative;
+}
+
+.historyTimelineItem:last-child {
+  border-bottom: none;
+}
+
+.historyTimelineDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-staff-archivist, var(--color-accent-primary));
+  margin-top: 5px;
+  border: 1px solid var(--color-border-default);
+}
+
+.historyTimelineContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.historyTimelineHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.historyTimelineAction {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.historyTimelineTime {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.historyTimelineReason {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.historyTimelineMeta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2);
+  margin: var(--space-1) 0 0;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Flag control — inline below expanded row actions
+   ────────────────────────────────────────────────────────────────── */
+
+.flagControl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.flagButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-status-warning-bg);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.flagButton:hover {
+  background: var(--color-status-warning);
+  color: var(--color-bg-base);
+}
+
+.unflagButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.unflagButton:hover:not(:disabled) {
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.unflagButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flagNoteInput {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  width: 280px;
+  transition: border-color 0.1s;
+}
+
+.flagNoteInput:focus {
+  border-color: var(--color-status-warning);
+  outline: none;
+}
+
+.flagNoteInput::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.flagConfirmButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-status-warning-bg);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.flagConfirmButton:hover:not(:disabled) {
+  background: var(--color-status-warning);
+  color: var(--color-bg-base);
+}
+
+.flagConfirmButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flagNoteDisplay {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flagError {
+  font-size: 11px;
+  color: var(--color-status-error);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Flagged for Review queue
+   ────────────────────────────────────────────────────────────────── */
+
+.flaggedQueue {
+  border-bottom: 2px solid var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  flex-shrink: 0;
+}
+
+.flaggedQueueTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--section-padding);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-status-warning);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+}
+
+.flaggedQueueCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--color-status-warning);
+  color: var(--color-bg-base);
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.flaggedQueueLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.flaggedQueueEmpty {
+  padding: var(--space-2) var(--section-padding);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-status-warning) 70%, var(--color-text-secondary));
+}
+
+.flaggedQueueError {
+  padding: var(--space-2) var(--section-padding);
+  font-size: 12px;
+  color: var(--color-status-error);
+}
+
+/* Flagged queue table row */
+
+.flaggedQueueRow {
+  background: var(--color-status-warning-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-status-warning) 25%, transparent);
+}
+
+.flaggedQueueRow:hover {
+  background: color-mix(in srgb, var(--color-status-warning-bg) 80%, var(--color-bg-elevated));
+}
+
+.flagNoteCell {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flaggedQueueActions {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+/* Restore button */
+
+.restoreButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-accent-subtle, var(--color-bg-elevated));
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.restoreButton:hover:not(:disabled) {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-base);
+}
+
+.restoreButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Restore error inline */
+
+.restoreError {
+  padding: var(--space-2) var(--section-padding);
+  font-size: 12px;
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg, var(--color-bg-elevated));
+  border-top: 1px solid var(--color-status-error);
+}
+
+/* Restore success row */
+
+.restoreSuccessRow {
+  background: var(--color-status-success-bg, var(--color-bg-elevated));
+}
+
+.restoreSuccessCell {
+  padding: var(--space-2) var(--section-padding) !important;
+  font-size: 12px;
+  color: var(--color-status-success);
+  font-weight: 500;
+}
