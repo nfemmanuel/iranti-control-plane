@@ -528,11 +528,133 @@ PM will create CP-T046 in the next session.
 
 ## Open PM Actions (Carried Forward + New)
 
-1. Create CP-T046 — Provider Manager: Standalone View, Warning Thresholds, Health Warning Banner
-2. Receive and review CP-T042 (command palette inline help) completion report — in flight
-3. Receive and review CP-T032 (entity relationship graph) completion report — in flight
-4. Assign frontend_developer to CP-T042 / CP-T032 when current sprint finishes (or they are the same agent)
-5. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed
-6. Write `ticket/cp_t025 upstream_approval` when PM approves PR submission to upstream Iranti
-7. Review user_researcher competitor refresh (LangSmith + Langfuse) when complete
-8. Initiate design partner handoff sequence — v0.1.0 unblocked
+1. CP-T046 created this session (see below) — assign to frontend_developer + backend_developer
+2. CP-T042 accepted this session (see below) — next sprint
+3. CP-T032 accepted this session (see below) — next sprint
+4. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed in any PM session
+5. Write `ticket/cp_t025 upstream_approval` when PM approves PR submission to upstream Iranti
+6. Review user_researcher competitor refresh (LangSmith + Langfuse) when complete
+7. Initiate design partner handoff sequence — v0.1.0 unblocked
+
+---
+
+---
+
+# PM Phase 2 Session 5 — 2026-03-20 (CP-T042, CP-T032, CP-T046)
+
+**PM:** `product_manager`
+**Date:** 2026-03-20 (fifth session block)
+**Triggered by:** frontend_developer reporting CP-T042 (command palette inline help) and CP-T032 (entity relationship graph) complete — commit 8983454. Also: PM creates CP-T046 as planned.
+
+---
+
+## CP-T042 — Command Palette Inline Help and Command Documentation
+
+**Decision: ACCEPTED. All AC items pass.**
+
+Implementation verified by reading CommandPalette.tsx (updated in commit 8983454):
+
+**Descriptions (AC item 1-2):** All 7 NAV_COMMANDS entries now contain a `description` field. Texts match PM-authored copy from the ticket exactly (including unicode apostrophe in Conflicts entry). Descriptions render via `resultLabelGroup` span containing `resultLabel` + `resultDesc` — correctly structured as a second muted line. PASS.
+
+**Shortcuts section (AC item 3-5):** `showShortcuts` logic correctly gates on `trimmedQuery === '' || '?' || 'help' (lowercase) || 'shortcuts' (lowercase)`. `SHORTCUT_ENTRIES` contains the 4 required global shortcuts (Cmd+K/Ctrl+K, ↑/↓, ↵, Esc). View-specific shortcuts: agent audited all Phase 1 view components and confirmed zero keyboard shortcuts are currently implemented. Code comment documents this explicitly and suggests CP-T043-shortcuts as the follow-on task. The AC requirement is "only confirmed-implemented shortcuts listed" — this is correct behavior, not a defect. PASS.
+
+**"?" footer trigger (AC item 6):** `footerShortcutsBtn` button present in footer, right-aligned. Click sets `query` to `'?'` and focuses input. Active style applied when `showShortcuts` is true. PASS.
+
+**Shortcuts-only query behavior (noted implementation detail):** When query is "?", "help", or "shortcuts", the full nav+action command list is shown alongside the shortcuts section (not replaced by it). This is a better UX than hiding commands — operators see shortcuts as supplementary context. Not in ticket spec but clearly correct. PASS.
+
+**CommandPalette.module.css:** Now exists (was previously absent — noted as a gap from CP-T024). Terminals palette styling applied. PASS.
+
+**TypeScript / CI:** Clean. PASS.
+
+**One observation recorded:** The "?" footer button uses `tabIndex={-1}` and `data-palette-focusable`. It is in the focus trap but not in the default Tab order. The ticket AC does not require explicit Tab-reachability for this button — acceptable.
+
+---
+
+## CP-T032 — Entity Relationship Graph View
+
+**Decision: ACCEPTED. All 10 AC items pass.**
+
+Implementation verified by reading RelationshipGraphView.tsx and the graph endpoint in kb.ts:
+
+**Backend (AC 1-3):**
+- `GET /entities/:entityType/:entityId/relationships/graph` registered correctly before `/entities/:entityType/:entityId` to prevent prefix capture. Returns nodes, edges, truncated flag. PASS.
+- Depth=1 BFS: `for (let d = 0; d < depth; d++)` — one iteration. PASS.
+- Depth=2 BFS: two iterations. Cycle detection via `visited` Set with `visitedKey` pattern (`entityType::entityId`). PASS.
+- SQL uses quoted `"EntityRelationship"` table and camelCase column names, correctly aliased in SELECT. Consistent with CP-D002 fix. PASS.
+- Fact counts: `GROUP BY "entityType", "entityId"` on `knowledge_base` in a single batch query after BFS completes — good design (one query for all nodes, not N queries). PASS.
+- Truncation: `perLevelLimit + 1` fetch, `truncated = true` if length exceeds limit, sliced before adding to edges. PASS.
+
+**Frontend (AC 4-10):**
+- `RelationshipGraphView` renders in EntityDetail Relationships tab. Root at center via `computeRadialLayout` — `isRoot` node placed at cx/cy. Inner ring at `0.28 * min(width, height)`, outer ring at `0.44 * min(width, height)`. Root node larger (r=24 vs r=20), uses `circleRoot` CSS class (emerald via `var(--color-accent-primary)`). PASS.
+- SVG arrowhead marker via `<defs>`. Edges rendered as `<line>` with `markerEnd="url(#cp-graph-arrow)"`. Edge labels at midpoint via `edgeMidpoint()`. PASS.
+- Hover tooltip: `hoveredNode` state, SVG `<rect>` + `<text>` overlay showing entityType, entityId, factCount. PASS.
+- Click neighbor: `onNodeClick` navigates to `/memory/:entityType/:entityId`. Root node click is no-op. PASS.
+- Depth 1/2 toggle: `useState<1|2>(1)`, buttons with `aria-pressed`, triggers React Query refetch via queryKey `[..., depth]`. PASS.
+- Graph/list view toggle: `useState<ViewMode>('graph')`. PASS.
+- List view: `EdgeListView` — table with Direction (outgoing/incoming derived from root key comparison), Relationship, Other entity (clickable), Confidence, Source. PASS.
+- Empty state: `data.nodes.length <= 1` — exact copy from ticket spec. PASS.
+- Truncation warning: `data.truncated && <span role="alert">` in controls bar. PASS.
+- TypeScript clean, light/dark mode via CSS module tokens. PASS.
+
+**No external graph library added** — pure SVG, zero bundle impact. This was the risk item in the ticket. Implementation makes the correct call.
+
+---
+
+## CP-T046 Created
+
+New ticket `docs/tickets/cp-t046.md` created. Scope: standalone `/providers` route, warning threshold (localStorage persistence), Health Dashboard warning banner, Together AI integration (defensive), Groq rate limit headers. Priority P2. Phase 2. Depends on CP-T034 (complete).
+
+Key design decisions recorded in ticket:
+- Warning threshold persists to `localStorage` key `iranti_cp_provider_thresholds` — avoids new backend storage for a UI preference
+- Health Dashboard warning banner is a frontend-only check against localStorage thresholds + cached React Query data — no new backend endpoint required
+- Together AI and Groq integrations are conditional on API stability — both wrapped in defensive fallbacks
+
+Added to Phase 2 ticket table in roadmap.
+
+---
+
+## PM Note on CP-T043-shortcuts (future)
+
+The CP-T042 implementation correctly deferred view-specific keyboard shortcuts because none are currently implemented in the Phase 1 view components. The agent suggested CP-T043-shortcuts as a follow-on. PM note: this should be a two-part ticket when created:
+1. Implement the actual keyboard shortcuts in the target views (↵ on Memory Explorer row, Space to pause Activity Stream, R to refresh Health, D for Doctor drawer, etc.)
+2. Add those shortcuts to `SHORTCUT_ENTRIES` in CommandPalette.tsx
+
+This is not a blocking gap. The palette is useful without view-specific shortcuts. Create when design partners confirm keyboard-first usage patterns.
+
+---
+
+## Q re: technical_writer
+
+User asked: should PM wait to create CP-T046, or spawn technical_writer for a docs pass while PM handles it?
+
+**Answer: PM is handling CP-T046 now (complete). On the technical_writer question:** There is a legitimate docs pass needed independent of CP-T046. The following technical_writer work is ready to be assigned:
+
+1. **KI-008 (DATABASE_URL gap)** — previously identified in Session 2 as a docs gap: `DATABASE_URL` must be in `.env.iranti` at project root, not just in the Iranti runtime root. This is not documented anywhere accessible to new users. This is a known-issues and getting-started update task. Status: was assigned to technical_writer in Wave 2 Assignment 11 — check whether it was completed.
+
+2. **Release notes update for CP-D002/CP-D003** — also Wave 2 Assignment 11. Status: unknown.
+
+3. **Update getting-started.md and memory-explorer.md for new features** — CP-T037 (live mode), CP-T042 (command palette shortcut section), CP-T032 (relationship graph tab) all add new user-facing features that the docs don't cover yet.
+
+Recommendation: spawn technical_writer for items 3 (docs update for new features). Items 1 and 2 should have been covered in Wave 2 Assignment 11 — check Iranti `ticket/cp_t041 status` or `agent/technical_writer status` before re-assigning.
+
+---
+
+## PM Deliverables This Session
+
+- [x] CP-T042 pm_decision = accepted — written to Iranti
+- [x] CP-T032 pm_decision = accepted — written to Iranti
+- [x] CP-T046 status = open — written to Iranti
+- [x] `docs/tickets/cp-t046.md` — new ticket created
+- [x] `docs/roadmap.md` — CP-T042, CP-T032 accepted, CP-T046 added
+- [x] `docs/coordination/pm-phase2-session-2026-03-20.md` — this session record appended
+
+---
+
+## Open PM Actions (Next Session)
+
+1. Assign frontend_developer + backend_developer to CP-T046 (provider manager standalone)
+2. Assign technical_writer to docs update for new Phase 2 features (CP-T037, CP-T042, CP-T032) — after checking whether Wave 2 Assignment 11 (KI-008, release notes) was completed
+3. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed in any PM session
+4. Write `ticket/cp_t025 upstream_approval` to approve upstream PR submission — review cp-t025-upstream-pr.md first
+5. Check user_researcher competitor refresh status — LangSmith and Langfuse assessment still pending
+6. Initiate design partner handoff preparation — v0.1.0 shipped, need to identify first design partner candidates and define handoff artifact checklist

@@ -146,8 +146,9 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | Spec in progress |
 | CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (nav palette; search/recent deferred) |
 | CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec deliverables PM-ACCEPTED 2026-03-20; upstream PR ready for submission |
-| CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | Open — new ticket 2026-03-20 |
-| CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 | Not started |
+| CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (all 7 descriptions, shortcuts section, "?" trigger; view-specific shortcuts deferred pending implementation) |
+| CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (BFS graph endpoint, pure SVG radial layout, all AC pass) |
+| CP-T046 | Provider Manager: Standalone View, Warning Thresholds, Health Banner | CP-E009 | frontend + backend | P2 | Open — new ticket 2026-03-20, deferred from CP-T034 |
 | CP-T033 | Integration Repair Actions UI | CP-E004 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 |
 | CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (Health Dashboard section delivered; /providers view + warning thresholds deferred to CP-T046) |
 | CP-T035 | Getting Started Screen and First-Run Onboarding | CP-E010 | frontend + backend | P0 | PM-ACCEPTED 2026-03-20 |
