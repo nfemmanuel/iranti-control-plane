@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSetupStatus } from '../onboarding/GettingStarted'
+import { CommandPalette, useCommandPalette } from './CommandPalette'
 import styles from './AppShell.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -279,6 +280,7 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const { open: isPaletteOpen, openPalette, closePalette } = useCommandPalette()
 
   // Apply persisted theme on mount
   useEffect(() => {
@@ -290,6 +292,18 @@ export function AppShell() {
     setTheme(next)
     applyTheme(next)
   }
+
+  // CP-T024: Cmd+K / Ctrl+K opens the command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        openPalette()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [openPalette])
 
   const sectionTitle = getSectionTitle(location.pathname)
 
@@ -394,6 +408,14 @@ export function AppShell() {
         {/* Content wired by CP-T014; slot structure established here per CP-T017 scope */}
         <ActivityDrawerSlot />
       </div>
+
+      {/* CP-T024: Command Palette — mounted at shell level, accessible from every view */}
+      {isPaletteOpen && (
+        <CommandPalette
+          onClose={closePalette}
+          onToggleDarkMode={toggleTheme}
+        />
+      )}
 
       {/* ── Phase 2 Chat Panel slot ───────────────────────────────── */}
       {/* Width: 0, display: none in Phase 1. Layout refactor deferred to Phase 2. */}

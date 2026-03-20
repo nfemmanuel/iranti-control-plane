@@ -46,7 +46,7 @@ import styles from './ConflictReview.module.css'
 /*  Feature flag — flip to true when backend route is live             */
 /* ------------------------------------------------------------------ */
 
-const ESCALATIONS_API_AVAILABLE = false
+const ESCALATIONS_API_AVAILABLE = true
 
 /* ------------------------------------------------------------------ */
 /*  Types — mirror the expected API shape from CP-T021 spec            */

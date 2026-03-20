@@ -264,6 +264,105 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
+   CP-T037: Live/Paused badge
+   ────────────────────────────────────────────────────────────────── */
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badgeLive {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-primary);
+}
+
+.badgeLive:hover {
+  background: color-mix(in srgb, var(--color-accent-subtle) 80%, var(--color-bg-elevated));
+}
+
+.badgePaused {
+  background: var(--color-status-warning-bg);
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.badgePaused:hover {
+  background: color-mix(in srgb, var(--color-status-warning-bg) 80%, var(--color-bg-elevated));
+}
+
+/* ── Pulse dot — animated circle inside the badge ── */
+
+.pulseDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pulseDotHot {
+  background: var(--color-accent-primary);
+  animation: pulseFast 0.6s ease-in-out infinite;
+}
+
+.pulseDotActive {
+  background: var(--color-accent-primary);
+  animation: pulseSlow 2s ease-in-out infinite;
+}
+
+.pulseDotIdle {
+  background: var(--color-text-tertiary);
+  /* no animation — static dim dot */
+}
+
+.pulseDotDisconnected {
+  background: var(--color-status-error);
+  /* static — connection down */
+}
+
+.pulseDotPaused {
+  background: var(--color-status-warning);
+  opacity: 0.7;
+}
+
+@keyframes pulseFast {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T037: Velocity counter
+   ────────────────────────────────────────────────────────────────── */
+
+.velocityCounter {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* ──────────────────────────────────────────────────────────────────
    Paused banner
    ────────────────────────────────────────────────────────────────── */
 
@@ -288,6 +387,23 @@
   color: var(--color-status-warning);
   font-size: 11px;
   cursor: pointer;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T037: Hover-paused banner (transient, auto-dismisses on mouse leave)
+   ────────────────────────────────────────────────────────────────── */
+
+.hoverPausedBanner {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--section-padding);
+  background: color-mix(in srgb, var(--color-status-warning-bg) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-status-warning) 50%, transparent);
+  color: var(--color-status-warning);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  pointer-events: none; /* don't interfere with mouse-leave detection */
 }
 
 /* ──────────────────────────────────────────────────────────────────

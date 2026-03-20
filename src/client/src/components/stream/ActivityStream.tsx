@@ -1,6 +1,7 @@
 /* Iranti Control Plane — Staff Activity Stream */
 /* Route: /activity */
 /* CP-T014 — Live SSE feed with filtering, pause/resume, auto-scroll */
+/* CP-T037 — Live mode UX: pulse indicator, velocity counter, hover-pause */
 
 import {
   useState,
@@ -42,6 +43,7 @@ interface UseEventStreamResult {
   reconnecting: boolean
   error: string | null
   flushBuffer: () => void
+  lastEventAt: number | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -67,6 +69,7 @@ function useEventStream(options: UseEventStreamOptions): UseEventStreamResult {
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastEventAt, setLastEventAt] = useState<number | null>(null)
 
   const esRef = useRef<EventSource | null>(null)
   const backoffRef = useRef(INITIAL_BACKOFF_MS)
@@ -119,6 +122,8 @@ function useEventStream(options: UseEventStreamOptions): UseEventStreamResult {
       try {
         const event = JSON.parse(e.data) as StaffEvent
         if (e.lastEventId) lastEventIdRef.current = e.lastEventId
+
+        setLastEventAt(Date.now())
 
         if (pausedRef.current) {
           setBuffer(prev => {
@@ -220,7 +225,90 @@ function useEventStream(options: UseEventStreamOptions): UseEventStreamResult {
     reconnecting,
     error,
     flushBuffer,
+    lastEventAt,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T037: useVelocityCounter — rolling 60-second events/min         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tracks event arrival timestamps in a 60-second sliding window.
+ * Returns the current events/min count, recalculated every 5 seconds.
+ */
+function useVelocityCounter(events: StaffEvent[]): number {
+  const [velocity, setVelocity] = useState(0)
+  const prevLengthRef = useRef(0)
+  const timestampsRef = useRef<number[]>([])
+
+  // Record a wall-clock timestamp each time a new event appears at the head
+  useEffect(() => {
+    const newCount = events.length - prevLengthRef.current
+    if (newCount > 0) {
+      const now = Date.now()
+      for (let i = 0; i < newCount; i++) {
+        timestampsRef.current.push(now)
+      }
+    }
+    prevLengthRef.current = events.length
+  }, [events.length])
+
+  // Recompute every 5 seconds using a 60-second sliding window
+  useEffect(() => {
+    const compute = () => {
+      const cutoff = Date.now() - 60_000
+      timestampsRef.current = timestampsRef.current.filter(t => t > cutoff)
+      setVelocity(timestampsRef.current.length)
+    }
+    compute()
+    const id = setInterval(compute, 5_000)
+    return () => clearInterval(id)
+  }, [])
+
+  return velocity
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T037: usePulseState — drive pulse animation from event recency  */
+/* ------------------------------------------------------------------ */
+
+type PulseState = 'hot' | 'active' | 'idle' | 'disconnected'
+
+function usePulseState(lastEventAt: number | null, connected: boolean, reconnecting: boolean): PulseState {
+  const [pulseState, setPulseState] = useState<PulseState>('idle')
+
+  useEffect(() => {
+    if (!connected || reconnecting) {
+      setPulseState('disconnected')
+      return
+    }
+
+    const update = () => {
+      if (!connected || reconnecting) {
+        setPulseState('disconnected')
+        return
+      }
+      if (lastEventAt === null) {
+        setPulseState('idle')
+        return
+      }
+      const age = Date.now() - lastEventAt
+      if (age < 1_000) {
+        setPulseState('hot')
+      } else if (age < 10_000) {
+        setPulseState('active')
+      } else {
+        setPulseState('idle')
+      }
+    }
+
+    update()
+    const id = setInterval(update, 500)
+    return () => clearInterval(id)
+  }, [lastEventAt, connected, reconnecting])
+
+  return pulseState
 }
 
 /* ------------------------------------------------------------------ */
@@ -401,23 +489,100 @@ function EventRow({
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T037: LiveBadge — LIVE / PAUSED badge with pulse dot            */
+/* ------------------------------------------------------------------ */
+
+function LiveBadge({
+  paused,
+  manualPaused,
+  pulseState,
+  onToggle,
+}: {
+  paused: boolean
+  manualPaused: boolean
+  pulseState: PulseState
+  onToggle: () => void
+}) {
+  const isEffectivelyPaused = paused
+  const label = isEffectivelyPaused ? '⏸ PAUSED' : '● LIVE'
+  const badgeClass = isEffectivelyPaused
+    ? styles.badgePaused
+    : styles.badgeLive
+  const dotClass = isEffectivelyPaused
+    ? styles.pulseDotPaused
+    : pulseState === 'hot'
+    ? styles.pulseDotHot
+    : pulseState === 'active'
+    ? styles.pulseDotActive
+    : pulseState === 'disconnected'
+    ? styles.pulseDotDisconnected
+    : styles.pulseDotIdle
+
+  const title = isEffectivelyPaused
+    ? manualPaused
+      ? 'Stream manually paused — click to resume'
+      : 'Stream paused while hovering — move mouse away to resume'
+    : 'Stream is live — click to pause'
+
+  return (
+    <button
+      className={`${styles.liveBadge} ${badgeClass}`}
+      onClick={onToggle}
+      type="button"
+      title={title}
+      aria-label={title}
+    >
+      <span className={`${styles.pulseDot} ${dotClass}`} aria-hidden="true" />
+      {label}
+    </button>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T037: VelocityCounter                                            */
+/* ------------------------------------------------------------------ */
+
+function VelocityCounter({ eventsPerMin }: { eventsPerMin: number }) {
+  const label = eventsPerMin === 0 ? 'No activity' : `${eventsPerMin} evt/min`
+  return (
+    <span
+      className={styles.velocityCounter}
+      title="Events from Staff in the last 60 seconds. Event timing may appear bursty — will improve with CP-T025."
+      aria-label={`Event velocity: ${label}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                      */
 /* ------------------------------------------------------------------ */
 
 export function ActivityStream() {
   const [filters, dispatch] = useReducer(filterReducer, defaultFilters)
-  const [paused, setPaused] = useState(false)
+  const [manualPaused, setManualPaused] = useState(false)
+  const [hoverPaused, setHoverPaused] = useState(false)
   const [mode, setMode] = useState<StreamMode>('live')
   const listRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
   const [newEventsBelowCount, setNewEventsBelowCount] = useState(0)
   const now = useNow(10_000)
 
-  const { events, bufferedCount, bufferDropped, connected, reconnecting, error, flushBuffer } = useEventStream({
+  // Combined pause: either manual or hover-triggered
+  const paused = manualPaused || hoverPaused
+
+  const { events, bufferedCount, bufferDropped, connected, reconnecting, error, flushBuffer, lastEventAt } = useEventStream({
     filters,
     paused,
     mode,
   })
+
+  // CP-T037: velocity counter
+  const eventsPerMin = useVelocityCounter(events)
+
+  // CP-T037: pulse state
+  const pulseState = usePulseState(lastEventAt, connected, reconnecting)
 
   // Client-side filter: agentId and entityId (local, no SSE reconnect)
   const visibleEvents = events.filter(e => {
@@ -458,20 +623,47 @@ export function ActivityStream() {
     isAtBottomRef.current = true
   }
 
-  const handleResume = () => {
+  const handleResume = useCallback(() => {
     flushBuffer()
-    setPaused(false)
-  }
+    setManualPaused(false)
+    setHoverPaused(false)
+  }, [flushBuffer])
+
+  // CP-T037: hover pause/resume handlers
+  const handleListMouseEnter = useCallback(() => {
+    if (mode === 'live') setHoverPaused(true)
+  }, [mode])
+
+  const handleListMouseLeave = useCallback(() => {
+    if (hoverPaused && !manualPaused) {
+      // Flush hover-buffered events and resume
+      flushBuffer()
+      setHoverPaused(false)
+    } else if (hoverPaused) {
+      setHoverPaused(false)
+    }
+  }, [hoverPaused, manualPaused, flushBuffer])
+
+  // Toggle manual pause (badge click)
+  const handleBadgeToggle = useCallback(() => {
+    if (manualPaused) {
+      // Resume manual pause; also clear hover pause if active
+      flushBuffer()
+      setManualPaused(false)
+      setHoverPaused(false)
+    } else {
+      setManualPaused(true)
+    }
+  }, [manualPaused, flushBuffer])
 
   return (
     <div className={styles.page}>
-      {/* Phase 1 coverage label — non-dismissible, persists until Phase 2 emitters are live */}
-      {/* CP-T026: Remove this banner when Attendant + Resolutionist adapters are instrumented in Phase 2 */}
+      {/* CP-T037: Phase 2 coverage note — updated text */}
       <div className={styles.limitationBanner}>
         <span className={styles.limitationIcon} aria-hidden="true">ℹ</span>
         <span>
           <strong>Phase 1 event coverage:</strong>{' '}
-          Librarian ✓ &nbsp;|&nbsp; Archivist ✓ &nbsp;|&nbsp; Attendant — Phase 2 &nbsp;|&nbsp; Resolutionist — Phase 2.{' '}
+          Librarian ✓ (polling, ~2s) &nbsp;|&nbsp; Archivist ✓ (polling, ~2s) &nbsp;|&nbsp; Attendant — Phase 2 (pending CP-T025) &nbsp;|&nbsp; Resolutionist — Phase 2 (pending CP-T025).{' '}
           Full Staff observability ships in Phase 2.
         </span>
       </div>
@@ -479,6 +671,22 @@ export function ActivityStream() {
       {/* Filter bar */}
       <div className={styles.filterBar}>
         <div className={styles.filterRow}>
+          {/* CP-T037: Live/Paused badge — leftmost, prominent */}
+          {mode === 'live' && (
+            <LiveBadge
+              paused={paused}
+              manualPaused={manualPaused}
+              pulseState={pulseState}
+              onToggle={handleBadgeToggle}
+            />
+          )}
+
+          {/* CP-T037: Velocity counter — next to badge */}
+          {mode === 'live' && (
+            <VelocityCounter eventsPerMin={eventsPerMin} />
+          )}
+
+          <span className={styles.filterSep} />
           <span className={styles.filterLabel}>Component:</span>
           {ALL_COMPONENTS.map(c => (
             <label key={c} className={styles.componentToggle}>
@@ -517,24 +725,6 @@ export function ActivityStream() {
               {m === 'live' ? 'Live' : 'Tail (last 500)'}
             </button>
           ))}
-
-          {mode === 'live' && (
-            <>
-              <span className={styles.filterSep} />
-              <button
-                className={`${styles.pauseBtn} ${paused ? styles.pauseBtnActive : ''}`}
-                onClick={() => {
-                  if (paused) handleResume()
-                  else setPaused(true)
-                }}
-                type="button"
-              >
-                {paused
-                  ? `Resume${bufferedCount > 0 ? ` (${bufferedCount} new)` : ''}`
-                  : 'Pause'}
-              </button>
-            </>
-          )}
         </div>
 
         <div className={styles.filterRow}>
@@ -608,8 +798,8 @@ export function ActivityStream() {
         <span className={styles.statusCount}>{visibleEvents.length} events</span>
       </div>
 
-      {/* Paused buffer banner */}
-      {paused && bufferedCount > 0 && (
+      {/* Paused buffer banner — shown for manual pause with buffered events */}
+      {manualPaused && bufferedCount > 0 && (
         <div className={styles.pausedBanner}>
           <span>
             Paused — {bufferedCount} new event{bufferedCount !== 1 ? 's' : ''} buffered
@@ -621,11 +811,22 @@ export function ActivityStream() {
         </div>
       )}
 
+      {/* CP-T037: Hover-pause banner — shown when hovered (not manually paused) */}
+      {hoverPaused && !manualPaused && bufferedCount > 0 && (
+        <div className={styles.hoverPausedBanner}>
+          <span>
+            ⏸ {bufferedCount} new event{bufferedCount !== 1 ? 's' : ''} — move mouse away to resume
+          </span>
+        </div>
+      )}
+
       {/* Event list */}
       <div
         className={styles.eventList}
         ref={listRef}
         onScroll={handleScroll}
+        onMouseEnter={handleListMouseEnter}
+        onMouseLeave={handleListMouseLeave}
       >
         {/* CP-T027: Three distinct empty state conditions */}
         {visibleEvents.length === 0 && !reconnecting && error && (

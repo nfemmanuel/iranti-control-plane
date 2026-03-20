@@ -5,6 +5,7 @@ import { healthRouter } from './health.js'
 import { eventsRouter } from './events.js'
 import { setupRouter } from './setup.js'
 import { repairRouter } from './repair.js'
+import { escalationsRouter } from './escalations.js'
 
 export const controlPlaneRouter = Router()
 
@@ -15,3 +16,4 @@ controlPlaneRouter.use('/instances', setupRouter)
 controlPlaneRouter.use('/instances', repairRouter)
 controlPlaneRouter.use('/health', healthRouter)
 controlPlaneRouter.use('/events', eventsRouter)
+controlPlaneRouter.use('/escalations', escalationsRouter)
