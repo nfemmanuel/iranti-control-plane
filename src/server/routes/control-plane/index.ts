@@ -7,6 +7,7 @@ import { setupRouter } from './setup.js'
 import { repairRouter } from './repair.js'
 import { escalationsRouter } from './escalations.js'
 import { providersRouter } from './providers.js'
+import { chatRouter } from './chat.js'
 
 export const controlPlaneRouter = Router()
 
@@ -22,3 +23,5 @@ controlPlaneRouter.use('/escalations', escalationsRouter)
 // Instance-scoped provider routes: GET /instances/:instanceId/providers, etc.
 controlPlaneRouter.use('/', providersRouter)
 controlPlaneRouter.use('/instances', providersRouter)
+// Chat endpoint: POST /chat, DELETE /chat/:sessionId
+controlPlaneRouter.use('/', chatRouter)
