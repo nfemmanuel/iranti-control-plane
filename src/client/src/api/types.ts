@@ -233,3 +233,55 @@ export interface TemporalHistoryResponse {
   history: HistoryInterval[]
   hasHistory: boolean
 }
+
+/* ------------------------------------------------------------------ */
+/*  Setup Status (CP-T035)                                              */
+/* ------------------------------------------------------------------ */
+
+export interface SetupStep {
+  id: string
+  label: string
+  status: 'complete' | 'incomplete' | 'warning' | 'not_applicable'
+  message: string
+  actionRequired: string | null
+  repairAction: string | null
+}
+
+export interface SetupStatusResponse {
+  instanceId: string
+  steps: SetupStep[]
+  isFullyConfigured: boolean
+  firstRunDetected: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/*  Repair Actions (CP-T033)                                            */
+/* ------------------------------------------------------------------ */
+
+export interface RepairMcpJsonResponse {
+  filePath: string
+  content: string
+  action: 'created' | 'replaced'
+  revertable: false
+}
+
+export interface RepairClaudeMdResponse {
+  filePath: string
+  action: 'appended' | 'replaced' | 'created'
+  diff: string
+  revertable: false
+}
+
+export interface DoctorCheck {
+  id: string
+  label: string
+  status: 'pass' | 'fail' | 'warn'
+  message: string
+  repairAction: string | null
+}
+
+export interface DoctorResponse {
+  instanceId: string
+  checks: DoctorCheck[]
+  checkedAt: string
+}

@@ -74,7 +74,7 @@ function serializeKBRow(row: Record<string, unknown>): KBFact {
     entityType: String(row.entity_type ?? row.entityType ?? ''),
     entityId: String(row.entity_id ?? row.entityId ?? ''),
     key: String(row.key ?? ''),
-    valueSummary: (row.summary as string | null) ?? null,
+    valueSummary: (row.summary ?? row.valueSummary) as string | null ?? null,
     valueRaw,
     valueRawTruncated,
     confidence: Number(row.confidence ?? 0),
@@ -96,7 +96,7 @@ function serializeArchiveRow(row: Record<string, unknown>): ArchiveFact {
     entityType: String(row.entity_type ?? row.entityType ?? ''),
     entityId: String(row.entity_id ?? row.entityId ?? ''),
     key: String(row.key ?? ''),
-    valueSummary: (row.summary as string | null) ?? null,
+    valueSummary: (row.summary ?? row.valueSummary) as string | null ?? null,
     valueRaw,
     valueRawTruncated,
     confidence: Number(row.confidence ?? 0),
@@ -165,16 +165,16 @@ function buildKBWhereClause(
     params.push(`%${filters.search}%`)
     const p = params.length
     clauses.push(
-      `(${t}entity_id ILIKE $${p} OR ${t}key ILIKE $${p} OR COALESCE(${t}summary,'') ILIKE $${p} OR (${t}value_raw::text) ILIKE $${p})`
+      `(${t}"entityId" ILIKE $${p} OR ${t}key ILIKE $${p} OR COALESCE(${t}"valueSummary",'') ILIKE $${p} OR (${t}"valueRaw"::text) ILIKE $${p})`
     )
   }
   if (filters.entityType) {
     params.push(filters.entityType)
-    clauses.push(`${t}entity_type = $${params.length}`)
+    clauses.push(`${t}"entityType" = $${params.length}`)
   }
   if (filters.entityId) {
     params.push(filters.entityId)
-    clauses.push(`${t}entity_id = $${params.length}`)
+    clauses.push(`${t}"entityId" = $${params.length}`)
   }
   if (filters.key) {
     params.push(filters.key)
@@ -186,14 +186,14 @@ function buildKBWhereClause(
   }
   if (filters.createdBy) {
     params.push(filters.createdBy)
-    clauses.push(`${t}agent_id = $${params.length}`)
+    clauses.push(`${t}"agentId" = $${params.length}`)
   }
   if (filters.minConfidence !== undefined) {
     params.push(filters.minConfidence)
     clauses.push(`${t}confidence >= $${params.length}`)
   }
   if (filters.activeOnly) {
-    clauses.push(`(${t}valid_until IS NULL OR ${t}valid_until > NOW())`)
+    clauses.push(`(${t}"validUntil" IS NULL OR ${t}"validUntil" > NOW())`)
   }
 
   return clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -206,16 +206,16 @@ function buildArchiveWhereClause(filters: ArchiveFilters, params: unknown[]): st
     params.push(`%${filters.search}%`)
     const p = params.length
     clauses.push(
-      `(entity_id ILIKE $${p} OR key ILIKE $${p} OR COALESCE(summary,'') ILIKE $${p} OR (value_raw::text) ILIKE $${p})`
+      `("entityId" ILIKE $${p} OR key ILIKE $${p} OR COALESCE("valueSummary",'') ILIKE $${p} OR ("valueRaw"::text) ILIKE $${p})`
     )
   }
   if (filters.entityType) {
     params.push(filters.entityType)
-    clauses.push(`entity_type = $${params.length}`)
+    clauses.push(`"entityType" = $${params.length}`)
   }
   if (filters.entityId) {
     params.push(filters.entityId)
-    clauses.push(`entity_id = $${params.length}`)
+    clauses.push(`"entityId" = $${params.length}`)
   }
   if (filters.key) {
     params.push(filters.key)
@@ -227,7 +227,7 @@ function buildArchiveWhereClause(filters: ArchiveFilters, params: unknown[]): st
   }
   if (filters.createdBy) {
     params.push(filters.createdBy)
-    clauses.push(`agent_id = $${params.length}`)
+    clauses.push(`"agentId" = $${params.length}`)
   }
   if (filters.minConfidence !== undefined) {
     params.push(filters.minConfidence)
@@ -235,23 +235,23 @@ function buildArchiveWhereClause(filters: ArchiveFilters, params: unknown[]): st
   }
   if (filters.archivedReason) {
     params.push(filters.archivedReason)
-    clauses.push(`archived_reason = $${params.length}`)
+    clauses.push(`"archivedReason" = $${params.length}`)
   }
   if (filters.resolutionState) {
     params.push(filters.resolutionState)
-    clauses.push(`resolution_state = $${params.length}`)
+    clauses.push(`"resolutionState" = $${params.length}`)
   }
   if (filters.supersededBy) {
     params.push(filters.supersededBy)
-    clauses.push(`superseded_by::text = $${params.length}`)
+    clauses.push(`"supersededBy"::text = $${params.length}`)
   }
   if (filters.archivedAfter) {
     params.push(filters.archivedAfter.toISOString())
-    clauses.push(`archived_at > $${params.length}`)
+    clauses.push(`"archivedAt" > $${params.length}`)
   }
   if (filters.archivedBefore) {
     params.push(filters.archivedBefore.toISOString())
-    clauses.push(`archived_at <= $${params.length}`)
+    clauses.push(`"archivedAt" <= $${params.length}`)
   }
 
   return clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -317,7 +317,7 @@ kbRouter.get('/kb', async (req: Request, res: Response, next: NextFunction) => {
     // Data query
     const dataParams = [...params, limit, offset]
     const dataResult = await query(
-      `SELECT * FROM knowledge_base ${where} ORDER BY created_at DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      `SELECT * FROM knowledge_base ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
       dataParams
     )
 
@@ -373,7 +373,7 @@ kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction)
 
     const dataParams = [...params, limit, offset]
     const dataResult = await query(
-      `SELECT * FROM archive ${where} ORDER BY created_at DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      `SELECT * FROM archive ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
       dataParams
     )
 
@@ -430,38 +430,38 @@ kbRouter.get(
         query(
           `SELECT
             id::text                AS id,
-            summary                 AS "valueSummary",
-            value_raw               AS "valueRaw",
+            "valueSummary",
+            "valueRaw",
             confidence,
-            agent_id                AS "agentId",
+            "agentId",
             source                  AS "providerSource",
-            valid_from              AS "validFrom",
-            valid_until             AS "validUntil",
-            created_at              AS "createdAt"
+            "validFrom",
+            "validUntil",
+            "createdAt"
           FROM knowledge_base
-          WHERE entity_type = $1 AND entity_id = $2 AND key = $3
+          WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
           LIMIT 1`,
           [entityType, entityId, key]
         ),
         query(
           `SELECT
             id::text                AS id,
-            summary                 AS "valueSummary",
-            value_raw               AS "valueRaw",
+            "valueSummary",
+            "valueRaw",
             confidence,
-            agent_id                AS "agentId",
+            "agentId",
             source                  AS "providerSource",
-            valid_from              AS "validFrom",
-            valid_until             AS "validUntil",
-            archived_at             AS "archivedAt",
-            archived_reason         AS "archivedReason",
-            superseded_by::text     AS "supersededBy",
-            resolution_state        AS "resolutionState",
-            conflict_log            AS "conflictLog",
-            created_at              AS "createdAt"
+            "validFrom",
+            "validUntil",
+            "archivedAt",
+            "archivedReason",
+            "supersededBy"::text    AS "supersededBy",
+            "resolutionState",
+            "conflictLog",
+            "createdAt"
           FROM archive
-          WHERE entity_type = $1 AND entity_id = $2 AND key = $3
-          ORDER BY valid_from DESC NULLS LAST, created_at DESC`,
+          WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
+          ORDER BY "validFrom" DESC NULLS LAST, "createdAt" DESC`,
           [entityType, entityId, key]
         ),
       ])
@@ -544,21 +544,21 @@ kbRouter.get(
       // Run all queries in parallel
       const [currentResult, archivedResult, relResult] = await Promise.all([
         query(
-          `SELECT * FROM knowledge_base WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC`,
+          `SELECT * FROM knowledge_base WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "createdAt" DESC`,
           [entityType, entityId]
         ),
         includeArchived
           ? query(
-              `SELECT * FROM archive WHERE entity_type = $1 AND entity_id = $2 ORDER BY valid_from DESC NULLS LAST`,
+              `SELECT * FROM archive WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "validFrom" DESC NULLS LAST`,
               [entityType, entityId]
             )
           : Promise.resolve({ rows: [] }),
         includeRelationships
           ? query(
               `SELECT * FROM entity_relationships
-               WHERE (from_entity_type = $1 AND from_entity_id = $2)
-                  OR (to_entity_type = $1 AND to_entity_id = $2)
-               ORDER BY created_at DESC`,
+               WHERE ("fromEntityType" = $1 AND "fromEntityId" = $2)
+                  OR ("toEntityType" = $1 AND "toEntityId" = $2)
+               ORDER BY "createdAt" DESC`,
               [entityType, entityId]
             )
           : Promise.resolve({ rows: [] }),
@@ -619,26 +619,26 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
         const pt = params.length - 1
         const pi = params.length
         clauses.push(
-          `((from_entity_type = $${pt} AND from_entity_id = $${pi}) OR (to_entity_type = $${pt} AND to_entity_id = $${pi}))`
+          `(("fromEntityType" = $${pt} AND "fromEntityId" = $${pi}) OR ("toEntityType" = $${pt} AND "toEntityId" = $${pi}))`
         )
       } else {
         params.push(entityId)
         const p = params.length
-        clauses.push(`(from_entity_id = $${p} OR to_entity_id = $${p})`)
+        clauses.push(`("fromEntityId" = $${p} OR "toEntityId" = $${p})`)
       }
     }
 
     if (fromEntityId) {
       params.push(fromEntityId)
-      clauses.push(`from_entity_id = $${params.length}`)
+      clauses.push(`"fromEntityId" = $${params.length}`)
     }
     if (toEntityId) {
       params.push(toEntityId)
-      clauses.push(`to_entity_id = $${params.length}`)
+      clauses.push(`"toEntityId" = $${params.length}`)
     }
     if (relationshipType) {
       params.push(relationshipType)
-      clauses.push(`relationship_type = $${params.length}`)
+      clauses.push(`"relationshipType" = $${params.length}`)
     }
 
     const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -646,7 +646,7 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
     const dataParams = [...params, limit, offset]
     const [dataResult, countResult] = await Promise.all([
       query(
-        `SELECT * FROM entity_relationships ${where} ORDER BY created_at DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `SELECT * FROM entity_relationships ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       ),
       query(`SELECT COUNT(*) AS total FROM entity_relationships ${where}`, params),

@@ -283,6 +283,97 @@ setupRouter.get(
 )
 
 // ---------------------------------------------------------------------------
+// POST /:instanceId/setup-status/refresh
+// Re-checks provider and other step statuses without page reload.
+// ---------------------------------------------------------------------------
+
+setupRouter.post(
+  '/:instanceId/setup-status/refresh',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId } = req.params
+      if (instanceId !== THIS_INSTANCE_ID) {
+        res.status(404).json({
+          error: 'Instance not found',
+          code: 'INSTANCE_NOT_FOUND',
+        })
+        return
+      }
+
+      // Determine first-run flag
+      const completeFlagPath = join(process.cwd(), '.iranti-cp-setup-complete')
+      let firstRunDetected = true
+      try {
+        await access(completeFlagPath, constants.F_OK)
+        firstRunDetected = false
+      } catch {
+        firstRunDetected = true
+      }
+
+      // Run all steps fresh
+      const [dbSettled, providerSettled, projectSettled] = await Promise.allSettled([
+        checkDatabase(),
+        checkProvider(),
+        checkProjectBinding(),
+      ])
+
+      const dbStep: SetupStep =
+        dbSettled.status === 'fulfilled'
+          ? dbSettled.value
+          : {
+              id: 'database',
+              label: 'Database connection',
+              status: 'incomplete',
+              message: 'Database check failed unexpectedly.',
+              actionRequired: 'Check your `.env.iranti` DATABASE_URL.',
+              repairAction: null,
+            }
+
+      const providerStep: SetupStep =
+        providerSettled.status === 'fulfilled'
+          ? providerSettled.value
+          : {
+              id: 'provider',
+              label: 'Provider configuration',
+              status: 'incomplete',
+              message: 'Provider check failed unexpectedly.',
+              actionRequired: null,
+              repairAction: null,
+            }
+
+      const projectStep: SetupStep =
+        projectSettled.status === 'fulfilled'
+          ? projectSettled.value
+          : {
+              id: 'project_binding',
+              label: 'Project binding',
+              status: 'incomplete',
+              message: 'Project binding check failed unexpectedly.',
+              actionRequired: 'Run `iranti bind [path/to/project]` from your terminal.',
+              repairAction: null,
+            }
+
+      const claudeStep = await checkClaudeIntegration(projectStep)
+
+      const steps: SetupStep[] = [dbStep, providerStep, projectStep, claudeStep]
+
+      const isFullyConfigured = steps.every(
+        (s) => s.status === 'complete' || s.status === 'not_applicable'
+      )
+
+      res.json({
+        instanceId,
+        steps,
+        isFullyConfigured,
+        firstRunDetected,
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
 // POST /:instanceId/setup-status/complete
 // ---------------------------------------------------------------------------
 

@@ -115,23 +115,23 @@ async function insertEvents(events: Record<string, unknown>[]): Promise<void> {
 async function pollKnowledgeBase(cur: AdapterCursor): Promise<void> {
   type KbRow = {
     id: unknown
-    entity_type: string | null
-    entity_id: string | null
+    entityType: string | null
+    entityId: string | null
     key: string | null
-    agent_id: string | null
+    agentId: string | null
     source: string | null
     confidence: number | null
-    value_raw: unknown
-    created_at: Date
+    valueRaw: unknown
+    createdAt: Date
   }
 
   let rows: KbRow[]
   try {
     const result = await query<KbRow>(
-      `SELECT id, entity_type, entity_id, key, agent_id, source, confidence, value_raw, created_at
+      `SELECT id, "entityType", "entityId", key, "agentId", source, confidence, "valueRaw", "createdAt"
        FROM knowledge_base
-       WHERE created_at > $1
-       ORDER BY created_at ASC
+       WHERE "createdAt" > $1
+       ORDER BY "createdAt" ASC
        LIMIT 100`,
       [cur.kbCursor]
     )
@@ -148,19 +148,19 @@ async function pollKnowledgeBase(cur: AdapterCursor): Promise<void> {
   for (const row of rows) {
     // Determine write_created vs write_replaced:
     // A row is a "replace" if there is an archive row for the same entity+key
-    // archived within 5 seconds of this row's created_at (approximate heuristic).
+    // archived within 5 seconds of this row's createdAt (approximate heuristic).
     let actionType = 'write_created'
     try {
       const priorResult = await query<{ count: string }>(
         `SELECT COUNT(*) AS count FROM archive
-         WHERE entity_type = $1 AND entity_id = $2 AND key = $3
-           AND archived_at > $4 AND archived_at <= $5`,
+         WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
+           AND "archivedAt" > $4 AND "archivedAt" <= $5`,
         [
-          row.entity_type,
-          row.entity_id,
+          row.entityType,
+          row.entityId,
           row.key,
-          new Date(row.created_at.getTime() - 5000).toISOString(),
-          new Date(row.created_at.getTime() + 5000).toISOString(),
+          new Date(row.createdAt.getTime() - 5000).toISOString(),
+          new Date(row.createdAt.getTime() + 5000).toISOString(),
         ]
       )
       if (parseInt(priorResult.rows[0]?.count ?? '0', 10) > 0) {
@@ -171,20 +171,20 @@ async function pollKnowledgeBase(cur: AdapterCursor): Promise<void> {
     events.push({
       staff_component: 'Librarian',
       action_type: actionType,
-      agent_id: row.agent_id ?? null,
+      agent_id: row.agentId ?? null,
       source: row.source ?? null,
-      entity_type: row.entity_type ?? null,
-      entity_id: row.entity_id ?? null,
+      entity_type: row.entityType ?? null,
+      entity_id: row.entityId ?? null,
       key: row.key ?? null,
       reason: 'Detected by control plane adapter (Phase 1)',
       level: 'audit',
       metadata: {
         confidence: row.confidence,
-        valuePreview: truncateJson(row.value_raw, 200),
-        sourceCreatedAt: row.created_at.toISOString(),
+        valuePreview: truncateJson(row.valueRaw, 200),
+        sourceCreatedAt: row.createdAt.toISOString(),
         sourceRowId: String(row.id),
       },
-      timestamp: row.created_at.toISOString(),
+      timestamp: row.createdAt.toISOString(),
     })
   }
 
@@ -192,7 +192,7 @@ async function pollKnowledgeBase(cur: AdapterCursor): Promise<void> {
     await insertEvents(events)
     // Advance cursor to the latest processed row
     const lastRow = rows[rows.length - 1]
-    cur.kbCursor = lastRow.created_at.toISOString()
+    cur.kbCursor = lastRow.createdAt.toISOString()
   } catch {
     // Insert failed (table may not exist yet) — skip silently, cursor not advanced
   }
@@ -205,22 +205,22 @@ async function pollKnowledgeBase(cur: AdapterCursor): Promise<void> {
 async function pollArchive(cur: AdapterCursor): Promise<void> {
   type ArchiveRow = {
     id: unknown
-    entity_type: string | null
-    entity_id: string | null
+    entityType: string | null
+    entityId: string | null
     key: string | null
-    agent_id: string | null
+    agentId: string | null
     source: string | null
-    archived_reason: string | null
-    created_at: Date
+    archivedReason: string | null
+    createdAt: Date
   }
 
   let rows: ArchiveRow[]
   try {
     const result = await query<ArchiveRow>(
-      `SELECT id, entity_type, entity_id, key, agent_id, source, archived_reason, created_at
+      `SELECT id, "entityType", "entityId", key, "agentId", source, "archivedReason", "createdAt"
        FROM archive
-       WHERE created_at > $1
-       ORDER BY created_at ASC
+       WHERE "createdAt" > $1
+       ORDER BY "createdAt" ASC
        LIMIT 100`,
       [cur.archiveCursor]
     )
@@ -234,25 +234,25 @@ async function pollArchive(cur: AdapterCursor): Promise<void> {
   const events: Record<string, unknown>[] = rows.map((row) => ({
     staff_component: 'Archivist',
     action_type: 'entry_archived',
-    agent_id: row.agent_id ?? null,
+    agent_id: row.agentId ?? null,
     source: row.source ?? null,
-    entity_type: row.entity_type ?? null,
-    entity_id: row.entity_id ?? null,
+    entity_type: row.entityType ?? null,
+    entity_id: row.entityId ?? null,
     key: row.key ?? null,
-    reason: row.archived_reason ?? 'Detected by control plane adapter (Phase 1)',
+    reason: row.archivedReason ?? 'Detected by control plane adapter (Phase 1)',
     level: 'audit',
     metadata: {
-      archivedReason: row.archived_reason ?? null,
+      archivedReason: row.archivedReason ?? null,
       archivedFactId: String(row.id),
-      sourceCreatedAt: row.created_at.toISOString(),
+      sourceCreatedAt: row.createdAt.toISOString(),
     },
-    timestamp: row.created_at.toISOString(),
+    timestamp: row.createdAt.toISOString(),
   }))
 
   try {
     await insertEvents(events)
     const lastRow = rows[rows.length - 1]
-    cur.archiveCursor = lastRow.created_at.toISOString()
+    cur.archiveCursor = lastRow.createdAt.toISOString()
   } catch {
     // Skip silently — staff_events table may not exist yet
   }
