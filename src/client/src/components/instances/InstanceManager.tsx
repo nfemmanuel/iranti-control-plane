@@ -10,6 +10,7 @@ import { apiFetch } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './InstanceManager.module.css'
+import { Spinner } from '../ui/Spinner'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -131,12 +132,11 @@ function InstanceListItem({
   instance,
   selected,
   onClick,
-  _tick,
 }: {
   instance: InstanceMetadata
   selected: boolean
   onClick: () => void
-  _tick: number  // time tick — causes re-render so staleness stays current
+  _tick: number  // time tick — causes re-render so staleness stays current; not read directly
 }) {
   const hasConnectionInfo = Boolean(instance.database)
   const dbSummary = instance.database
@@ -499,7 +499,7 @@ export function InstanceManager() {
     return (
       <div className={styles.page}>
         <div className={styles.loadingState}>
-          <span className={styles.spinner} aria-hidden="true" />
+          <Spinner size="md" label="Loading instances" />
           <span>Discovering instances…</span>
         </div>
       </div>
