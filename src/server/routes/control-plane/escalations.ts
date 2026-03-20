@@ -200,7 +200,7 @@ function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFun
 // GET /escalations
 // ---------------------------------------------------------------------------
 
-escalationsRouter.get('/escalations', async (req: Request, res: Response, next: NextFunction) => {
+escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const status = (req.query.status as string | undefined) ?? 'pending'
 
@@ -230,7 +230,7 @@ escalationsRouter.get('/escalations', async (req: Request, res: Response, next: 
           "validFrom",
           "archivedAt",
           "archivedReason",
-          "resolutionNote",
+          resolution_note       AS "resolutionNote",
           "supersededBy"::text AS "supersededBy",
           "conflictLog"
         FROM archive
@@ -316,7 +316,7 @@ escalationsRouter.get('/escalations', async (req: Request, res: Response, next: 
           key,
           "resolutionState",
           "archivedAt",
-          "resolutionNote"
+          resolution_note AS "resolutionNote"
         FROM archive
         WHERE "resolutionState" IS NOT NULL
         ORDER BY "archivedAt" DESC
@@ -347,7 +347,7 @@ escalationsRouter.get('/escalations', async (req: Request, res: Response, next: 
 // ---------------------------------------------------------------------------
 
 escalationsRouter.post(
-  '/escalations/:id/resolve',
+  '/:id/resolve',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params
