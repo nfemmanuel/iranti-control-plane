@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { useSetupStatus } from '../onboarding/GettingStarted'
 import styles from './AppShell.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -20,24 +21,28 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/',          label: 'Overview',  icon: '⬡', phase: 1 },
-  { to: '/memory',    label: 'Memory',    icon: '▦', phase: 1 },
-  { to: '/archive',   label: 'Archive',   icon: '◫', phase: 1 },
-  { to: '/activity',  label: 'Activity',  icon: '⚡', phase: 1 },
-  { to: '/instances', label: 'Instances', icon: '⊞', phase: 1 },
-  { to: '/health',    label: 'Health',    icon: '♥', phase: 1 },
-  { to: '/settings',  label: 'Settings',  icon: '⚙', phase: 2 },  // Phase 2 — disabled
+  { to: '/',                label: 'Overview',        icon: '⬡', phase: 1 },
+  { to: '/memory',          label: 'Memory',          icon: '▦', phase: 1 },
+  { to: '/archive',         label: 'Archive',         icon: '◫', phase: 1 },
+  { to: '/activity',        label: 'Activity',        icon: '⚡', phase: 1 },
+  { to: '/instances',       label: 'Instances',       icon: '⊞', phase: 1 },
+  { to: '/health',          label: 'Health',          icon: '♥', phase: 1 },
+  { to: '/conflicts',       label: 'Conflicts',       icon: '⚖', phase: 1 },
+  { to: '/getting-started', label: 'Getting Started', icon: '◎', phase: 1 },
+  { to: '/settings',        label: 'Settings',        icon: '⚙', phase: 2 },  // Phase 2 — disabled
 ]
 
 /* Map routes to section titles for the topbar */
 const SECTION_TITLES: Record<string, string> = {
-  '/':          'Overview',
-  '/memory':    'Memory Explorer',
-  '/archive':   'Archive',
-  '/activity':  'Staff Activity',
-  '/instances': 'Instances & Projects',
-  '/health':    'Health & Diagnostics',
-  '/settings':  'Settings',
+  '/':                'Overview',
+  '/memory':          'Memory Explorer',
+  '/archive':         'Archive',
+  '/activity':        'Staff Activity',
+  '/instances':       'Instances & Projects',
+  '/health':          'Health & Diagnostics',
+  '/conflicts':       'Conflict Review',
+  '/getting-started': 'Getting Started',
+  '/settings':        'Settings',
 }
 
 function getSectionTitle(pathname: string): string {
@@ -199,6 +204,37 @@ function ApiConnectionIndicator() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T035: Setup incomplete banner (shell header)                   */
+/* ------------------------------------------------------------------ */
+
+function SetupBanner() {
+  const { incompleteCount, isFullyConfigured, isLoading } = useSetupStatus()
+  const [dismissed, setDismissed] = useState(false)
+
+  // Only show if: not loading, not fully configured, not dismissed this session
+  if (isLoading || isFullyConfigured || dismissed || incompleteCount === 0) return null
+
+  return (
+    <div className={styles.setupBanner} role="alert" aria-live="polite">
+      <span className={styles.setupBannerIcon} aria-hidden="true">◎</span>
+      <span className={styles.setupBannerText}>
+        Setup incomplete — {incompleteCount} step{incompleteCount !== 1 ? 's' : ''} remaining.
+        {' '}
+        <Link to="/getting-started" className={styles.setupBannerLink}>View setup guide</Link>
+      </span>
+      <button
+        className={styles.setupBannerDismiss}
+        onClick={() => setDismissed(true)}
+        type="button"
+        aria-label="Dismiss setup banner"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Activity Drawer                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -257,12 +293,22 @@ export function AppShell() {
 
   const sectionTitle = getSectionTitle(location.pathname)
 
+  // CP-T035: Setup status for nav badge + auto-redirect on first run
+  const { incompleteCount, firstRunDetected } = useSetupStatus()
+
+  // CP-T035: Auto-redirect to /getting-started on first load when firstRunDetected
+  useEffect(() => {
+    if (firstRunDetected && location.pathname !== '/getting-started') {
+      navigate('/getting-started', { replace: true })
+    }
+  }, [firstRunDetected, location.pathname, navigate])
+
   // Redirect root to /memory (Memory Explorer is the primary Phase 1 surface)
   useEffect(() => {
-    if (location.pathname === '/') {
+    if (location.pathname === '/' && !firstRunDetected) {
       navigate('/memory', { replace: true })
     }
-  }, [location.pathname, navigate])
+  }, [location.pathname, navigate, firstRunDetected])
 
   return (
     <div className={styles.shell}>
@@ -301,6 +347,12 @@ export function AppShell() {
               >
                 <span className={styles.navIcon} aria-hidden="true">{item.icon}</span>
                 <span className={styles.navLabel}>{item.label}</span>
+                {/* CP-T035: Badge showing incomplete setup step count on Getting Started nav item */}
+                {item.to === '/getting-started' && incompleteCount > 0 && (
+                  <span className={styles.navBadge} aria-label={`${incompleteCount} steps remaining`}>
+                    {incompleteCount}
+                  </span>
+                )}
               </NavLink>
             )
           })}
@@ -323,6 +375,9 @@ export function AppShell() {
 
       {/* ── Main content area ────────────────────────────────────── */}
       <div className={styles.mainArea}>
+        {/* CP-T035: Setup incomplete banner — shown when setup steps remain */}
+        <SetupBanner />
+
         {/* Topbar — section title, per-section actions injected by views */}
         <header className={styles.topbar} aria-label={`${sectionTitle} section`}>
           <h1 className={styles.topbarTitle}>{sectionTitle}</h1>

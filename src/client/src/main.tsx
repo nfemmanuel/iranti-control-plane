@@ -10,6 +10,8 @@ import { TemporalHistory } from './components/memory/TemporalHistory'
 import { ActivityStream } from './components/stream/ActivityStream'
 import { InstanceManager } from './components/instances/InstanceManager'
 import { HealthDashboard } from './components/health/HealthDashboard'
+import { GettingStarted } from './components/onboarding/GettingStarted'
+import { ConflictReview } from './components/conflicts/ConflictReview'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
 import { LoadingPage } from './components/ui/LoadingPage'
 import './styles/tokens.css'
@@ -69,6 +71,8 @@ createRoot(rootEl).render(
                 <Route path="instances" element={<InstanceManager />} />
                 <Route path="instances/:id" element={<InstanceManager />} />
                 <Route path="health" element={<HealthDashboard />} />
+                <Route path="getting-started" element={<GettingStarted />} />
+                <Route path="conflicts" element={<ConflictReview />} />
                 <Route path="settings" element={<PlaceholderView label="Settings — Phase 2" />} />
               </Route>
             </Routes>
