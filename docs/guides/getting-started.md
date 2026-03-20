@@ -102,7 +102,7 @@ The Health dashboard shows a list of checks run against your local setup:
 
 A fully healthy setup shows all checks as **ok** with an overall status of **healthy** (shown in green). If you see **degraded** (amber), at least one check is a warning but nothing is broken. If you see **error** (red), at least one check failed and requires attention before you can use the full control plane.
 
-The sidebar on the left gives you access to the other views: Memory Explorer, Archive, Staff Activity, Instances, and Relationships.
+The sidebar on the left gives you access to the other views: Memory Explorer, Archive, Staff Activity, Instances, and Health.
 
 ---
 

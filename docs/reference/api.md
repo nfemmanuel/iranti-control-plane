@@ -27,7 +27,15 @@ All error responses share a consistent shape:
 }
 ```
 
-Common error codes: `NOT_FOUND`, `INVALID_PARAM`, `INTERNAL_ERROR`, `DB_UNAVAILABLE`, `EVENTS_TABLE_MISSING`.
+Common error codes:
+
+| Code | Description |
+|---|---|
+| `NOT_FOUND` | The requested entity, fact, or resource does not exist. |
+| `INVALID_PARAM` | A query or path parameter failed validation. |
+| `INTERNAL_ERROR` | An unexpected server-side error occurred. |
+| `DB_UNAVAILABLE` | The database connection could not be established or was lost. |
+| `EVENTS_TABLE_MISSING` | `staff_events` migration has not been applied; run `npm run migrate` |
 
 ---
 

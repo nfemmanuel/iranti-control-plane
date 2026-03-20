@@ -44,7 +44,7 @@ Each Staff component has a dedicated color used for event labels, timeline marke
 | **Archivist** | Sky blue (`#38BDF8` dark / `#0EA5E9` light) | Decay scanning, archival, supersession |
 | **Resolutionist** | Mint (`#10B981` dark / `#059669` light) | Conflict resolution, accepted and rejected decisions |
 
-The color appears as a small indicator dot and an uppercase component label on each row. At a glance, you can see at a glance whether a burst of activity is the Librarian processing a batch of writes (amber) or the Archivist running a decay scan (sky blue).
+The color appears as a small indicator dot and an uppercase component label on each row. You can quickly see whether a burst of activity is the Librarian processing a batch of writes (amber) or the Archivist running a decay scan (sky blue).
 
 ---
 
