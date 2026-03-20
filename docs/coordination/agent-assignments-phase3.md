@@ -10,10 +10,11 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 2
+Current wave: Wave 3
 Ticket sequence: CP-T050 → CP-T049 → CP-T048
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
+CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
 
 ---
 
@@ -187,7 +188,7 @@ Create `src/client/src/components/logs/StaffLogs.tsx` implementing:
 
 ### Assignment 3 — CP-T049 (Archivist Transparency) — `backend_developer`
 
-**Status:** Assigned — 2026-03-20
+**Status:** ACCEPTED — 2026-03-20
 **Ticket:** `docs/tickets/cp-t049.md`
 **Priority:** P2
 **Phase:** 3, Wave 2
@@ -243,7 +244,7 @@ Create `src/client/src/components/logs/StaffLogs.tsx` implementing:
 
 ### Assignment 4 — CP-T049 (Archivist Transparency) — `frontend_developer`
 
-**Status:** Assigned — 2026-03-20
+**Status:** ACCEPTED — 2026-03-20
 **Ticket:** `docs/tickets/cp-t049.md`
 **Priority:** P2
 **Phase:** 3, Wave 2
@@ -291,21 +292,65 @@ Create `src/client/src/components/logs/StaffLogs.tsx` implementing:
 
 ---
 
-## Wave 3 (planned — not yet assigned)
+## Wave 3
 
-### Assignment 4 — CP-T048 (Platform Installer Packages) — `devops_engineer`
+Wave 3 kicked off: 2026-03-20 (CP-T049 PM-accepted same date).
 
-**Status:** Planned — will be assigned after Wave 2 (CP-T049) is PM-accepted
+### Assignment 5 — CP-T048 (Platform Installer Packages) — `devops_engineer`
+
+**Status:** Assigned — 2026-03-20
 **Ticket:** `docs/tickets/cp-t048.md`
-**Priority:** P2
+**Priority:** P1 (gating — pipeline work cannot start without spike result)
 **Phase:** 3, Wave 3
 
-Wave 3 kickoff will be issued by PM after CP-T049 is accepted. The `devops_engineer` picks up CP-T048.
+**SPIKE-FIRST REQUIREMENT — pipeline work is blocked until the spike is complete and PM has confirmed the toolchain.**
 
-**First task when picking up CP-T048 (mandatory spike before pipeline work):**
-- Validate Node SEA ESM compatibility (OQ-1 in ticket). The Express server uses `"type": "module"`. Run the proof-of-concept spike described in the Implementation Notes section before committing to Node SEA. If SEA is not viable, evaluate `caxa` or a `pkg` fork and confirm toolchain with PM before proceeding.
-- Validate static frontend embedding (whether Vite build output can be embedded in binary or must be placed alongside it).
-- Then confirm toolchain choice with PM via Iranti write before building the pipeline.
+The Express server uses `"type": "module"` (ESM TypeScript output). Node.js Single Executable Applications (Node 20+ SEA) have known friction with ESM entry points. Before writing a single line of GitHub Actions workflow or installer configuration, the devops_engineer must run the ESM + Node SEA compatibility spike documented in OQ-1 and the Implementation Notes section of `docs/tickets/cp-t048.md`.
+
+**Phase 1 — Spike (do this first, nothing else):**
+
+1. **Node SEA ESM compatibility** — Create a minimal reproduction: compile the Express server entry point (`src/server/`) with `tsc` targeting CommonJS (or use `esbuild`/`rollup` to produce a CJS bundle), then attempt to wrap it with the Node 20 SEA toolchain (`node --experimental-sea-config sea-config.json`). Document: does SEA accept an ESM entry point directly? Does it require a CJS input? Does `--input-type=module` work? What happens with dynamic `import()` of TypeScript paths? What happens with the Prisma client (which has its own native module dependencies)?
+
+2. **Static frontend embedding** — Determine how the Vite build output (`src/client/dist/`) is served from the standalone binary. Two options from the ticket: (a) embed assets into the binary via SEA's `"assets"` config field (cleaner for single-file distribution), or (b) place assets alongside the binary in a known relative path (simpler, always works, but two-artifact distribution). Validate that option (a) is feasible given the asset size and any SEA asset-embedding limitations.
+
+3. **Toolchain comparison** — Based on spike results, assess all three candidate toolchains: Node SEA (built-in, Node 20+), `caxa` (simpler, no native SEA — wraps Node binary in a self-extracting archive), `electron-builder` with `--prepackaged` (evolving SEA support). Document tradeoffs against the ticket's AC-8 (no Node prerequisite), AC-10 (< 80MB), and the universal binary requirement for macOS (arm64 + x86_64 via `lipo`).
+
+4. **Write spike findings to Iranti** — Write results to `ticket/cp_t048` key `esm_sea_spike_result`. Include: toolchain recommendation, whether SEA works with ESM entry, asset embedding decision, and any blockers found. PM will review before pipeline work starts.
+
+5. **Confirm toolchain with PM** — After writing spike findings, flag for PM review. PM will validate and confirm or redirect before full implementation begins.
+
+**Phase 2 — Full implementation (after PM confirms toolchain):**
+
+Once the spike is confirmed, implement the full ticket per `docs/tickets/cp-t048.md`:
+
+- Build pipeline (GitHub Actions matrix: `windows-latest`, `macos-latest`, `ubuntu-latest`)
+- Windows NSIS `.exe` installer (AC-1, AC-2, AC-12)
+- macOS `.dmg` with ad-hoc signed universal binary (AC-3, AC-6)
+- Linux `.AppImage` and `.deb` (AC-4, AC-5)
+- Version display integration (AC-7)
+- Artifact size validation (AC-10 — < 80MB binary)
+- Port conflict detection and auto-increment (AC-12)
+- CI pipeline producing all artifacts on tagged release (AC-9)
+- Document SmartScreen and Gatekeeper bypass instructions in release notes and Getting Started screen (per OQ-2)
+
+**Files to read before starting:**
+- `docs/tickets/cp-t048.md` — full ticket, all 12 ACs, all resolved OQs, Implementation Notes section
+- `src/server/package.json` — confirm `"type": "module"` and entry point
+- `src/client/vite.config.ts` — confirm build output path and whether dynamic import paths are filesystem-layout-relative
+- `.github/workflows/` (if any exist) — existing CI patterns to follow
+
+**Acceptance criteria to verify before reporting back:**
+- All 12 ACs from `cp-t048.md` verified (AC-11 QA sign-off requires QA agent on clean machine/VM — coordinate with `qa_engineer`)
+- TypeScript still compiles after any build script changes
+- CI pipeline green on a tagged release commit
+- Each platform artifact manually validated (coordinate with `qa_engineer` for clean-machine testing)
+
+**Report back to PM with:**
+- Spike findings and toolchain decision (in Phase 1 report)
+- Which ACs passed in full implementation (in Phase 2 report)
+- Artifact sizes for each platform
+- SmartScreen / Gatekeeper bypass documentation location confirmed
+- Any risks or follow-on items (signing roadmap, Homebrew Cask, auto-update)
 
 ---
 
