@@ -163,59 +163,16 @@ async function irantiFetchAttend(
 }
 
 // ---------------------------------------------------------------------------
-// Provider/LLM helpers
+// LLM call via Iranti's /chat/completions (OpenAI-compatible)
 // ---------------------------------------------------------------------------
-
-function getProviderEnv(providerId: string): { key: string; baseUrl?: string } {
-  const getEnv = (name: string) => env[name] ?? process.env[name] ?? ''
-  switch (providerId) {
-    case 'anthropic':
-      return { key: getEnv('ANTHROPIC_API_KEY') }
-    case 'openai':
-      return { key: getEnv('OPENAI_API_KEY') }
-    case 'ollama':
-      return { key: '', baseUrl: getEnv('OLLAMA_BASE_URL') }
-    case 'together':
-      return { key: getEnv('TOGETHER_API_KEY') }
-    case 'groq':
-      return { key: getEnv('GROQ_API_KEY') }
-    default:
-      return { key: '' }
-  }
-}
-
-function resolveProvider(preferredProviderId?: string): { providerId: string; key: string; baseUrl?: string } | null {
-  const getEnv = (name: string) => env[name] ?? process.env[name] ?? ''
-  const candidates = preferredProviderId
-    ? [preferredProviderId]
-    : [
-        getEnv('IRANTI_DEFAULT_PROVIDER') || getEnv('DEFAULT_PROVIDER') || '',
-        'anthropic',
-        'openai',
-        'groq',
-        'together',
-        'ollama',
-      ].filter(Boolean)
-
-  for (const id of candidates) {
-    const { key, baseUrl } = getProviderEnv(id)
-    if (id === 'ollama' && baseUrl?.trim()) return { providerId: id, key: '', baseUrl }
-    if (id !== 'ollama' && key.trim()) return { providerId: id, key, baseUrl }
-  }
-  return null
-}
-
-function resolveDefaultModel(providerId: string, preferredModelId?: string): string {
-  if (preferredModelId?.trim()) return preferredModelId.trim()
-  const defaults: Record<string, string> = {
-    anthropic: 'claude-sonnet-4-6',
-    openai: 'gpt-4o',
-    ollama: 'llama3',
-    together: 'meta-llama/Llama-3-8b-chat-hf',
-    groq: 'llama3-8b-8192',
-  }
-  return defaults[providerId] ?? 'unknown'
-}
+//
+// Iranti exposes /chat/completions and /v1/chat/completions routes that proxy
+// to whatever LLM provider is configured in Iranti's own environment.
+// We do NOT call provider APIs directly — Iranti owns provider routing.
+//
+// Iranti routes (from src/api/server.ts):
+//   /health, /kb/..., /memory/..., /agents/..., /metrics,
+//   /chat/completions, /v1/chat/completions
 
 interface CompletionResult {
   text: string
@@ -223,111 +180,35 @@ interface CompletionResult {
   provider: string
 }
 
-async function callAnthropicComplete(
-  key: string,
-  model: string,
+async function callIrantiChatCompletions(
   messages: LLMMessage[],
+  model: string,
   signal?: AbortSignal
 ): Promise<CompletionResult> {
-  const apiMessages = messages.filter((m) => m.role === 'assistant' || m.role === 'user')
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      messages: apiMessages,
-    }),
-    signal,
-  })
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`Anthropic API error ${res.status}: ${errBody}`)
-  }
-  const json = await res.json() as {
-    content?: Array<{ type: string; text?: string }>
-    model?: string
-    usage?: unknown
-  }
-  const textBlock = json.content?.find((b) => b.type === 'text')
-  const text = textBlock?.text ?? ''
-  return { text, model: json.model ?? model, provider: 'anthropic' }
-}
-
-async function callOpenAICompat(
-  key: string,
-  baseUrl: string,
-  model: string,
-  messages: LLMMessage[],
-  signal?: AbortSignal
-): Promise<CompletionResult> {
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ model, max_tokens: 4096, messages }),
-    signal,
-  })
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`${baseUrl} API error ${res.status}: ${errBody}`)
-  }
-  const json = await res.json() as {
+  const result = await irantiFetch(
+    '/chat/completions',
+    'POST',
+    { model, messages, max_tokens: 4096, stream: false },
+    signal
+  )
+  // OpenAI-compatible response shape
+  const json = result as {
     choices?: Array<{ message?: { content?: string } }>
     model?: string
+    provider?: string
   }
   const text = json.choices?.[0]?.message?.content ?? ''
-  return { text, model: json.model ?? model, provider: baseUrl.includes('groq') ? 'groq' : baseUrl.includes('together') ? 'together' : 'openai' }
+  return {
+    text,
+    model: json.model ?? model,
+    provider: (json.provider as string | undefined) ?? 'iranti',
+  }
 }
 
-async function callOllama(
-  baseUrl: string,
-  model: string,
-  messages: LLMMessage[],
-  signal?: AbortSignal
-): Promise<CompletionResult> {
-  const url = baseUrl.replace(/\/$/, '') + '/api/chat'
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, messages, stream: false }),
-    signal,
-  })
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`Ollama API error ${res.status}: ${errBody}`)
-  }
-  const json = await res.json() as { message?: { content?: string }; model?: string }
-  const text = json.message?.content ?? ''
-  return { text, model: json.model ?? model, provider: 'ollama' }
-}
-
-async function completeLLM(
-  resolved: { providerId: string; key: string; baseUrl?: string },
-  model: string,
-  messages: LLMMessage[],
-  signal?: AbortSignal
-): Promise<CompletionResult> {
-  switch (resolved.providerId) {
-    case 'anthropic':
-      return callAnthropicComplete(resolved.key, model, messages, signal)
-    case 'openai':
-      return callOpenAICompat(resolved.key, 'https://api.openai.com', model, messages, signal)
-    case 'groq':
-      return callOpenAICompat(resolved.key, 'https://api.groq.com/openai', model, messages, signal)
-    case 'together':
-      return callOpenAICompat(resolved.key, 'https://api.together.xyz', model, messages, signal)
-    case 'ollama':
-      return callOllama(resolved.baseUrl ?? 'http://localhost:11434', model, messages, signal)
-    default:
-      throw new Error(`Unsupported provider: ${resolved.providerId}`)
-  }
+function resolveDefaultModel(preferredModelId?: string): string {
+  if (preferredModelId?.trim()) return preferredModelId.trim()
+  // Iranti uses its own configured default; we can pass a hint or let it decide
+  return ''
 }
 
 // ---------------------------------------------------------------------------
@@ -400,27 +281,23 @@ chatRouter.post('/chat', async (req: Request, res: Response, next: NextFunction)
     const sessionId = (typeof body.sessionId === 'string' && body.sessionId.trim()) ? body.sessionId.trim() : randomUUID()
     const history: ChatMessage[] = Array.isArray(body.history) ? body.history : []
 
-    // Resolve provider
-    const resolved = resolveProvider(body.providerId)
-    if (!resolved) {
-      res.status(503).json({
-        error: 'No LLM provider is configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or another provider key.',
-        code: 'NO_PROVIDER_CONFIGURED',
-      })
-      return
-    }
-    const model = resolveDefaultModel(resolved.providerId, body.modelId)
+    // Iranti owns provider routing — we proxy through /chat/completions.
+    // The model hint is passed as a preference; Iranti uses its configured default if omitted.
+    const model = resolveDefaultModel(body.modelId)
 
     // Create abort controller for cancel support
     const controller = new AbortController()
     inFlightControllers.set(sessionId, controller)
 
     try {
-      // Step 1: Call Iranti /memory/attend to retrieve relevant memory facts
-      const conversationContext = history
+      // Cap history to last 10 messages (5 turns) — PM requirement.
+      // Unbounded history bloats the attend context window and degrades retrieval precision.
+      const recentHistory = history.slice(-10)
+      const conversationContext = recentHistory
         .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n')
 
+      // Step 1: Call Iranti /memory/attend to retrieve relevant memory facts
       let attendResult: AttendResult = { facts: [], shouldInject: false, reason: 'skipped', entitiesDetected: [], alreadyPresent: 0, totalFound: 0 }
       try {
         attendResult = await irantiFetchAttend(agentId, conversationContext, message, controller.signal)
@@ -432,9 +309,11 @@ chatRouter.post('/chat', async (req: Request, res: Response, next: NextFunction)
 
       const facts = attendResult.shouldInject ? attendResult.facts : []
 
-      // Step 2: Build prompt and call LLM
-      const messages = buildPromptMessages(agentId, history, facts, message)
-      const completion = await completeLLM(resolved, model, messages, controller.signal)
+      // Step 2: Call Iranti's /chat/completions endpoint (OpenAI-compatible).
+      // Iranti routes through whatever LLM provider is configured in its own env.
+      // We pass the messages (with memory blocks injected) directly.
+      const messages = buildPromptMessages(agentId, recentHistory, facts, message)
+      const completion = await callIrantiChatCompletions(messages, model, controller.signal)
 
       const retrievedFacts: RetrievedFact[] = facts.map(mapFactToRetrievedFact)
 
