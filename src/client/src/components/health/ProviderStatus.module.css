@@ -1,0 +1,461 @@
+/* Iranti Control Plane — Provider Status Section Styles */
+/* Option B: Terminals palette — custom property tokens only, no hardcoded colors */
+/* Supports dark (default) and light ([data-theme="light"]) via token overrides */
+
+/* ──────────────────────────────────────────────────────────────────
+   Section container
+   ────────────────────────────────────────────────────────────────── */
+
+.section {
+  flex-shrink: 0;
+  padding: 0 var(--section-padding) var(--space-4);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sectionMeta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Refresh button (mirrors HealthDashboard pattern)
+   ────────────────────────────────────────────────────────────────── */
+
+.refreshBtn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.refreshBtnSpinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Provider card grid
+   ────────────────────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Provider card
+   ────────────────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  border-left-width: 3px;
+}
+
+/* Left-border color encodes connection state */
+.cardConnected {
+  border-left-color: var(--color-status-success);
+}
+
+.cardUnreachable {
+  border-left-color: var(--color-status-warning);
+}
+
+.cardNotConfigured {
+  border-left-color: var(--color-border-default);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Provider icon monogram
+   ────────────────────────────────────────────────────────────────── */
+
+.providerIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  /* Inline-flex because the span element uses display:inline */
+  display: inline-flex;
+}
+
+.providerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.providerNameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.providerName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.providerEnvVar {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Badges
+   ────────────────────────────────────────────────────────────────── */
+
+.cardBadges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.badgeConnected {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+
+.badgeUnreachable {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+
+.badgeNotConfigured {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-border-default);
+}
+
+.defaultBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-primary);
+  border: 1px solid var(--color-accent-border);
+}
+
+.keyPresent {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-status-success);
+}
+
+.keyAbsent {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Masked key row
+   ────────────────────────────────────────────────────────────────── */
+
+.keyMasked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.keyMaskedLabel {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.keyMaskedValue {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sunken);
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  letter-spacing: 0.02em;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Card footer: timestamp + expand button
+   ────────────────────────────────────────────────────────────────── */
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+}
+
+.lastChecked {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  flex: 1;
+}
+
+.expandBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.expandBtn:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Models panel (expanded)
+   ────────────────────────────────────────────────────────────────── */
+
+.modelsPanel {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.modelList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.modelListHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.modelCount {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.modelSource {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.modelItems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modelItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+}
+
+.modelId {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelContext {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.modelItemMore {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  padding: 2px var(--space-2);
+}
+
+.modelsLoading,
+.modelsEmpty,
+.modelsError {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font-style: italic;
+}
+
+.modelsError {
+  color: var(--color-status-warning);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state — no providers configured
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--color-bg-surface);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--border-radius-md);
+}
+
+.emptyIcon {
+  font-size: 24px;
+  color: var(--color-text-tertiary);
+  display: block;
+}
+
+.emptyTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyBody {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.emptyBody code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-bg-elevated);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading / error states
+   ────────────────────────────────────────────────────────────────── */
+
+.loadingText {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  font-style: italic;
+  padding: var(--space-2) 0;
+}
+
+.errorState {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  color: var(--color-status-error);
+}

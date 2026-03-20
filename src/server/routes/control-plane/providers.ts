@@ -1,8 +1,13 @@
 /**
- * Provider configuration and quota routes
+ * Provider configuration, quota, and model routes
  *
- * GET /:instanceId/providers                      — list configured providers
- * GET /:instanceId/providers/:providerId/quota    — quota info for a provider
+ * Flat routes (no instanceId prefix):
+ *   GET /providers                         — list configured providers with reachability
+ *   GET /providers/:providerId/models      — available models for a provider
+ *
+ * Instance-scoped routes:
+ *   GET /:instanceId/providers             — list configured providers (instance-scoped)
+ *   GET /:instanceId/providers/:providerId/quota — quota info for a provider
  *
  * SECURITY: never return actual API key values — only masked last-4 chars.
  */
@@ -38,6 +43,18 @@ const quotaCache = new Map<string, CacheEntry>()
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 // ---------------------------------------------------------------------------
+// In-memory reachability cache (separate from quota — shorter TTL)
+// ---------------------------------------------------------------------------
+
+interface ReachabilityEntry {
+  reachable: boolean
+  checkedAt: Date
+}
+
+const reachabilityCache = new Map<string, ReachabilityEntry>()
+const REACHABILITY_TTL_MS = 60 * 1000 // 1 minute
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -57,26 +74,396 @@ function maskKey(keyValue: string): string | null {
   return key.length > 4 ? 'sk-...' + key.slice(-4) : null
 }
 
+function getEnvVar(name: string): string {
+  return env[name] || process.env[name] || ''
+}
+
 function getAnthropicKey(): string {
-  return env['ANTHROPIC_API_KEY'] || process.env['ANTHROPIC_API_KEY'] || ''
+  return getEnvVar('ANTHROPIC_API_KEY')
 }
 
 function getOpenaiKey(): string {
-  return env['OPENAI_API_KEY'] || process.env['OPENAI_API_KEY'] || ''
+  return getEnvVar('OPENAI_API_KEY')
+}
+
+function getOllamaBaseUrl(): string {
+  return getEnvVar('OLLAMA_BASE_URL')
 }
 
 function getDefaultProvider(): string | null {
   const val =
-    env['IRANTI_DEFAULT_PROVIDER'] ||
-    process.env['IRANTI_DEFAULT_PROVIDER'] ||
-    env['DEFAULT_PROVIDER'] ||
-    process.env['DEFAULT_PROVIDER'] ||
+    getEnvVar('IRANTI_DEFAULT_PROVIDER') ||
+    getEnvVar('DEFAULT_PROVIDER') ||
     ''
   return val.trim() || null
 }
 
 // ---------------------------------------------------------------------------
-// GET /:instanceId/providers
+// Reachability checks — lightweight, with per-provider caching
+// ---------------------------------------------------------------------------
+
+async function checkReachability(providerId: string): Promise<boolean> {
+  const cached = reachabilityCache.get(providerId)
+  if (cached && Date.now() - cached.checkedAt.getTime() < REACHABILITY_TTL_MS) {
+    return cached.reachable
+  }
+
+  let reachable = false
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    try {
+      switch (providerId) {
+        case 'anthropic': {
+          const key = getAnthropicKey()
+          if (!key.trim()) {
+            reachable = false
+            break
+          }
+          const res = await fetch('https://api.anthropic.com/v1/models', {
+            method: 'GET',
+            headers: {
+              'x-api-key': key,
+              'anthropic-version': '2023-06-01',
+            },
+            signal: controller.signal,
+          })
+          // 200 = reachable with valid key; 401/403 = reachable but auth issue — still reachable
+          reachable = res.status < 500
+          break
+        }
+
+        case 'openai': {
+          const key = getOpenaiKey()
+          if (!key.trim()) {
+            reachable = false
+            break
+          }
+          const res = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${key}` },
+            signal: controller.signal,
+          })
+          reachable = res.status < 500
+          break
+        }
+
+        case 'ollama': {
+          const baseUrl = getOllamaBaseUrl()
+          if (!baseUrl.trim()) {
+            reachable = false
+            break
+          }
+          const url = baseUrl.replace(/\/$/, '') + '/api/tags'
+          const res = await fetch(url, {
+            method: 'GET',
+            signal: controller.signal,
+          })
+          reachable = res.ok
+          break
+        }
+
+        default:
+          reachable = false
+      }
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    reachable = false
+  }
+
+  reachabilityCache.set(providerId, { reachable, checkedAt: new Date() })
+  return reachable
+}
+
+// ---------------------------------------------------------------------------
+// ProviderStatus shape (flat routes)
+// ---------------------------------------------------------------------------
+
+interface ProviderStatus {
+  id: string
+  name: string
+  keyPresent: boolean
+  keyEnvVar: string
+  keyMasked: string | null
+  reachable: boolean
+  lastChecked: string
+  isDefault: boolean
+}
+
+// ---------------------------------------------------------------------------
+// GET /providers   (flat — no instanceId prefix)
+// ---------------------------------------------------------------------------
+
+providersRouter.get(
+  '/providers',
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const anthropicKey = getAnthropicKey()
+      const openaiKey = getOpenaiKey()
+      const ollamaBaseUrl = getOllamaBaseUrl()
+      const defaultProvider = getDefaultProvider()
+      const checkedAt = new Date().toISOString()
+
+      const detections: Array<{ id: string; name: string; envVar: string; key: string }> = []
+
+      if (anthropicKey.trim()) {
+        detections.push({ id: 'anthropic', name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY', key: anthropicKey })
+      } else {
+        detections.push({ id: 'anthropic', name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY', key: '' })
+      }
+
+      if (openaiKey.trim()) {
+        detections.push({ id: 'openai', name: 'OpenAI', envVar: 'OPENAI_API_KEY', key: openaiKey })
+      } else {
+        detections.push({ id: 'openai', name: 'OpenAI', envVar: 'OPENAI_API_KEY', key: '' })
+      }
+
+      if (ollamaBaseUrl.trim()) {
+        detections.push({ id: 'ollama', name: 'Ollama', envVar: 'OLLAMA_BASE_URL', key: ollamaBaseUrl })
+      }
+
+      // Run reachability checks in parallel — only for providers with a key/URL present
+      const reachabilityResults = await Promise.allSettled(
+        detections.map(async (p) => {
+          const keyPresent = p.key.trim() !== ''
+          const reachable = keyPresent ? await checkReachability(p.id) : false
+          return { id: p.id, reachable }
+        })
+      )
+
+      const reachabilityMap = new Map<string, boolean>()
+      for (const result of reachabilityResults) {
+        if (result.status === 'fulfilled') {
+          reachabilityMap.set(result.value.id, result.value.reachable)
+        }
+      }
+
+      // Compute default: explicit env var wins; fallback to first present key
+      let computedDefault: string | null = defaultProvider
+      if (!computedDefault) {
+        if (anthropicKey.trim()) computedDefault = 'anthropic'
+        else if (openaiKey.trim()) computedDefault = 'openai'
+        else if (ollamaBaseUrl.trim()) computedDefault = 'ollama'
+      }
+
+      const providers: ProviderStatus[] = detections.map((p) => ({
+        id: p.id,
+        name: p.name,
+        keyPresent: p.key.trim() !== '',
+        keyEnvVar: p.envVar,
+        keyMasked: p.id === 'ollama'
+          ? (p.key.trim() ? p.key : null)  // Ollama base URL is not secret — show it
+          : maskKey(p.key),
+        reachable: reachabilityMap.get(p.id) ?? false,
+        lastChecked: checkedAt,
+        isDefault: computedDefault === p.id,
+      }))
+
+      res.json({ providers, checkedAt })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// GET /providers/:providerId/models   (flat — no instanceId prefix)
+// ---------------------------------------------------------------------------
+
+const ANTHROPIC_MODELS = [
+  { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', family: 'claude-4', context: 200000 },
+  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', family: 'claude-4', context: 200000 },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', family: 'claude-4', context: 200000 },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', family: 'claude-4', context: 200000 },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', family: 'claude-4', context: 200000 },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5 (2025-10-01)', family: 'claude-4', context: 200000 },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Oct 2024)', family: 'claude-3', context: 200000 },
+  { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Oct 2024)', family: 'claude-3', context: 200000 },
+  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', family: 'claude-3', context: 200000 },
+]
+
+const OPENAI_FALLBACK_MODELS = [
+  { id: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4', context: 128000 },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', family: 'gpt-4', context: 128000 },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', family: 'gpt-4', context: 128000 },
+  { id: 'gpt-4', name: 'GPT-4', family: 'gpt-4', context: 8192 },
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', family: 'gpt-3.5', context: 16385 },
+  { id: 'o1', name: 'o1', family: 'o1', context: 200000 },
+  { id: 'o1-mini', name: 'o1 Mini', family: 'o1', context: 128000 },
+  { id: 'o3-mini', name: 'o3 Mini', family: 'o3', context: 200000 },
+]
+
+interface ModelEntry {
+  id: string
+  name: string
+  family: string
+  context: number
+}
+
+interface ModelsResponse {
+  providerId: string
+  models: ModelEntry[]
+  source: 'static' | 'live' | 'fallback'
+  fetchedAt: string
+}
+
+async function fetchOpenAIModels(key: string): Promise<ModelEntry[] | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    try {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: controller.signal,
+      })
+      if (!res.ok) return null
+      const json = await res.json() as { data?: Array<{ id: string }> }
+      if (!Array.isArray(json.data)) return null
+
+      // Filter to chat/completion models — exclude embeddings, fine-tuning models, etc.
+      const chatModelPrefixes = ['gpt-4', 'gpt-3.5', 'o1', 'o3', 'chatgpt']
+      return json.data
+        .filter((m) => chatModelPrefixes.some((p) => m.id.startsWith(p)))
+        .map((m) => ({
+          id: m.id,
+          name: m.id,
+          family: m.id.split('-')[0] ?? m.id,
+          context: 0, // OpenAI API does not return context window in list endpoint
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id))
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    return null
+  }
+}
+
+async function fetchOllamaModels(baseUrl: string): Promise<ModelEntry[] | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    try {
+      const url = baseUrl.replace(/\/$/, '') + '/api/tags'
+      const res = await fetch(url, { signal: controller.signal })
+      if (!res.ok) return null
+      const json = await res.json() as { models?: Array<{ name: string; details?: { family?: string; parameter_size?: string } }> }
+      if (!Array.isArray(json.models)) return null
+      return json.models.map((m) => ({
+        id: m.name,
+        name: m.name,
+        family: m.details?.family ?? m.name.split(':')[0] ?? m.name,
+        context: 0,
+      }))
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    return null
+  }
+}
+
+providersRouter.get(
+  '/providers/:providerId/models',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params
+      const fetchedAt = new Date().toISOString()
+
+      let response: ModelsResponse
+
+      switch (providerId) {
+        case 'anthropic': {
+          response = {
+            providerId: 'anthropic',
+            models: ANTHROPIC_MODELS,
+            source: 'static',
+            fetchedAt,
+          }
+          break
+        }
+
+        case 'openai': {
+          const key = getOpenaiKey()
+          if (!key.trim()) {
+            response = {
+              providerId: 'openai',
+              models: OPENAI_FALLBACK_MODELS,
+              source: 'fallback',
+              fetchedAt,
+            }
+          } else {
+            const live = await fetchOpenAIModels(key)
+            if (live) {
+              response = {
+                providerId: 'openai',
+                models: live,
+                source: 'live',
+                fetchedAt,
+              }
+            } else {
+              response = {
+                providerId: 'openai',
+                models: OPENAI_FALLBACK_MODELS,
+                source: 'fallback',
+                fetchedAt,
+              }
+            }
+          }
+          break
+        }
+
+        case 'ollama': {
+          const baseUrl = getOllamaBaseUrl()
+          if (!baseUrl.trim()) {
+            response = {
+              providerId: 'ollama',
+              models: [],
+              source: 'static',
+              fetchedAt,
+            }
+          } else {
+            const live = await fetchOllamaModels(baseUrl)
+            if (live) {
+              response = {
+                providerId: 'ollama',
+                models: live,
+                source: 'live',
+                fetchedAt,
+              }
+            } else {
+              response = {
+                providerId: 'ollama',
+                models: [],
+                source: 'fallback',
+                fetchedAt,
+              }
+            }
+          }
+          break
+        }
+
+        default:
+          res.status(404).json({
+            error: `Unknown provider: ${providerId}`,
+            code: 'PROVIDER_NOT_FOUND',
+          })
+          return
+      }
+
+      res.json(response)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// GET /:instanceId/providers   (instance-scoped)
 // ---------------------------------------------------------------------------
 
 interface ProviderEntry {
@@ -127,7 +514,7 @@ providersRouter.get(
 )
 
 // ---------------------------------------------------------------------------
-// GET /:instanceId/providers/:providerId/quota
+// GET /:instanceId/providers/:providerId/quota   (instance-scoped)
 // ---------------------------------------------------------------------------
 
 providersRouter.get(
@@ -184,7 +571,6 @@ providersRouter.get(
               message:
                 'Key presence confirmed. Live balance requires org:read scope — check OpenAI Usage dashboard directly.',
             }
-            // Cache supported result
             quotaCache.set(providerId, { data: result, cachedAt: new Date() })
           }
           break

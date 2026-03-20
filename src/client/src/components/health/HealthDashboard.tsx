@@ -9,6 +9,7 @@ import { apiFetch } from '../../api/client'
 import type { HealthResponse, HealthCheck, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
+import { ProviderStatusSection } from './ProviderStatus'
 import styles from './HealthDashboard.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -560,6 +561,9 @@ export function HealthDashboard() {
           ))}
         </div>
       )}
+
+      {/* CP-T034: Provider status section — key presence, reachability, models */}
+      {!isLoading && <ProviderStatusSection />}
     </div>
   )
 }

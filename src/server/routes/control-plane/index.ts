@@ -6,6 +6,7 @@ import { eventsRouter } from './events.js'
 import { setupRouter } from './setup.js'
 import { repairRouter } from './repair.js'
 import { escalationsRouter } from './escalations.js'
+import { providersRouter } from './providers.js'
 
 export const controlPlaneRouter = Router()
 
@@ -17,3 +18,7 @@ controlPlaneRouter.use('/instances', repairRouter)
 controlPlaneRouter.use('/health', healthRouter)
 controlPlaneRouter.use('/events', eventsRouter)
 controlPlaneRouter.use('/escalations', escalationsRouter)
+// Flat provider routes: GET /providers, GET /providers/:id/models
+// Instance-scoped provider routes: GET /instances/:instanceId/providers, etc.
+controlPlaneRouter.use('/', providersRouter)
+controlPlaneRouter.use('/instances', providersRouter)

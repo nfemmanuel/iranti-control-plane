@@ -191,6 +191,35 @@ export interface InstanceListResponse {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Relationship Graph (CP-T032)                                        */
+/* ------------------------------------------------------------------ */
+
+export interface RelationshipGraphNode {
+  entityType: string
+  entityId: string
+  factCount: number
+  isRoot: boolean
+}
+
+export interface RelationshipGraphEdge {
+  fromEntityType: string
+  fromEntityId: string
+  toEntityType: string
+  toEntityId: string
+  relationshipType: string
+  confidence: number | null
+  source: string | null
+  createdBy: string | null
+}
+
+export interface RelationshipGraph {
+  rootEntity: { entityType: string; entityId: string }
+  nodes: RelationshipGraphNode[]
+  edges: RelationshipGraphEdge[]
+  truncated: boolean
+}
+
+/* ------------------------------------------------------------------ */
 /*  Entity Detail                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -232,6 +261,40 @@ export interface TemporalHistoryResponse {
   current: HistoryInterval | null
   history: HistoryInterval[]
   hasHistory: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/*  Providers (CP-T034)                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface ProviderStatus {
+  id: string
+  name: string
+  keyPresent: boolean
+  keyEnvVar: string
+  keyMasked: string | null
+  reachable: boolean
+  lastChecked: string
+  isDefault: boolean
+}
+
+export interface ProvidersResponse {
+  providers: ProviderStatus[]
+  checkedAt: string
+}
+
+export interface ProviderModelEntry {
+  id: string
+  name: string
+  family: string
+  context: number
+}
+
+export interface ProviderModelsResponse {
+  providerId: string
+  models: ProviderModelEntry[]
+  source: 'static' | 'live' | 'fallback'
+  fetchedAt: string
 }
 
 /* ------------------------------------------------------------------ */
