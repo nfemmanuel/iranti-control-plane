@@ -1,0 +1,142 @@
+/* Iranti Control Plane — Global Base Styles */
+/* Import tokens.css before this file in main.tsx */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular numbers throughout — critical for operator tool data density */
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar styling — thin, themed, unobtrusive */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+a {
+  color: var(--color-accent-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Focus ring — accessible, themed */
+:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
+
+/* Remove focus ring for mouse users (Radix UI handles this for its primitives) */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Dense table base — operator tool defaults */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-font-size);
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0 var(--space-3);
+  height: var(--table-row-height);
+  border-bottom: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+th {
+  height: var(--table-header-height);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  user-select: none;
+}
+
+/* Utility classes for token-level helpers used across views */
+.text-primary   { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary  { color: var(--color-text-tertiary); }
+.text-accent    { color: var(--color-accent-primary); }
+.text-mono      { font-family: var(--font-mono); }
+
+.status-success { color: var(--color-status-success); }
+.status-warning { color: var(--color-status-warning); }
+.status-error   { color: var(--color-status-error); }
+.status-info    { color: var(--color-status-info); }
+
+.staff-librarian     { color: var(--color-staff-librarian); }
+.staff-attendant     { color: var(--color-staff-attendant); }
+.staff-archivist     { color: var(--color-staff-archivist); }
+.staff-resolutionist { color: var(--color-staff-resolutionist); }
+
+/* Visually hidden — for screen reader-only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -714,3 +714,115 @@ The following are out of scope for this spec and must be deferred:
 - [x] v1 constraints (no auth, read-only) documented explicitly.
 - [x] Spec is concrete enough for backend_developer and frontend_developer to implement without further design input.
 - [ ] PM review: pending.
+
+---
+
+## Amendment — Phase 1 Entity Scope (CP-T006)
+
+**Amendment ID**: CP-T006-A1
+**Date**: 2026-03-20
+**Author**: system_architect
+**Spike**: docs/specs/entity-aliases-spike.md
+**Status**: Pending PM acceptance
+
+---
+
+### Context
+
+CP-T002 open question #4 deferred the `entity_aliases` table as unknown. This amendment resolves that open question following the CP-T006 architecture spike.
+
+**Finding**: The running Iranti database has exactly three tables: `knowledge_base`, `archive`, `entity_relationships`. There is no `entities` table and no `entity_aliases` table in the current schema. No alias storage convention (e.g., `key = "_alias"` entries in `knowledge_base`) has been confirmed. No MCP tool or SDK method for writing aliases exists.
+
+---
+
+### Change 1: `entity` Field in EntityDetailResponse is Always `null` in Phase 1
+
+**Affected endpoint**: `GET /api/control-plane/entities/:entityType/:entityId`
+
+**Change**: The `entity: EntityRecord | null` field in `EntityDetailResponse` must be implemented as **unconditionally `null`** in Phase 1.
+
+**Reason**: The `entities` table does not exist in the current Iranti schema. The backend must not attempt to query a non-existent table. The existing spec note ("If the `entities` table does not contain a row for this `entityType/entityId`, `entity` is `null`") already permits this — this amendment makes it a Phase 1 implementation requirement, not an edge case.
+
+**Backend implementation instruction**: Do not include any query against an `entities` table in Phase 1. Emit `entity: null` unconditionally. When (and if) Iranti adds an `entities` table in a future release, this field can be populated without breaking the response shape.
+
+**No schema change required.** The `EntityDetailResponse` type is unchanged:
+
+```typescript
+interface EntityDetailResponse {
+  entity: EntityRecord | null;  // Always null in Phase 1 — entities table does not exist
+  currentFacts: KBFact[];
+  archivedFacts: ArchiveFact[];
+  relationships: Relationship[];
+}
+```
+
+---
+
+### Change 2: Entity Aliases Endpoint Deferred to Phase 2+
+
+**Affected endpoint**: `GET /api/control-plane/entities/:entityType/:entityId/aliases` (proposed, not yet in spec)
+
+**Change**: This endpoint is **not part of Phase 1 scope**. It must not be implemented in Phase 1.
+
+**Reason**: The `entity_aliases` table does not exist in the current Iranti schema. There is no upstream write mechanism to populate it. Building an endpoint with no data source would produce empty scaffolding.
+
+**Deferral condition**: This endpoint may be added in a future amendment to this spec when both of the following are true:
+1. Iranti has added an `entity_aliases` table to its core schema (upstream change — out of scope for this repo).
+2. Iranti exposes an MCP tool or SDK method to write alias entries (upstream change — out of scope for this repo).
+
+**When this endpoint is eventually added**, the recommended shape is:
+
+```typescript
+// GET /api/control-plane/entities/:entityType/:entityId/aliases
+// Backend classification (future): Existing query against entity_aliases table
+// Returns all aliases registered for the given entity.
+
+interface EntityAliasesResponse {
+  entityType: string;
+  entityId: string;
+  aliases: EntityAlias[];
+}
+
+interface EntityAlias {
+  id: string;
+  alias: string;               // The alternate name or identifier
+  aliasType: string | null;    // e.g., "display_name", "external_ref", "short_code"
+  source: string | null;       // Which agent or system registered this alias
+  createdAt: string;           // ISO 8601
+}
+```
+
+This shape is documented here as forward intent only. It is **not an active endpoint spec** and must not be implemented until the upstream table exists and a follow-on amendment formally activates it.
+
+---
+
+### Phase 1 Known Limitations (entity scope)
+
+These limitations are accepted for Phase 1 and must be documented in Phase 1 release notes:
+
+1. **No alias lookup**: Users cannot find an entity by an alternate name or identifier. Entity navigation requires knowing the exact `entityType` and `entityId`.
+2. **No canonical display name**: The `EntityRecord` (which would carry `displayName`) is always `null`. Entity display in the UI uses `entityType/entityId` directly.
+3. **Duplicate appearance for multi-identifier entities**: If the same real-world entity is recorded under two different `entityId` values, they will appear as two separate entities with no visible link. This is an Iranti data model limitation, not a control plane limitation.
+4. **No `aliases` array in entity detail**: The `EntityDetailResponse` does not include an `aliases` field in Phase 1. The response shape is stable — when aliases are added in a future phase, `aliases: EntityAlias[]` would be additive (defaulting to `[]`), not a breaking change.
+
+---
+
+### Impact on Backend Developer (CP-T013 and related)
+
+Backend developers implementing the entity detail endpoint must:
+
+- **Do**: Query `knowledge_base`, `archive`, and `entity_relationships` for the given `entityType/entityId`.
+- **Do**: Return `entity: null` unconditionally.
+- **Do not**: Query any `entities` or `entity_aliases` table — they do not exist.
+- **Do not**: Implement `GET /api/control-plane/entities/:entityType/:entityId/aliases` in Phase 1.
+
+No other endpoint is affected by this amendment. All other endpoint groups in this spec are implementable as originally specified.
+
+---
+
+### Updated Open Questions Status
+
+| # | Question | Status |
+|---|---|---|
+| OQ-3 | `entities` table existence | **Resolved**: Does not exist in current schema. `entity` field is `null` in Phase 1. |
+| OQ-4 | `entity_aliases` table | **Resolved**: Does not exist. No alias mechanism confirmed. Endpoint deferred to Phase 2+. |

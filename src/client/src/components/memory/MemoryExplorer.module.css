@@ -1,0 +1,567 @@
+/* Iranti Control Plane — Memory Explorer Styles */
+/* Option B: Terminals. Full height layout, sticky filter bar, scrollable table. */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Filter bar — sticky at top of the content area
+   ────────────────────────────────────────────────────────────────── */
+
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filterInput {
+  height: var(--input-height);
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  width: 120px;
+  transition: border-color 0.1s;
+}
+
+.filterInputWide {
+  composes: filterInput;
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.filterInput:focus,
+.filterInputWide:focus {
+  border-color: var(--color-accent-primary);
+  outline: none;
+}
+
+.filterInput::placeholder,
+.filterInputWide::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* Confidence slider */
+
+.filterSliderLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.filterSlider {
+  height: 4px;
+  accent-color: var(--color-accent-primary);
+  cursor: pointer;
+  width: 80px;
+}
+
+/* Active only toggle */
+
+.filterToggleLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filterCheckbox {
+  accent-color: var(--color-accent-primary);
+  cursor: pointer;
+}
+
+/* Reset button */
+
+.filterResetButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.filterResetButton:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Table region — scrolls independently
+   ────────────────────────────────────────────────────────────────── */
+
+.tableRegion {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+  table-layout: fixed;
+}
+
+/* Column widths — proportional for 1280px+ target */
+
+.table th:nth-child(1) { width: 22%; }  /* Entity */
+.table th:nth-child(2) { width: 12%; }  /* Key */
+.table th:nth-child(3) { width: 28%; }  /* Summary */
+.table th:nth-child(4) { width: 6%; }   /* Confidence */
+.table th:nth-child(5) { width: 10%; }  /* Source */
+.table th:nth-child(6) { width: 10%; }  /* Created by */
+.table th:nth-child(7) { width: 7%; }   /* Valid from */
+.table th:nth-child(8) { width: 5%; }   /* Updated */
+
+/* Table header */
+
+.table thead th {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.thSortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s;
+}
+
+.thSortable:hover {
+  color: var(--color-text-primary);
+}
+
+.sortInactive {
+  color: var(--color-text-tertiary);
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+.sortActive {
+  color: var(--color-accent-primary);
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+/* Data rows */
+
+.dataRow {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dataRow:hover {
+  background: var(--color-bg-elevated);
+}
+
+.dataRow:hover td {
+  border-bottom-color: var(--color-border-default);
+}
+
+.dataRowExpanded {
+  background: var(--color-accent-subtle);
+}
+
+.dataRowExpanded:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* Cells */
+
+.table td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellEntity {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.entityType {
+  color: var(--color-text-secondary);
+}
+
+.entitySep {
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.entityId {
+  color: var(--color-text-primary);
+}
+
+.cellKey {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.cellSummary {
+  color: var(--color-text-primary);
+}
+
+.summaryText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.cellConfidence {
+  text-align: right;
+  padding-right: var(--space-4);
+}
+
+.confidence {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confidence[data-level="high"] {
+  color: var(--color-status-success);
+}
+
+.confidence[data-level="medium"] {
+  color: var(--color-status-warning);
+}
+
+.confidence[data-level="low"] {
+  color: var(--color-status-error);
+}
+
+.cellSource {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.cellMono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.cellMeta {
+  font-size: var(--table-meta-font-size);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Expanded row
+   ────────────────────────────────────────────────────────────────── */
+
+.expandedRowContainer {
+  background: var(--color-bg-elevated);
+}
+
+.expandedRowTd {
+  padding: 0 !important;
+  height: auto !important;
+  border-bottom: 2px solid var(--color-accent-border) !important;
+}
+
+.expandedRowContent {
+  padding: var(--space-3) var(--section-padding) var(--space-4);
+}
+
+.expandedGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+.expandedField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.expandedLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.expandedValue {
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.expandedValueMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+/* Raw JSON block */
+
+.expandedRawBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.expandedRawPre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+/* Action buttons */
+
+.expandedActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.expandedActionButton {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.expandedActionButton:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Skeleton loading rows
+   ────────────────────────────────────────────────────────────────── */
+
+.skeletonRow {
+  pointer-events: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.skeletonRow td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+}
+
+.skeleton {
+  display: inline-block;
+  height: 12px;
+  background: var(--color-bg-elevated);
+  border-radius: 3px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { opacity: 0.5; }
+  50%  { opacity: 1.0; }
+  100% { opacity: 0.5; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.emptyStateBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.errorStateIcon {
+  font-size: 28px;
+  color: var(--color-status-warning);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.errorStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.errorStateBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  max-width: 480px;
+  word-break: break-all;
+}
+
+.errorRetryButton {
+  margin-top: var(--space-2);
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.errorRetryButton:hover {
+  background: var(--color-status-warning-bg);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Pagination
+   ────────────────────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--section-padding);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  flex-shrink: 0;
+}
+
+.paginationCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.paginationButton {
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.paginationButton:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.paginationButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.paginationPage {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 60px;
+  text-align: center;
+}
+
+.paginationPageSize {
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}

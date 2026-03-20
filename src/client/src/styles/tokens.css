@@ -1,0 +1,128 @@
+/* Iranti Control Plane — Visual Token System — Option B: Terminals */
+/* Approved: 2026-03-20 by product_manager */
+/* Dark mode default. Light mode via [data-theme="light"] on :root */
+/* Source of truth: decision/visual_direction + docs/specs/shell-design-exploration.md */
+
+:root {
+  /* === BACKGROUNDS === */
+  --color-bg-base: #0D1117;           /* Main canvas — GitHub-dark-adjacent, very deep cool */
+  --color-bg-surface: #161B22;        /* Cards, panels, sidebar */
+  --color-bg-elevated: #1F2937;       /* Dropdowns, modals, tooltips */
+  --color-bg-sunken: #090D12;         /* Input fields, code blocks */
+
+  /* === BORDERS === */
+  --color-border-subtle: #21262D;     /* Dividers, table rows */
+  --color-border-default: #30363D;    /* Input borders, card outlines */
+  --color-border-strong: #484F58;     /* Active borders, focus rings */
+
+  /* === TEXT === */
+  --color-text-primary: #E6EDF3;      /* Main text — cool off-white */
+  --color-text-secondary: #8B949E;    /* Labels, metadata, timestamps */
+  --color-text-tertiary: #484F58;     /* Placeholder, disabled */
+  --color-text-inverse: #0D1117;      /* Text on accent backgrounds */
+
+  /* === ACCENT — Emerald/Mint === */
+  --color-accent-primary: #10B981;    /* Primary interactive, active nav — bright emerald on dark */
+  --color-accent-hover: #34D399;      /* Hover state — lighter on hover */
+  --color-accent-subtle: #064E3B;     /* Accent background tint — deep green selected row */
+  --color-accent-border: #065F46;     /* Accent-tinted borders */
+
+  /* === STATUS === */
+  --color-status-success: #10B981;
+  --color-status-success-bg: #064E3B;
+  --color-status-warning: #F59E0B;
+  --color-status-warning-bg: #1A1400;
+  --color-status-error: #F87171;      /* Lightened red for dark bg contrast */
+  --color-status-error-bg: #1A0808;
+  --color-status-info: #3B82F6;
+  --color-status-info-bg: #0A1628;
+
+  /* === STAFF COMPONENT COLORS (dark) === */
+  /* Source: decision/visual_direction key staff_palette — authoritative */
+  --color-staff-librarian: #F59E0B;       /* Amber — writes/ingestion */
+  --color-staff-attendant: #A78BFA;       /* Violet — session presence/reads */
+  --color-staff-archivist: #38BDF8;       /* Sky blue — decay and archival */
+  --color-staff-resolutionist: #10B981;   /* Mint — shared with accent — resolution decisions */
+
+  /* === TYPOGRAPHY === */
+  /* Option B: system font stack — no web font load (local-first, zero external dependency) */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Code", "Fira Code", ui-monospace, monospace;
+
+  /* === SPACING (4px base unit) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* === SIZING === */
+  --sidebar-width: 220px;
+  --chat-panel-width: 380px;          /* Phase 2 — structure reserved, not rendered in Phase 1 */
+  --header-height: 48px;
+  --activity-drawer-height: 240px;    /* Slide-up ambient Staff event tail */
+  --activity-drawer-collapsed-height: 32px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+
+  /* === DENSITY (operator tool — compact) === */
+  /* These apply to tables, nav items, inputs throughout the control plane */
+  --table-row-height: 36px;
+  --table-header-height: 32px;
+  --table-font-size: 13px;
+  --table-meta-font-size: 11px;
+  --input-height: 32px;
+  --nav-item-height: 32px;
+  --section-padding: 16px;
+}
+
+/* ============================================================
+   LIGHT MODE OVERRIDES
+   Applied via [data-theme="light"] on <html> element.
+   Toggle managed by AppShell — persisted in localStorage.
+   ============================================================ */
+
+[data-theme="light"] {
+  /* Backgrounds */
+  --color-bg-base: #F4F6F8;           /* Cool near-white canvas */
+  --color-bg-surface: #ECEEF2;        /* Sidebar, panels */
+  --color-bg-elevated: #FFFFFF;       /* Modals, dropdowns */
+  --color-bg-sunken: #E4E7ED;         /* Input fields */
+
+  /* Borders */
+  --color-border-subtle: #DDE1E8;     /* Row dividers */
+  --color-border-default: #C6CDD8;    /* Input outlines, panel edges */
+  --color-border-strong: #9AA3AD;     /* Active borders, focus rings */
+
+  /* Text */
+  --color-text-primary: #0F1117;      /* Near-black, cool undertone */
+  --color-text-secondary: #5A6374;    /* Labels, meta */
+  --color-text-tertiary: #8A93A2;     /* Timestamps, disabled */
+  --color-text-inverse: #FFFFFF;      /* Text on accent backgrounds */
+
+  /* Accent */
+  --color-accent-primary: #059669;    /* Sharp emerald-mint — not teal, not lime */
+  --color-accent-hover: #047857;      /* Deeper on hover */
+  --color-accent-subtle: #ECFDF5;     /* Selected row background */
+  --color-accent-border: #A7F3D0;     /* Accent-tinted borders */
+
+  /* Status */
+  --color-status-success: #059669;
+  --color-status-success-bg: #ECFDF5;
+  --color-status-warning: #D97706;    /* Amber — distinct from accent */
+  --color-status-warning-bg: #FFFBEB;
+  --color-status-error: #DC2626;      /* Red */
+  --color-status-error-bg: #FEF2F2;
+  --color-status-info: #2563EB;
+  --color-status-info-bg: #EFF6FF;
+
+  /* Staff component colors (light) */
+  /* Source: docs/specs/shell-design-exploration.md Option B Light table */
+  --color-staff-librarian: #D97706;       /* Amber */
+  --color-staff-attendant: #7C3AED;       /* Violet */
+  --color-staff-archivist: #0EA5E9;       /* Sky blue */
+  --color-staff-resolutionist: #059669;   /* Mint — shared with accent */
+}
