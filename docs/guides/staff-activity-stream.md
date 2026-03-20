@@ -80,9 +80,9 @@ The stream shows the most recent 100 events on initial load. Use the **Since** f
 
 ## Phase 1 Limitations
 
-**Attendant and Resolutionist events are absent in Phase 1.**
+**Phase 1 covers Librarian and Archivist events only.**
 
-In Phase 1, the Staff event stream is populated by an adapter that instruments the Librarian and Archivist. The Attendant and Resolutionist have not yet received event emission hooks. This means:
+In Phase 1, the Staff event stream is populated by an adapter that instruments the Librarian and Archivist. The Attendant and Resolutionist have not yet received event emission hooks. **Attendant and Resolutionist events require native emitter injection (Phase 2: CP-T025).** Until CP-T025 ships, this means:
 
 - You will not see `handshake_completed`, `attend_completed`, `reconvene_completed`, or `session_expired` events from the Attendant.
 - You will not see `resolution_filed`, `resolution_applied`, `resolution_rejected`, `escalation_deferred`, or `escalation_expired` events from the Resolutionist.
@@ -91,7 +91,7 @@ What you **will** see in Phase 1:
 - All Librarian write events: `write_created`, `write_replaced`, `write_escalated`, `write_rejected`
 - All Archivist lifecycle events: `entry_archived`, `entry_decayed`, `escalation_processed`, `resolution_consumed`
 
-This is enough to observe the primary memory write and archival lifecycle. Full four-component event coverage is planned for Phase 2, when native event emitters are added to the Attendant and Resolutionist in the upstream Iranti codebase.
+This is enough to observe the primary memory write and archival lifecycle. Full four-component event coverage (all four Staff members in the stream) is planned for Phase 2 (CP-T025), when native event emitters are added to the Attendant and Resolutionist in the upstream Iranti codebase. When CP-T025 ships, the adapter layer becomes unnecessary — the control plane will receive events through the injected `IStaffEventEmitter` interface rather than by polling the database tables. The `staff_events` table schema and SSE stream infrastructure are unchanged; only the event production path changes.
 
 **The `staff_events` table must exist.** If `npm run migrate` hasn't been run, the Activity Stream shows an error rather than events. The Health dashboard's `staff_events_table` check tells you whether the migration has been applied.
 

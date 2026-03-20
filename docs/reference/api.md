@@ -1,8 +1,10 @@
 # Control Plane API Reference
 
-All endpoints are served under the `/api/control-plane/` namespace. All responses use `Content-Type: application/json` unless noted. The API is read-only — no POST, PUT, PATCH, or DELETE endpoints exist in v1.
+All endpoints are served under the `/api/control-plane/` namespace. All responses use `Content-Type: application/json` unless noted.
 
-**Base URL (local development):** `http://localhost:4000/api/control-plane`
+**Base URL (local development — server):** `http://localhost:3002/api/control-plane`
+
+**Base URL (local development — Vite dev server proxy):** Vite dev server runs at `http://localhost:5173` and proxies `/api/control-plane` to the server at `http://localhost:3002`.
 
 **Authentication:** None in v1. The API is served on localhost only. Port binding is the sole access control mechanism.
 
@@ -740,12 +742,370 @@ data: {"error": "Database connection lost", "code": "DB_UNAVAILABLE"}
 
 ## v1 Scope Boundaries
 
-The following are explicitly out of scope for the v1 API:
+The following are explicitly out of scope for the Phase 1 read-only API:
 
-- **Write endpoints** — no POST, PUT, PATCH, or DELETE. Mutations go through existing Iranti CLI/API/MCP pathways.
+- **Write endpoints** — no POST, PUT, PATCH, or DELETE in Phase 1. Phase 2 adds targeted repair and status endpoints (see below).
 - **Authentication** — no token-based auth in v1. Any non-local deployment must add auth before exposing this API.
 - **Provider credit/quota endpoints** — deferred to Phase 2 (requires per-provider capability matrix).
 - **Conflict review endpoints** — deferred to Phase 2.
 - **Entity aliases endpoint** — deferred until the `entity_aliases` table exists in the upstream Iranti schema.
 - **WebSocket alternative to SSE** — SSE is sufficient for v1 unidirectional streaming.
 - **Advanced full-text search** — the `search` param uses ILIKE substring matching in v1. tsvector-based FTS is Phase 2.
+
+---
+
+## Phase 2 Endpoints (In Progress)
+
+The following endpoints are part of Phase 2 and are currently in implementation. They are documented here as stubs so frontend and backend can develop against a shared contract. Response shapes may change before final acceptance.
+
+**Phase 2 base URL:** Same as Phase 1 — `http://localhost:3002/api/control-plane`
+
+**Authentication:** None (same as Phase 1 — localhost only).
+
+**Confirmation requirement:** All Phase 2 endpoints that mutate files or state require `?confirm=true` as a query parameter to prevent accidental mutation from a misrouted request. Requests without `?confirm=true` return `400 CONFIRM_REQUIRED`.
+
+---
+
+### GET /instances/:instanceId/setup-status
+
+*(Phase 2 — in implementation, CP-T035)*
+
+Returns the first-run and setup completion status for a specific Iranti instance. Used by the Getting Started screen to determine which setup steps are complete or incomplete.
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID from `InstanceMetadata.instanceId`. |
+
+#### Response: 200 OK
+
+```json
+{
+  "instanceId": "a1b2c3d4",
+  "steps": [
+    {
+      "id": "database",
+      "label": "Database connection",
+      "status": "complete",
+      "message": "Connected to PostgreSQL at localhost:5432/iranti. 1,204 facts in knowledge base.",
+      "actionRequired": null,
+      "repairAction": null
+    },
+    {
+      "id": "provider",
+      "label": "Provider configuration",
+      "status": "incomplete",
+      "message": "No LLM provider configured. Iranti cannot process writes without a provider key.",
+      "actionRequired": "Add ANTHROPIC_API_KEY or OPENAI_API_KEY to your .env.iranti file, then restart Iranti and click Refresh.",
+      "repairAction": null
+    },
+    {
+      "id": "project_binding",
+      "label": "Project binding",
+      "status": "complete",
+      "message": "1 project bound at /Users/nf/projects/myapp.",
+      "actionRequired": null,
+      "repairAction": null
+    },
+    {
+      "id": "claude_integration",
+      "label": "Claude / Codex integration",
+      "status": "incomplete",
+      "message": ".mcp.json not found for myapp.",
+      "actionRequired": "Run `iranti setup --mcp /Users/nf/projects/myapp` or use the Repair button.",
+      "repairAction": "/api/control-plane/instances/a1b2c3d4/projects/b5c6d7e8/repair/mcp-json"
+    }
+  ],
+  "isFullyConfigured": false,
+  "firstRunDetected": true
+}
+```
+
+**Step IDs and their complete/incomplete conditions:**
+
+| Step ID | Complete condition | Incomplete condition |
+|---|---|---|
+| `database` | DB reachable, migrations current | DB unreachable or not configured |
+| `provider` | At least one provider key present and reachable | No provider key configured |
+| `project_binding` | At least one project bound to this instance | No projects bound |
+| `claude_integration` | `.mcp.json` present for at least one bound project | No projects have `.mcp.json` |
+
+**`status` values:** `complete`, `incomplete`, `warning`, `not_applicable`
+
+**`firstRunDetected`:** `true` if the instance-level setup completion flag has not been set. `false` after the user clicks "Mark setup complete" in the Getting Started screen.
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 404 | `NOT_FOUND` | No instance found with the given `instanceId`. |
+| 503 | `DB_UNAVAILABLE` | Database connection failed. |
+
+---
+
+### POST /instances/:instanceId/setup-status/complete
+
+*(Phase 2 — in implementation, CP-T035)*
+
+Marks first-run setup as complete for this instance. Sets a persistent flag in the instance runtime root so the Getting Started screen does not auto-show again.
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID. |
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `confirm` | string | Yes | Must be `true`. Requests without this return `400 CONFIRM_REQUIRED`. |
+
+#### Request Body
+
+None.
+
+#### Response: 200 OK
+
+```json
+{
+  "instanceId": "a1b2c3d4",
+  "firstRunDetected": false,
+  "completedAt": "2026-03-20T12:00:00.000Z",
+  "flagPath": "/Users/nf/.iranti/.iranti-cp-setup-complete"
+}
+```
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 400 | `CONFIRM_REQUIRED` | `?confirm=true` was not provided. |
+| 404 | `NOT_FOUND` | Instance not found. |
+| 503 | `INTERNAL_ERROR` | Could not write the completion flag to the runtime root (e.g., filesystem permission error). |
+
+---
+
+### POST /instances/:instanceId/setup-status/refresh
+
+*(Phase 2 — in implementation, CP-T035)*
+
+Re-runs all setup status checks for this instance without a full page reload. Used by the "Refresh" button on individual Getting Started steps (particularly the provider step, where the user may have just added an API key).
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID. |
+
+#### Request Body
+
+None.
+
+#### Response: 200 OK
+
+Same shape as `GET /instances/:instanceId/setup-status`. All step statuses are freshly evaluated at request time.
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 404 | `NOT_FOUND` | Instance not found. |
+| 503 | `DB_UNAVAILABLE` | Database connection failed. |
+
+---
+
+### POST /instances/:instanceId/projects/:projectId/repair/mcp-json
+
+*(Phase 2 — in implementation, CP-T033)*
+
+Generates a fresh `.mcp.json` file at the project root using the current instance configuration (database host, port, runtime root). This is a destructive file-write operation. If `.mcp.json` already exists at the project path, it is overwritten.
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID. |
+| `projectId` | string | The project ID from `ProjectBinding.projectId`. |
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `confirm` | string | Yes | Must be `true`. Requests without this return `400 CONFIRM_REQUIRED`. |
+
+#### Request Body
+
+None.
+
+#### Response: 200 OK
+
+```json
+{
+  "action": "mcp_json_generated",
+  "projectPath": "/Users/nf/projects/myapp",
+  "filePath": "/Users/nf/projects/myapp/.mcp.json",
+  "fileWritten": true,
+  "revertable": false,
+  "auditEntry": {
+    "agentId": "control_plane_repair",
+    "source": "control_plane",
+    "actionType": "repair_mcp_json",
+    "timestamp": "2026-03-20T12:05:00.000Z"
+  },
+  "generatedContent": {
+    "mcpServers": {
+      "iranti": {
+        "command": "node",
+        "args": ["/Users/nf/.iranti/mcp-server.js"],
+        "env": {
+          "DATABASE_URL": "postgresql://***@localhost:5432/iranti"
+        }
+      }
+    }
+  }
+}
+```
+
+**`revertable: false`:** File writes are not transactional. If you need to undo this action, restore from a `.mcp.json.bak` backup written alongside the new file (implementation detail — confirm with backend at acceptance).
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 400 | `CONFIRM_REQUIRED` | `?confirm=true` was not provided. |
+| 404 | `NOT_FOUND` | Instance or project not found. |
+| 403 | `PERMISSION_DENIED` | The server process does not have write access to the project directory. Includes a `detail.suggestedFix` field. |
+| 503 | `INTERNAL_ERROR` | Unexpected file write failure. |
+
+---
+
+### POST /instances/:instanceId/projects/:projectId/repair/claude-md
+
+*(Phase 2 — in implementation, CP-T033)*
+
+Appends or replaces the Iranti integration block in the project's `CLAUDE.md` file. Preserves all user-authored content outside the Iranti-delimited block. If no `CLAUDE.md` exists, the endpoint returns an error — it does not create `CLAUDE.md` from scratch.
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID. |
+| `projectId` | string | The project ID. |
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `confirm` | string | Yes | Must be `true`. Requests without this return `400 CONFIRM_REQUIRED`. |
+
+#### Request Body
+
+None.
+
+#### Response: 200 OK
+
+```json
+{
+  "action": "claude_md_updated",
+  "projectPath": "/Users/nf/projects/myapp",
+  "filePath": "/Users/nf/projects/myapp/CLAUDE.md",
+  "fileWritten": true,
+  "revertable": false,
+  "blockAction": "replaced",
+  "auditEntry": {
+    "agentId": "control_plane_repair",
+    "source": "control_plane",
+    "actionType": "repair_claude_md",
+    "timestamp": "2026-03-20T12:06:00.000Z"
+  }
+}
+```
+
+**`blockAction` values:**
+- `"replaced"` — an existing Iranti block was found and replaced
+- `"appended"` — no existing Iranti block was found; new block appended to end of file
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 400 | `CONFIRM_REQUIRED` | `?confirm=true` was not provided. |
+| 404 | `NOT_FOUND` | Instance or project not found; or `CLAUDE.md` does not exist at the project root. |
+| 422 | `BLOCK_DETECTION_FAILED` | A `CLAUDE.md` exists but the Iranti block delimiter could not be reliably detected. The file was not modified. |
+| 403 | `PERMISSION_DENIED` | The server process does not have write access to `CLAUDE.md`. |
+| 503 | `INTERNAL_ERROR` | Unexpected file write failure. |
+
+---
+
+### POST /instances/:instanceId/doctor
+
+*(Phase 2 — in implementation, CP-T033)*
+
+Runs a structured diagnostic pass scoped to one instance. Returns pass/fail per check, plain-English descriptions, and suggested remediation steps. Where a check has a registered repair action, the response includes the repair endpoint URL inline.
+
+This is a structured diagnostic endpoint — it is not a shell command executor. It runs the same internal checks as `GET /health` but scoped to the specified instance, and includes more detail about remediation paths.
+
+#### Path Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `instanceId` | string | The instance ID. |
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `confirm` | string | Yes | Must be `true`. Requests without this return `400 CONFIRM_REQUIRED`. The `confirm` requirement signals to callers that this endpoint may trigger I/O operations with side effects (health probes, filesystem reads). |
+
+#### Request Body
+
+None.
+
+#### Response: 200 OK
+
+```json
+{
+  "instanceId": "a1b2c3d4",
+  "checkedAt": "2026-03-20T12:07:00.000Z",
+  "overall": "degraded",
+  "checks": [
+    {
+      "id": "db_reachability",
+      "label": "Database connection",
+      "status": "pass",
+      "message": "Connected to PostgreSQL at localhost:5432/iranti",
+      "repairAction": null
+    },
+    {
+      "id": "provider_key",
+      "label": "Provider key",
+      "status": "fail",
+      "message": "No provider key found in .env.iranti. Iranti cannot process LLM-dependent writes.",
+      "suggestedFix": "Add ANTHROPIC_API_KEY or OPENAI_API_KEY to /Users/nf/.iranti/.env.iranti and restart Iranti.",
+      "repairAction": null
+    },
+    {
+      "id": "mcp_json_myapp",
+      "label": ".mcp.json — myapp",
+      "status": "fail",
+      "message": ".mcp.json not found at /Users/nf/projects/myapp/.mcp.json",
+      "suggestedFix": "Use the Repair button or run: iranti setup --mcp /Users/nf/projects/myapp",
+      "repairAction": "/api/control-plane/instances/a1b2c3d4/projects/b5c6d7e8/repair/mcp-json"
+    }
+  ]
+}
+```
+
+**`overall` values:** `healthy` (all checks pass), `degraded` (at least one fail, no critical failure), `critical` (at least one check indicates the instance is non-functional).
+
+**`status` values per check:** `pass`, `fail`, `warn`
+
+#### Error Responses
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 400 | `CONFIRM_REQUIRED` | `?confirm=true` was not provided. |
+| 404 | `NOT_FOUND` | Instance not found. |
+| 503 | `INTERNAL_ERROR` | Doctor aggregation failed unexpectedly. |

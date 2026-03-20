@@ -8,6 +8,22 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ---
 
+## What's Available Now (Phase 1 Complete)
+
+The control plane shipped Phase 1 in full. The following views are functional as of 2026-03-20:
+
+| View | What it does |
+|---|---|
+| **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. |
+| **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. |
+| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — current facts, archived facts, and relationships in one view. |
+| **Temporal History** | Fact history timeline at `/memory/:entityType/:entityId/:key` — every historical interval for an entity+key, newest first, with full raw JSON. |
+| **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, pauseable, real-time via SSE. |
+| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, and runtime version. |
+| **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
+
+---
+
 ## Prerequisites
 
 Before you start, you need the following already running:
@@ -24,13 +40,20 @@ Before you start, you need the following already running:
 
 ## Installation
 
-Clone the repository and install dependencies:
+Clone the repository:
 
 ```bash
 git clone https://github.com/your-org/iranti-control-plane.git
 cd iranti-control-plane
-npm install
 ```
+
+Install dependencies for both the server and client. The root `package.json` provides a convenience script for this:
+
+```bash
+npm run setup
+```
+
+This is equivalent to `npm install --prefix src/server && npm install --prefix src/client`. Running `npm install` at the root alone is not sufficient — it only installs `concurrently` (the dev runner) and does not install the server or client dependencies.
 
 Copy the example environment file and edit it to point at your Iranti database:
 
@@ -42,26 +65,10 @@ Open `.env` and set the `DATABASE_URL` to match your Iranti PostgreSQL connectio
 
 ```
 DATABASE_URL=postgresql://postgres@localhost:5432/iranti
-PORT=4000
+CONTROL_PLANE_PORT=3002
 ```
 
-The control plane runs on port `4000` by default to avoid conflicting with Iranti's own port (`3001`). You can change this with the `PORT` variable.
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-When it's working, you'll see output like this in your terminal:
-
-```
-[control-plane] Server running on http://localhost:4000
-[control-plane] Connected to PostgreSQL at localhost:5432/iranti
-[control-plane] API ready at http://localhost:4000/api/control-plane
-```
-
-If you see a database connection error instead, confirm that PostgreSQL is running and that `DATABASE_URL` in your `.env` matches your Iranti setup.
+The control plane server runs on port `3002` by default. You can change this with the `CONTROL_PLANE_PORT` variable.
 
 ---
 
@@ -69,7 +76,7 @@ If you see a database connection error instead, confirm that PostgreSQL is runni
 
 The control plane adds one table to your Iranti database: `staff_events`. This table stores the structured event stream that powers the Staff Activity view. Without it, the events endpoints return a clear error and the Activity Stream tab will show a "migration not applied" warning.
 
-Run the migration once, after `npm install`:
+Run the migration once, after `npm run setup`:
 
 ```bash
 npm run migrate
@@ -81,11 +88,55 @@ You only need to run this once. After that, the table persists across restarts.
 
 ---
 
+## Starting the Development Server
+
+From the project root, run:
+
+```bash
+npm run dev
+```
+
+This uses `concurrently` to start both processes simultaneously:
+
+- **Server** (`src/server`): Express API server at `http://localhost:3002`
+- **Client** (`src/client`): Vite dev server at `http://localhost:5173`
+
+When both are running, you'll see output from both processes interleaved in your terminal:
+
+```
+[0] [iranti-cp] Control plane running at http://localhost:3002
+[0] [iranti-cp] API at http://localhost:3002/api/control-plane/
+[1]   VITE v5.x.x  ready in 300 ms
+[1]   ➜  Local:   http://localhost:5173/
+```
+
+If you prefer to run the two processes separately (useful for debugging one without the other):
+
+```bash
+# Terminal 1 — server only
+cd src/server && npm run dev
+
+# Terminal 2 — client only
+cd src/client && npm run dev
+```
+
+If you see a database connection error, confirm that PostgreSQL is running and that `DATABASE_URL` in your `.env` matches your Iranti setup.
+
+---
+
 ## Opening the Control Plane
 
-Navigate to `http://localhost:4000` in your browser. You'll land on the **Health** dashboard — this is the first screen by design.
+**In development:** Navigate to `http://localhost:5173` in your browser.
 
-The Health dashboard shows a list of checks run against your local setup:
+**In production (built frontend served by server):** Navigate to `http://localhost:3002/control-plane`.
+
+You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views: Memory, Activity Stream, Health, and Instances.
+
+---
+
+## The Health Dashboard
+
+The Health dashboard (`/health`) shows a list of checks run against your local setup:
 
 | Check | What it means |
 |---|---|
@@ -102,7 +153,33 @@ The Health dashboard shows a list of checks run against your local setup:
 
 A fully healthy setup shows all checks as **ok** with an overall status of **healthy** (shown in green). If you see **degraded** (amber), at least one check is a warning but nothing is broken. If you see **error** (red), at least one check failed and requires attention before you can use the full control plane.
 
-The sidebar on the left gives you access to the other views: Memory Explorer, Archive, Staff Activity, Instances, and Health.
+---
+
+## Entity Detail and Temporal History Views
+
+Two views were added in Phase 2 (CP-T036, PM-accepted 2026-03-20) to close a Phase 1 gap:
+
+### Entity Detail — `/memory/:entityType/:entityId`
+
+Navigate to any entity's detail page by clicking "View Related Entities" in the Memory Explorer expanded row, or by typing the URL directly. The Entity Detail page shows:
+
+- A header with entityType, entityId, fact count, and last-updated timestamp
+- A table of all current facts for this entity (key, value summary, confidence, source, agent, validFrom)
+- A collapsible table of all archived facts for this entity (same columns plus archivedReason and archivedAt)
+- A flat list of all entity relationships — what this entity relates to, with relationship type and confidence
+- A breadcrumb back to the Memory Explorer
+
+**Note on the entity field:** The `entity` field in the API response is always `null` in Phase 1. The `entities` table does not yet exist in the current Iranti schema. Entity information is derived from the fact rows themselves (entityType, entityId).
+
+### Temporal History — `/memory/:entityType/:entityId/:key`
+
+Click any fact's key from the Entity Detail page to open its full temporal history. This view shows every interval that key has held for this entity, from the current live value back through all archived and superseded values:
+
+- Each interval shows: value summary, confidence, source, agent, validFrom, validUntil, archivedReason (if archived), supersededBy (if applicable), and a "current" badge for the live fact
+- Click any interval to expand it and read the full raw JSON value
+- Empty state: "No history — this fact has not been superseded or archived" when there is only one interval
+
+Full values are returned without truncation in the history view — unlike the list views where `valueRaw` is capped at 4 KB.
 
 ---
 
@@ -139,3 +216,31 @@ If the Instances page shows an empty list:
 3. If your Iranti instance lives somewhere else, you can manually add an entry to `~/.iranti/instances.json`. See the schema in the architecture overview for the expected format.
 
 Even with no instances found, the Health dashboard and Memory Explorer still work — they connect directly to the database specified in the control plane's own `.env` file.
+
+### "staff_events table not found" warning
+
+Run `npm run migrate` from the project root. This creates the `staff_events` table that the Activity Stream depends on. It is a one-time operation.
+
+---
+
+## What's Coming in Phase 2
+
+Phase 2 is currently in progress as of 2026-03-20. The following features are not yet available:
+
+| Feature | Ticket | Status |
+|---|---|---|
+| **Getting Started / First-Run Onboarding Screen** | CP-T035 | In implementation |
+| **Integration Repair Actions** (regenerate `.mcp.json`, update `CLAUDE.md`, run doctor) | CP-T033 | In implementation |
+| **Entity Relationship Graph View** | CP-T032 | Open |
+| **Embedded Chat Panel** | CP-T020 | Open |
+| **Conflict and Escalation Review** | CP-T021 | Open |
+| **Provider and Model Manager** | CP-T022 | Open |
+| **CLI Setup Wizard** (`iranti setup`) | CP-T023 | Open |
+| **Command Palette** (Cmd+K) | CP-T024 | Open |
+| **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Open |
+| **Full-text search** (tsvector-based, replacing substring matching) | — | Phase 2 |
+| **Entity aliases** | — | Phase 2 (pending upstream schema) |
+
+**Note on the Staff Activity Stream:** In Phase 1, the stream covers Librarian and Archivist events only. Attendant events (handshakes, reconvenes) and Resolutionist events (conflict resolutions) will not appear in the stream until native event emitter injection ships in Phase 2 (CP-T025). The stream UI labels this limitation explicitly.
+
+**Note on v0.1.0 hold:** As of 2026-03-20, the v0.1.0 release is on hold due to defect CP-D001 — a column naming mismatch between the control plane's SQL queries (snake_case) and the Iranti Prisma database schema (camelCase). This affects all data read paths: Memory Explorer, Archive Explorer, Entity Detail, Temporal History, and Staff Activity Stream. The fix is in progress. Design partner handoff is blocked until CP-D001 is resolved and CI regression tests pass.
