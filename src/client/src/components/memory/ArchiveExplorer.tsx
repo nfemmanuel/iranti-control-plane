@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { ArchiveFact, ArchiveListResponse } from '../../api/types'
 import styles from './MemoryExplorer.module.css'
+import { Spinner } from '../ui/Spinner'
 
 /* ------------------------------------------------------------------ */
 /*  Debounce hook                                                       */
@@ -166,18 +167,6 @@ function ExpandedArchiveRow({ fact }: { fact: ArchiveFact }) {
           </div>
         </div>
       </td>
-    </tr>
-  )
-}
-
-const SKELETON_WIDTHS = ['140px', '80px', '180px', '32px', '80px', '80px', '80px', '70px', '60px'] as const
-
-function SkeletonRow() {
-  return (
-    <tr className={styles.skeletonRow} aria-hidden="true">
-      {SKELETON_WIDTHS.map((width, i) => (
-        <td key={i}><span className={styles.skeleton} style={{ width }} /></td>
-      ))}
     </tr>
   )
 }
@@ -386,7 +375,13 @@ export function ArchiveExplorer() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)}
+            {isLoading && (
+              <tr aria-label="Loading archive">
+                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <Spinner size="md" label="Loading archive" />
+                </td>
+              </tr>
+            )}
 
             {/* CP-T027 Condition B — not connected / API error */}
             {!isLoading && error && (

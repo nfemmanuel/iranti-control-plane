@@ -9,6 +9,7 @@ import { apiFetch } from '../../api/client'
 import type { HealthResponse, HealthCheck } from '../../api/types'
 import { getRemediation } from './remediationText'
 import styles from './HealthDashboard.module.css'
+import { Spinner } from '../ui/Spinner'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                           */
@@ -326,26 +327,6 @@ function HealthCard({ check }: { check: HealthCheck }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Loading skeleton                                                    */
-/* ------------------------------------------------------------------ */
-
-function LoadingSkeleton() {
-  return (
-    <div className={styles.grid} aria-busy="true" aria-label="Loading health checks">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className={`${styles.card} ${styles.cardSkeleton}`}>
-          <div className={styles.cardHeader}>
-            <span className={styles.skeletonDot} aria-hidden="true" />
-            <span className={styles.skeleton} style={{ width: '140px', height: '14px' }} />
-          </div>
-          <span className={styles.skeleton} style={{ width: '200px', height: '12px', marginTop: '8px' }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /*  Main component                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -460,7 +441,15 @@ export function HealthDashboard() {
       )}
 
       {/* Loading state */}
-      {isLoading && <LoadingSkeleton />}
+      {isLoading && (
+        <div
+          style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}
+          aria-busy="true"
+          aria-label="Loading health checks"
+        >
+          <Spinner size="md" label="Loading health checks" />
+        </div>
+      )}
 
       {/* Health check cards */}
       {!isLoading && data && (

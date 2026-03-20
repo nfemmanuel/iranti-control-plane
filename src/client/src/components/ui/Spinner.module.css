@@ -1,0 +1,21 @@
+/* Iranti Control Plane — Spinner component styles */
+/* PM-selected: css-loaders.com/spinner/ loader #3 — masked conic-gradient arc */
+/* Color token: var(--color-accent-primary) — never hardcode hex */
+
+.spinner {
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  -webkit-mask:
+    conic-gradient(#0000 10%, #000),
+    linear-gradient(#000 0 0) content-box;
+  mask:
+    conic-gradient(#0000 10%, #000),
+    linear-gradient(#000 0 0) content-box;
+  -webkit-mask-composite: destination-out;
+  mask-composite: subtract;
+  animation: spinnerRotate 1s infinite linear;
+}
+
+@keyframes spinnerRotate {
+  to { transform: rotate(1turn); }
+}

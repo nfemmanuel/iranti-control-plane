@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { KBFact, KBListResponse } from '../../api/types'
 import styles from './MemoryExplorer.module.css'
+import { Spinner } from '../ui/Spinner'
 
 export type { KBFact }
 
@@ -313,21 +314,6 @@ function FilterBar({
   )
 }
 
-function SkeletonRow() {
-  return (
-    <tr className={styles.skeletonRow} aria-hidden="true">
-      <td><span className={styles.skeleton} style={{ width: '140px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '80px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '200px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '32px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '80px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '90px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '60px' }} /></td>
-      <td><span className={styles.skeleton} style={{ width: '60px' }} /></td>
-    </tr>
-  )
-}
-
 /* CP-T027: Three distinct empty state variants for Memory Explorer */
 
 function EmptyState({
@@ -582,7 +568,13 @@ export function MemoryExplorer() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)}
+            {isLoading && (
+              <tr aria-label="Loading memory">
+                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <Spinner size="md" label="Loading memory" />
+                </td>
+              </tr>
+            )}
 
             {!isLoading && error && (
               <ErrorState message={error.message} onRetry={() => void refetch()} />

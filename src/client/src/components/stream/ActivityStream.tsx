@@ -11,6 +11,7 @@ import {
 } from 'react'
 import type { StaffEvent } from '../../api/types'
 import styles from './ActivityStream.module.css'
+import { Spinner } from '../ui/Spinner'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -571,7 +572,7 @@ export function ActivityStream() {
           <>
             {reconnecting && (
               <span className={styles.statusReconnecting}>
-                <span className={styles.spinner} aria-hidden="true" />
+                <Spinner size="sm" label="Reconnecting to activity stream" />
                 Reconnecting…
               </span>
             )}
@@ -582,7 +583,10 @@ export function ActivityStream() {
               </span>
             )}
             {!reconnecting && !connected && !error && (
-              <span className={styles.statusConnecting}>Connecting…</span>
+              <span className={styles.statusConnecting}>
+                <Spinner size="sm" label="Connecting to activity stream" />
+                Connecting…
+              </span>
             )}
           </>
         )}
