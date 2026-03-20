@@ -294,8 +294,8 @@ function DetailPanel({ instance }: { instance: InstanceMetadata }) {
       port: instance.configuredPort,
       host: instance.database?.host ?? 'localhost',
       status: instance.runningStatus === 'running' ? 'running'
-        : instance.runningStatus === 'unreachable' ? 'stopped'
-        : 'unknown',
+        : instance.runningStatus === 'unreachable' ? 'unreachable'
+        : 'stopped',
     })
     navigate(`/instances/${encodeURIComponent(instance.instanceId)}`)
   }
