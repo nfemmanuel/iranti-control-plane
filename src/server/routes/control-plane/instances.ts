@@ -18,6 +18,7 @@ import { homedir } from 'os'
 import { createHash } from 'crypto'
 import http from 'http'
 import { URL } from 'url'
+import { env } from '../../db.js'
 import { ApiError } from '../../types.js'
 
 export const instancesRouter = Router()
@@ -419,6 +420,27 @@ instancesRouter.get('/:instanceId/projects', (req: Request, res: Response) => {
     projectBindingsUnavailable: true,
     note: 'Project binding discovery is pending CP-T006. No binding registry source has been confirmed.',
   })
+})
+
+// ---------------------------------------------------------------------------
+// GET /:instanceId/env-defaults
+// ---------------------------------------------------------------------------
+//
+// Returns env-derived defaults for the chat panel (and any other UI consumer).
+// Currently this control plane manages a single local Iranti instance, so
+// :instanceId is accepted but ignored — we always read from the loaded env
+// singleton. When multi-instance support is added this route should re-parse
+// the target instance's env file using parseEnvFile(runtimeRoot) instead.
+
+interface EnvDefaultsResponse {
+  agentId: string | null
+}
+
+instancesRouter.get('/:instanceId/env-defaults', (_req: Request, res: Response) => {
+  const rawAgentId = env['IRANTI_AGENT_ID'] ?? process.env['IRANTI_AGENT_ID'] ?? ''
+  const agentId = rawAgentId.trim() !== '' ? rawAgentId.trim() : null
+  const body: EnvDefaultsResponse = { agentId }
+  res.json(body)
 })
 
 // Error handler
