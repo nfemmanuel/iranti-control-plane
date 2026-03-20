@@ -1157,7 +1157,7 @@ async function section5_Verification() {
   console.log('')
 
   const criticalFails = checks.filter(c => !c.ok && !c.warning)
-  const warnings = checks.filter(c => c.warning || (!c.ok && c.warning !== false))
+  const warnings = checks.filter(c => c.warning === true)
 
   logLine(`Verification: ${criticalFails.length} critical failures, ${warnings.length} warnings`)
 
