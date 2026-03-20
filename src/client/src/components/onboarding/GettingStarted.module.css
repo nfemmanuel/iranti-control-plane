@@ -1,0 +1,434 @@
+/* GettingStarted — Terminals palette, dark-mode default */
+
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6) var(--section-padding);
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.headerLeft {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-1);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.incompleteCount {
+  color: var(--color-status-warning);
+}
+
+/* ── Step list ───────────────────────────────────────────────────── */
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stepRow {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  transition: border-color 0.1s;
+}
+
+.stepRow:hover {
+  border-color: var(--color-border-strong);
+}
+
+.stepRowDone {
+  opacity: 0.65;
+  border-color: var(--color-border-subtle);
+}
+
+.stepRowDone:hover {
+  opacity: 0.85;
+  border-color: var(--color-border-default);
+}
+
+.stepRowExpanded {
+  border-color: var(--color-accent-border);
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.stepHeader:hover {
+  background: var(--color-bg-elevated);
+}
+
+.stepNumber {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+}
+
+.stepNumberDone {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}
+
+.stepNumberActive {
+  color: var(--color-accent-primary);
+  background: var(--color-accent-subtle);
+}
+
+.stepNumberNA {
+  color: var(--color-text-tertiary);
+  background: transparent;
+}
+
+.stepLabel {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.stepCaret {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* ── Status badges ───────────────────────────────────────────────── */
+
+.stepBadge {
+  font-size: 11px;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+
+.badgeComplete {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}
+
+.badgeIncomplete {
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+}
+
+.badgeWarning {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+}
+
+.badgeNA {
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border-color: var(--color-border-subtle);
+}
+
+/* ── Step body (expanded content) ────────────────────────────────── */
+
+.stepBody {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stepMessage {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.stepAction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+.stepActionLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.stepActionText {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.stepNA {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  font-style: italic;
+}
+
+/* ── CLI command ─────────────────────────────────────────────────── */
+
+.cliCommand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.cliCode {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copyBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.copyBtn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.footerError {
+  font-size: 12px;
+  color: var(--color-status-error);
+  margin: 0;
+}
+
+.footerNote {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.skipLink {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.1s;
+}
+
+.skipLink:hover {
+  color: var(--color-text-secondary);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+
+.primaryBtn {
+  background: var(--color-accent-primary);
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-inverse);
+  font-size: 13px;
+  font-weight: 500;
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+  height: var(--input-height);
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  height: var(--input-height);
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSpinning {
+  opacity: 0.7;
+}
+
+/* ── Success state ───────────────────────────────────────────────── */
+
+.successState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  flex: 1;
+}
+
+.successIcon {
+  font-size: 48px;
+  color: var(--color-status-success);
+  line-height: 1;
+}
+
+.successTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.successBody {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  max-width: 340px;
+  line-height: 1.5;
+}
+
+/* ── Loading & error states ──────────────────────────────────────── */
+
+.loadingCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8);
+  flex: 1;
+}
+
+.loadingLabel {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  text-align: center;
+  flex: 1;
+}
+
+.errorIcon {
+  font-size: 32px;
+  color: var(--color-status-error);
+}
+
+.errorTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.errorBody {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}

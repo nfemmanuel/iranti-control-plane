@@ -6,8 +6,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { HealthResponse, HealthCheck } from '../../api/types'
+import type { HealthResponse, HealthCheck, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
 import { getRemediation } from './remediationText'
+import { ConfirmationModal } from '../ui/ConfirmationModal'
 import styles from './HealthDashboard.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -138,6 +139,35 @@ export function getInfoNormalization(checkName: string): string | null {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  CP-T033: Repair action mapping per health check                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maps health check names to their repair endpoints.
+ * Uses 'local' as the Phase 1 instanceId. 'default' as projectId placeholder.
+ * Only checks with actionable filesystem repair actions are listed here.
+ */
+const REPAIR_ENDPOINTS: Partial<Record<string, { url: string; label: string; kind: 'mcp-json' | 'claude-md' }>> = {
+  mcp_integration: {
+    url: '/api/control-plane/instances/local/projects/default/repair/mcp-json',
+    label: 'Regenerate .mcp.json',
+    kind: 'mcp-json',
+  },
+  claude_md_integration: {
+    url: '/api/control-plane/instances/local/projects/default/repair/claude-md',
+    label: 'Update CLAUDE.md integration block',
+    kind: 'claude-md',
+  },
+}
+
+type RepairKind = 'mcp-json' | 'claude-md'
+
+interface RepairResult {
+  kind: RepairKind
+  data: RepairMcpJsonResponse | RepairClaudeMdResponse
+}
+
 /** Sort key: CRITICAL first, then WARNING, then INFO, then HEALTHY */
 function severitySortKey(severity: Severity): number {
   switch (severity) {
@@ -258,6 +288,33 @@ function HealthCard({ check }: { check: HealthCheck }) {
   const remediation = getRemediation(check.name, check.status)
   const normalization = severity === 'INFO' ? getInfoNormalization(check.name) : null
   const label = getCheckLabel(check.name)
+  const repairInfo = REPAIR_ENDPOINTS[check.name]
+
+  // CP-T033: Repair modal state for this card
+  const [showRepairModal, setShowRepairModal] = useState(false)
+  const [repairLoading, setRepairLoading] = useState(false)
+  const [repairResult, setRepairResult] = useState<RepairResult | null>(null)
+  const [repairError, setRepairError] = useState<string | null>(null)
+
+  const handleRepairConfirm = async () => {
+    if (!repairInfo) return
+    setRepairLoading(true)
+    setRepairError(null)
+    try {
+      const res = await fetch(`${repairInfo.url}?confirm=true`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) {
+        const errBody = body as { error?: string }
+        throw new Error(errBody.error ?? res.statusText)
+      }
+      setRepairResult({ kind: repairInfo.kind, data: body as RepairMcpJsonResponse | RepairClaudeMdResponse })
+    } catch (err) {
+      setRepairError(err instanceof Error ? err.message : 'Repair failed')
+    } finally {
+      setRepairLoading(false)
+      setShowRepairModal(false)
+    }
+  }
 
   // Icon and class: use severity-based mapping (not raw status) for accessibility
   // Using both icon and text label — do not rely on color alone (CP-T028 a11y req)
@@ -291,8 +348,39 @@ function HealthCard({ check }: { check: HealthCheck }) {
         </span>
         <span className={styles.cardName}>{label}</span>
         <SeverityBadge severity={severity} />
+        {/* CP-T033: Repair button — only shown for WARNING/CRITICAL checks with a repair action */}
+        {(severity === 'WARNING' || severity === 'CRITICAL') && repairInfo && !repairResult && (
+          <button
+            className={styles.repairBtn}
+            onClick={() => { setRepairResult(null); setRepairError(null); setShowRepairModal(true) }}
+            type="button"
+            aria-label={`Repair: ${repairInfo.label}`}
+          >
+            Repair
+          </button>
+        )}
       </div>
       <p className={styles.cardMessage}>{check.message}</p>
+
+      {/* CP-T033: Repair success result */}
+      {repairResult && (
+        <div className={styles.repairSuccess}>
+          <span className={styles.repairSuccessIcon} aria-hidden="true">✓</span>
+          <div>
+            <span className={styles.repairSuccessTitle}>Repair complete — </span>
+            <code className={styles.repairSuccessPath}>{repairResult.data.filePath}</code>
+            <span className={styles.repairSuccessAction}> ({repairResult.data.action})</span>
+            <p className={styles.repairSuccessWarning}>This action is not revertable.</p>
+          </div>
+        </div>
+      )}
+
+      {/* CP-T033: Repair error */}
+      {repairError && (
+        <div className={styles.repairError}>
+          <span aria-hidden="true">✗</span> {repairError}
+        </div>
+      )}
 
       {check.detail && Object.keys(check.detail).length > 0 && (
         <dl className={styles.cardDetail}>
@@ -321,6 +409,19 @@ function HealthCard({ check }: { check: HealthCheck }) {
           </span>
           <p className={styles.remediationText}>{remediation}</p>
         </div>
+      )}
+
+      {/* CP-T033: Repair confirmation modal */}
+      {showRepairModal && repairInfo && (
+        <ConfirmationModal
+          title={repairInfo.label}
+          description={`This will write to:\n${repairInfo.url}\n\nThe file will be generated using the current instance configuration.`}
+          warning="This action is not revertable. The file will be written immediately to the project directory."
+          confirmLabel="Run Repair"
+          loading={repairLoading}
+          onConfirm={() => void handleRepairConfirm()}
+          onCancel={() => setShowRepairModal(false)}
+        />
       )}
     </div>
   )

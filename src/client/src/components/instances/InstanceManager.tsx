@@ -7,8 +7,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { InstanceMetadata, InstanceListResponse } from '../../api/types'
+import type { InstanceMetadata, InstanceListResponse, DoctorResponse } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { DoctorDrawer } from './DoctorDrawer'
 import styles from './InstanceManager.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -387,10 +388,11 @@ function ProjectsSection({ instance }: { instance: InstanceMetadata }) {
   )
 }
 
-function DetailPanel({ instance, onRefresh, isRefreshing }: {
+function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor }: {
   instance: InstanceMetadata
   onRefresh: () => void
   isRefreshing: boolean
+  onRunDoctor: (instanceId: string) => void
 }) {
   const { setActiveInstance, activeInstance } = useInstanceContext()
   const navigate = useNavigate()
@@ -423,6 +425,13 @@ function DetailPanel({ instance, onRefresh, isRefreshing }: {
           <span className={styles.discoveredAt}>
             Last discovered: {formatRelativeTime(instance.discoveredAt)}
           </span>
+          <button
+            className={styles.runDoctorBtn}
+            onClick={() => onRunDoctor(instance.instanceId)}
+            type="button"
+          >
+            ⚕ Run Doctor
+          </button>
           {!isActive && (
             <button className={styles.setActiveBtn} onClick={handleSetActive} type="button">
               Set as Active
@@ -466,6 +475,10 @@ export function InstanceManager() {
   // CP-T029: Track whether a manual per-instance probe refresh is in flight
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // CP-T033: Doctor drawer state
+  const [doctorDrawerData, setDoctorDrawerData] = useState<{ instanceId: string; data: DoctorResponse } | null>(null)
+  const [doctorRunning, setDoctorRunning] = useState<string | null>(null)
+
   // CP-T029: Time tick — forces re-render every 30s so relative timestamps and
   // staleness indicators stay current without a full API refetch
   const tick = useTimeTick(30_000)
@@ -492,6 +505,28 @@ export function InstanceManager() {
       await refetch()
     } finally {
       setIsRefreshing(false)
+    }
+  }
+
+  // CP-T033: Run Doctor for a specific instance
+  const handleRunDoctor = async (instanceId: string) => {
+    if (doctorRunning) return
+    setDoctorRunning(instanceId)
+    try {
+      const res = await fetch(
+        `/api/control-plane/instances/${encodeURIComponent(instanceId)}/doctor`,
+        { method: 'POST' }
+      )
+      const body = await res.json() as DoctorResponse
+      if (!res.ok) {
+        console.error('[doctor] failed', body)
+        return
+      }
+      setDoctorDrawerData({ instanceId, data: body })
+    } catch (err) {
+      console.error('[doctor] unexpected error', err)
+    } finally {
+      setDoctorRunning(null)
     }
   }
 
@@ -578,13 +613,30 @@ export function InstanceManager() {
             instance={selectedInstance}
             onRefresh={() => void handleProbeRefresh()}
             isRefreshing={isRefreshing}
+            onRunDoctor={instanceId => void handleRunDoctor(instanceId)}
           />
         ) : (
           <div className={styles.noSelection}>
             <span className={styles.noSelectionText}>Select an instance to view details</span>
           </div>
         )}
+        {/* CP-T033: Doctor running indicator */}
+        {doctorRunning && (
+          <div className={styles.doctorRunning}>
+            <Spinner size="sm" label="Running doctor" />
+            <span>Running doctor checks…</span>
+          </div>
+        )}
       </div>
+
+      {/* CP-T033: Doctor results drawer */}
+      {doctorDrawerData && (
+        <DoctorDrawer
+          instanceId={doctorDrawerData.instanceId}
+          data={doctorDrawerData.data}
+          onClose={() => setDoctorDrawerData(null)}
+        />
+      )}
     </div>
   )
 }

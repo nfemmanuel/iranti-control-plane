@@ -1,0 +1,304 @@
+/* DoctorDrawer — Terminals palette, dark-mode default */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(9, 13, 18, 0.4);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  width: 400px;
+  max-width: 90vw;
+  background: var(--color-bg-surface);
+  border-left: 1px solid var(--color-border-default);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.18s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--section-padding);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.drawerHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drawerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.instanceId {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closeBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.closeBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+/* ── Summary ─────────────────────────────────────────────────────── */
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--section-padding);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.summaryCheckedAt {
+  color: var(--color-text-tertiary);
+  flex: 1;
+}
+
+.summaryPass {
+  color: var(--color-status-success);
+  font-weight: 500;
+}
+
+.summaryFail {
+  color: var(--color-status-error);
+  font-weight: 500;
+}
+
+/* ── Repair result ───────────────────────────────────────────────── */
+
+.repairResult {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-success-bg);
+  border-bottom: 1px solid var(--color-status-success);
+  flex-shrink: 0;
+}
+
+.repairResultIcon {
+  color: var(--color-status-success);
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.repairResultBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.repairResultTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-status-success);
+  margin: 0;
+}
+
+.repairResultFile {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.repairResultFileLabel {
+  color: var(--color-text-tertiary);
+}
+
+.repairResultFilePath {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repairResultAction {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.repairResultWarning {
+  font-size: 11px;
+  color: var(--color-status-warning);
+  margin: 0;
+}
+
+.repairResultDismiss {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.1s;
+}
+
+.repairResultDismiss:hover {
+  color: var(--color-text-primary);
+}
+
+/* ── Repair error ────────────────────────────────────────────────── */
+
+.repairError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-error-bg);
+  border-bottom: 1px solid var(--color-status-error);
+  font-size: 12px;
+  color: var(--color-status-error);
+  flex-shrink: 0;
+}
+
+.repairErrorIcon {
+  flex-shrink: 0;
+}
+
+/* ── Check list ──────────────────────────────────────────────────── */
+
+.checkList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.checkRow {
+  padding: var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.checkRow_pass {
+  border-color: var(--color-border-subtle);
+}
+
+.checkRow_warn {
+  border-color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+}
+
+.checkRow_fail {
+  border-color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+}
+
+.checkHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.iconPass {
+  color: var(--color-status-success);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.iconWarn {
+  color: var(--color-status-warning);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.iconFail {
+  color: var(--color-status-error);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.checkLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.checkMessage {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+  padding-left: calc(13px + var(--space-2));
+}
+
+.inlineRepairBtn {
+  align-self: flex-start;
+  margin-left: calc(13px + var(--space-2));
+  background: none;
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.inlineRepairBtn:hover {
+  background: var(--color-status-warning);
+  color: var(--color-text-inverse);
+}
