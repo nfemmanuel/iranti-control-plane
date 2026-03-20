@@ -9,10 +9,12 @@ import { repairRouter } from './repair.js'
 import { escalationsRouter } from './escalations.js'
 import { providersRouter } from './providers.js'
 import { chatRouter } from './chat.js'
+import { archivistRouter } from './archivist.js'
 
 export const controlPlaneRouter = Router()
 
 // Mount sub-routers
+controlPlaneRouter.use('/', archivistRouter)
 controlPlaneRouter.use('/', kbRouter)
 controlPlaneRouter.use('/instances', instancesRouter)
 controlPlaneRouter.use('/instances', setupRouter)

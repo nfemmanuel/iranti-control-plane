@@ -172,6 +172,8 @@ interface ArchiveFilters extends KBFilters {
   supersededBy?: string
   archivedAfter?: Date
   archivedBefore?: Date
+  /** When true, only return archive rows that have a corresponding archive_flags row */
+  flaggedOnly?: boolean
 }
 
 function buildKBWhereClause(
@@ -273,6 +275,13 @@ function buildArchiveWhereClause(filters: ArchiveFilters, params: unknown[]): st
   if (filters.archivedBefore) {
     params.push(filters.archivedBefore.toISOString())
     clauses.push(`"archivedAt" <= $${params.length}`)
+  }
+  if (filters.flaggedOnly) {
+    // Filter to rows that have an operator flag in the archive_flags table.
+    // Uses EXISTS subquery so this degrades gracefully if the archive_flags table
+    // does not exist (it will return an error surfaced through the normal error handler
+    // rather than a silent empty set).
+    clauses.push(`EXISTS (SELECT 1 FROM archive_flags af WHERE af.archive_id = id::text)`)
   }
 
   return clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -387,6 +396,8 @@ kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction)
       supersededBy: req.query.supersededBy as string | undefined,
       archivedAfter: parseIsoDate(req.query.archivedAfter as string | undefined, 'archivedAfter'),
       archivedBefore: parseIsoDate(req.query.archivedBefore as string | undefined, 'archivedBefore'),
+      // CP-T049: ?flagged=true returns only archive rows flagged for operator review
+      flaggedOnly: req.query.flagged === 'true',
     }
 
     const params: unknown[] = []
