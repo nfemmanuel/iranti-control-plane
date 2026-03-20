@@ -3,8 +3,8 @@
 /* Provides: sidebar nav, instance switcher, topbar, activity drawer slot, */
 /*           theme toggle (dark/light), hidden Phase 2 chat panel slot. */
 
-import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './AppShell.module.css'
 
@@ -144,6 +144,61 @@ function InstanceSwitcher() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T027: Shell-level API connection status indicator               */
+/* ------------------------------------------------------------------ */
+
+/** Probe the Iranti API health endpoint to determine reachability. */
+function useApiReachability(intervalMs: number): 'checking' | 'reachable' | 'unreachable' {
+  const [status, setStatus] = useState<'checking' | 'reachable' | 'unreachable'>('checking')
+
+  const probe = useCallback(async () => {
+    try {
+      const res = await fetch('/api/control-plane/health', { method: 'GET' })
+      setStatus(res.ok || res.status === 503 ? 'reachable' : 'unreachable')
+    } catch {
+      setStatus('unreachable')
+    }
+  }, [])
+
+  useEffect(() => {
+    void probe()
+    const id = setInterval(() => void probe(), intervalMs)
+    return () => clearInterval(id)
+  }, [probe, intervalMs])
+
+  return status
+}
+
+function ApiConnectionIndicator() {
+  const status = useApiReachability(30_000)
+
+  if (status === 'checking') {
+    return (
+      <span className={styles.apiStatusIndicator} data-status="checking" aria-label="Checking API connection">
+        <span className={styles.apiStatusDot} data-status="checking" aria-hidden="true" />
+        <span className={styles.apiStatusLabel}>Connecting</span>
+      </span>
+    )
+  }
+
+  if (status === 'unreachable') {
+    return (
+      <Link to="/health" className={styles.apiStatusIndicator} data-status="unreachable" aria-label="Iranti API unreachable — open Health dashboard">
+        <span className={styles.apiStatusDot} data-status="unreachable" aria-hidden="true" />
+        <span className={styles.apiStatusLabel}>API unreachable</span>
+      </Link>
+    )
+  }
+
+  return (
+    <span className={styles.apiStatusIndicator} data-status="reachable" aria-label="Iranti API reachable">
+      <span className={styles.apiStatusDot} data-status="reachable" aria-hidden="true" />
+      <span className={styles.apiStatusLabel}>Connected</span>
+    </span>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Activity Drawer                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -251,8 +306,10 @@ export function AppShell() {
           })}
         </nav>
 
-        {/* Footer: theme toggle */}
+        {/* Footer: API connection status + theme toggle */}
         <div className={styles.sidebarFooter}>
+          {/* CP-T027: Shell-level connection status indicator */}
+          <ApiConnectionIndicator />
           <button
             className={styles.themeToggle}
             onClick={toggleTheme}

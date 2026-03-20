@@ -56,17 +56,37 @@
   white-space: nowrap;
 }
 
-/* Overall status badge */
+/* CP-T028: Overall status badge — uses severity taxonomy labels */
 
 .overallBadge {
   display: inline-flex;
   align-items: center;
-  padding: 2px var(--space-3);
+  gap: var(--space-1);
+  padding: 3px var(--space-3);
   border-radius: var(--border-radius-sm);
   font-size: 13px;
   font-weight: 600;
   border: 1px solid;
   white-space: nowrap;
+}
+
+/* CP-T028: four-tier taxonomy badge classes */
+.badgeCritical {
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+
+.badgeWarning {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+
+.badgeOperational {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
 }
 
 .badgeHealthy {
@@ -75,6 +95,7 @@
   border-color: var(--color-status-success);
 }
 
+/* Legacy — kept for compatibility; superseded by CP-T028 taxonomy badges */
 .badgeDegraded {
   background: var(--color-status-warning-bg);
   color: var(--color-status-warning);
@@ -148,9 +169,10 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
-   Setup guidance banner
+   CP-T028: Setup guidance banners — critical and warning variants
    ────────────────────────────────────────────────────────────────── */
 
+/* Legacy .setupBanner — superseded by .setupBannerCritical/.setupBannerWarning */
 .setupBanner {
   display: flex;
   align-items: flex-start;
@@ -159,6 +181,30 @@
   background: var(--color-status-error-bg);
   border-bottom: 1px solid var(--color-status-error);
   color: var(--color-status-error);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.setupBannerCritical {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-error-bg);
+  border-bottom: 1px solid var(--color-status-error);
+  color: var(--color-status-error);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.setupBannerWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-warning-bg);
+  border-bottom: 1px solid var(--color-status-warning);
+  color: var(--color-status-warning);
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -211,6 +257,16 @@
   background: var(--color-status-error-bg);
 }
 
+/* CP-T028: four-tier severity card classes */
+.cardCritical {
+  border-left-color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+}
+
+.cardInfo {
+  border-left-color: var(--color-status-info);
+}
+
 .cardSkeleton {
   border-left-color: var(--color-border-default);
 }
@@ -240,6 +296,55 @@
 
 .iconError {
   color: var(--color-status-error);
+}
+
+/* CP-T028: severity-mapped icons */
+.iconCritical {
+  color: var(--color-status-error);
+}
+
+.iconInfo {
+  color: var(--color-status-info);
+}
+
+/* CP-T028: per-card severity badges
+   Uses both color AND text label (never color alone) for color-vision accessibility */
+.severityBadge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+
+.severityBadgeCritical {
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+
+.severityBadgeWarning {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+
+.severityBadgeInfo {
+  background: var(--color-status-info-bg);
+  color: var(--color-status-info);
+  border-color: var(--color-status-info);
+}
+
+.severityBadgeHealthy {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
 }
 
 .cardName {
@@ -284,7 +389,7 @@
   word-break: break-all;
 }
 
-/* Remediation block */
+/* Remediation block — shown for CRITICAL and WARNING items */
 
 .remediation {
   margin-top: var(--space-1);
@@ -307,6 +412,34 @@
 .remediationText {
   font-size: 12px;
   color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* CP-T028: Normalization block — shown for INFO items */
+/* Explains why the state is expected; uses info/blue tone to signal non-urgency */
+
+.normalization {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-info-bg);
+  border: 1px solid var(--color-status-info);
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.normalizationLabel {
+  font-size: 13px;
+  color: var(--color-status-info);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.normalizationText {
+  font-size: 12px;
+  color: var(--color-status-info);
   margin: 0;
   line-height: 1.6;
 }

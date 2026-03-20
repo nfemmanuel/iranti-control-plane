@@ -501,6 +501,71 @@
   background: var(--color-status-warning-bg);
 }
 
+/* CP-T027: Empty state CTA button */
+.emptyStateCtaBtn {
+  margin-top: var(--space-3);
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.emptyStateCtaBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* CP-T027: Error state detail + actions */
+.errorStateDetail {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  max-width: 480px;
+  word-break: break-all;
+  margin: 0;
+}
+
+.errorStateActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.errorStateCtaBtn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.errorStateCtaBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* CP-T027: Inline code style */
+.inlineCode {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--color-text-primary);
+}
+
 /* ──────────────────────────────────────────────────────────────────
    Pagination
    ────────────────────────────────────────────────────────────────── */

@@ -519,6 +519,27 @@
   max-width: 420px;
 }
 
+.emptyCtaBtn {
+  display: inline-block;
+  margin-top: var(--space-3);
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s;
+  text-decoration: none;
+  line-height: var(--input-height);
+}
+
+.emptyCtaBtn:hover {
+  background: var(--color-accent-subtle);
+}
+
 /* ──────────────────────────────────────────────────────────────────
    Jump-to-new button
    ────────────────────────────────────────────────────────────────── */

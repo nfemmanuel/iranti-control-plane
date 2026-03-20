@@ -464,11 +464,15 @@ export function ActivityStream() {
 
   return (
     <div className={styles.page}>
-      {/* Phase 1 limitation notice */}
+      {/* Phase 1 coverage label — non-dismissible, persists until Phase 2 emitters are live */}
+      {/* CP-T026: Remove this banner when Attendant + Resolutionist adapters are instrumented in Phase 2 */}
       <div className={styles.limitationBanner}>
-        <span className={styles.limitationIcon}>ℹ</span>
-        Attendant and Resolutionist events will appear after the Phase 2 native emitter upgrade.
-        Phase 1 emits Librarian writes and Archivist archival events only.
+        <span className={styles.limitationIcon} aria-hidden="true">ℹ</span>
+        <span>
+          <strong>Phase 1 event coverage:</strong>{' '}
+          Librarian ✓ &nbsp;|&nbsp; Archivist ✓ &nbsp;|&nbsp; Attendant — Phase 2 &nbsp;|&nbsp; Resolutionist — Phase 2.{' '}
+          Full Staff observability ships in Phase 2.
+        </span>
       </div>
 
       {/* Filter bar */}
@@ -619,14 +623,46 @@ export function ActivityStream() {
         ref={listRef}
         onScroll={handleScroll}
       >
-        {visibleEvents.length === 0 && !reconnecting && !error && (
+        {/* CP-T027: Three distinct empty state conditions */}
+        {visibleEvents.length === 0 && !reconnecting && error && (
+          /* Condition B — stream not connected / API error */
           <div className={styles.emptyState}>
             <span className={styles.emptyIcon} aria-hidden="true">◈</span>
-            <p className={styles.emptyTitle}>No Staff events yet</p>
+            <p className={styles.emptyTitle}>Stream not connected</p>
             <p className={styles.emptyBody}>
-              Start an agent session to see activity here.
-              {!filters.components.has('Librarian') && !filters.components.has('Archivist') &&
-                ' All Phase 1 components are hidden — enable Librarian or Archivist in the filter.'}
+              The control plane could not connect to the Iranti event stream. Check the Health dashboard for connection details.
+            </p>
+            <a href="/health" className={styles.emptyCtaBtn}>Open Health Dashboard</a>
+          </div>
+        )}
+
+        {visibleEvents.length === 0 && !reconnecting && !error && events.length > 0 && (
+          /* Condition C — filtered, no results */
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon} aria-hidden="true">◈</span>
+            <p className={styles.emptyTitle}>No events match your filter</p>
+            <p className={styles.emptyBody}>Try adjusting your search terms or clearing your filters.</p>
+            <button
+              className={styles.emptyCtaBtn}
+              onClick={() => dispatch({ type: 'RESET' })}
+              type="button"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {visibleEvents.length === 0 && !reconnecting && !error && events.length === 0 && (
+          /* Condition A — connected (or tail mode loaded), no events yet */
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon} aria-hidden="true">◈</span>
+            <p className={styles.emptyTitle}>No events yet</p>
+            <p className={styles.emptyBody}>
+              {mode === 'live' && connected
+                ? 'The stream is connected. Events will appear here when the Librarian processes a write. Try running \u0060iranti write\u0060 in a terminal to generate an event.'
+                : mode === 'tail'
+                  ? 'No events recorded yet. Try running \u0060iranti write\u0060 in a terminal to generate an event.'
+                  : 'Connecting to the event stream\u2026'}
             </p>
           </div>
         )}

@@ -4,6 +4,7 @@
 /* Queries GET /api/control-plane/archive (no temporal history jump — archive IS the history). */
 
 import { Fragment, useState, useReducer, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { ArchiveFact, ArchiveListResponse } from '../../api/types'
@@ -387,28 +388,67 @@ export function ArchiveExplorer() {
           <tbody>
             {isLoading && Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)}
 
+            {/* CP-T027 Condition B — not connected / API error */}
             {!isLoading && error && (
               <tr>
                 <td colSpan={9}>
                   <div className={styles.errorState}>
-                    <span className={styles.errorStateIcon}>⚠</span>
+                    <span className={styles.errorStateIcon} aria-hidden="true">⚠</span>
                     <p className={styles.errorStateTitle}>Unable to load archive</p>
-                    <p className={styles.errorStateBody}>{error.message}</p>
-                    <button className={styles.errorRetryButton} onClick={() => void refetch()} type="button">Retry</button>
+                    <p className={styles.errorStateBody}>
+                      The control plane could not reach your Iranti instance. Check the Health dashboard for connection details.
+                    </p>
+                    <p className={styles.errorStateDetail}>{error.message}</p>
+                    <div className={styles.errorStateActions}>
+                      <Link to="/health" className={styles.errorStateCtaBtn}>
+                        Open Health Dashboard
+                      </Link>
+                      <button className={styles.errorRetryButton} onClick={() => void refetch()} type="button">
+                        Retry
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
             )}
 
-            {!isLoading && !error && facts.length === 0 && (
+            {/* CP-T027 Condition C — filtered, no results */}
+            {!isLoading && !error && facts.length === 0 && Boolean(
+              filters.search || filters.entityType || filters.entityId || filters.key ||
+              filters.source || filters.createdBy || filters.minConfidence > 0 ||
+              filters.archivedReason || filters.resolutionState
+            ) && (
               <tr>
                 <td colSpan={9}>
                   <div className={styles.emptyState}>
-                    <span className={styles.emptyStateIcon}>⬡</span>
-                    <p className={styles.emptyStateTitle}>No archived facts found</p>
+                    <span className={styles.emptyStateIcon} aria-hidden="true">⬡</span>
+                    <p className={styles.emptyStateTitle}>No archived facts match your filter</p>
+                    <p className={styles.emptyStateBody}>Try adjusting your search or clearing your filters.</p>
+                    <button
+                      className={styles.emptyStateCtaBtn}
+                      onClick={() => dispatch({ type: 'RESET' })}
+                      type="button"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {/* CP-T027 Condition A — connected, no archived facts */}
+            {!isLoading && !error && facts.length === 0 && !Boolean(
+              filters.search || filters.entityType || filters.entityId || filters.key ||
+              filters.source || filters.createdBy || filters.minConfidence > 0 ||
+              filters.archivedReason || filters.resolutionState
+            ) && (
+              <tr>
+                <td colSpan={9}>
+                  <div className={styles.emptyState}>
+                    <span className={styles.emptyStateIcon} aria-hidden="true">⬡</span>
+                    <p className={styles.emptyStateTitle}>No archived facts</p>
                     <p className={styles.emptyStateBody}>
-                      The archive is empty or no entries match the current filters.
-                      Archived facts appear here when the Archivist supersedes or decays KB entries.
+                      Facts appear here when they are superseded, contradicted, expired, or decayed by the Archivist.
                     </p>
                   </div>
                 </td>

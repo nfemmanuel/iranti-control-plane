@@ -3,7 +3,7 @@
 /* CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5 */
 
 import { Fragment, useState, useReducer, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { KBFact, KBListResponse } from '../../api/types'
@@ -328,7 +328,15 @@ function SkeletonRow() {
   )
 }
 
-function EmptyState({ filters }: { filters: FilterState }) {
+/* CP-T027: Three distinct empty state variants for Memory Explorer */
+
+function EmptyState({
+  filters,
+  onClearFilters,
+}: {
+  filters: FilterState
+  onClearFilters: () => void
+}) {
   const hasFilters =
     filters.search ||
     filters.entityType ||
@@ -338,39 +346,64 @@ function EmptyState({ filters }: { filters: FilterState }) {
     filters.createdBy ||
     filters.minConfidence > 0
 
+  if (hasFilters) {
+    /* Condition C — filtered, no results */
+    return (
+      <tr>
+        <td colSpan={8}>
+          <div className={styles.emptyState}>
+            <span className={styles.emptyStateIcon} aria-hidden="true">⬡</span>
+            <p className={styles.emptyStateTitle}>No facts match your filter</p>
+            <p className={styles.emptyStateBody}>
+              Try adjusting your search or clearing your filters.
+              {filters.activeOnly && ' You can also disable "Active only" to include archived facts.'}
+            </p>
+            <button className={styles.emptyStateCtaBtn} onClick={onClearFilters} type="button">
+              Clear filters
+            </button>
+          </div>
+        </td>
+      </tr>
+    )
+  }
+
+  /* Condition A — connected, no data yet */
   return (
     <tr>
       <td colSpan={8}>
         <div className={styles.emptyState}>
           <span className={styles.emptyStateIcon} aria-hidden="true">⬡</span>
-          <p className={styles.emptyStateTitle}>No facts found</p>
-          {hasFilters ? (
-            <p className={styles.emptyStateBody}>
-              No results match the current filters.
-              {filters.activeOnly && ' Try disabling "Active only" to include archived facts.'}
-            </p>
-          ) : (
-            <p className={styles.emptyStateBody}>
-              The knowledge base is empty. Facts appear here once Iranti agents begin writing memory.
-            </p>
-          )}
+          <p className={styles.emptyStateTitle}>No facts in memory yet</p>
+          <p className={styles.emptyStateBody}>
+            Your Iranti instance is connected. Write your first fact using{' '}
+            <code className={styles.inlineCode}>iranti write</code> or open Iranti Chat.
+          </p>
         </div>
       </td>
     </tr>
   )
 }
 
+/* Condition B — not connected / API error */
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <tr>
       <td colSpan={8}>
         <div className={styles.errorState}>
           <span className={styles.errorStateIcon} aria-hidden="true">⚠</span>
-          <p className={styles.errorStateTitle}>Unable to load facts</p>
-          <p className={styles.errorStateBody}>{message}</p>
-          <button className={styles.errorRetryButton} onClick={onRetry} type="button">
-            Retry
-          </button>
+          <p className={styles.errorStateTitle}>Unable to load memory</p>
+          <p className={styles.errorStateBody}>
+            The control plane could not reach your Iranti instance. Check the Health dashboard for connection details.
+          </p>
+          <p className={styles.errorStateDetail}>{message}</p>
+          <div className={styles.errorStateActions}>
+            <Link to="/health" className={styles.errorStateCtaBtn}>
+              Open Health Dashboard
+            </Link>
+            <button className={styles.errorRetryButton} onClick={onRetry} type="button">
+              Retry
+            </button>
+          </div>
         </div>
       </td>
     </tr>
@@ -556,7 +589,10 @@ export function MemoryExplorer() {
             )}
 
             {!isLoading && !error && facts.length === 0 && (
-              <EmptyState filters={filters} />
+              <EmptyState
+                filters={filters}
+                onClearFilters={() => dispatch({ type: 'RESET' })}
+              />
             )}
 
             {!isLoading && !error && facts.map(fact => (

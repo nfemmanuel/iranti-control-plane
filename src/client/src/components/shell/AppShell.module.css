@@ -266,6 +266,67 @@
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* CP-T027: API connection status indicator */
+
+.apiStatusIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-decoration: none;
+  cursor: default;
+  min-width: 0;
+}
+
+.apiStatusIndicator[data-status="unreachable"] {
+  color: var(--color-status-error);
+  cursor: pointer;
+}
+
+.apiStatusIndicator[data-status="unreachable"]:hover {
+  color: var(--color-status-error);
+  text-decoration: underline;
+}
+
+.apiStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-tertiary);
+}
+
+.apiStatusDot[data-status="reachable"] {
+  background: var(--color-status-success);
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+.apiStatusDot[data-status="unreachable"] {
+  background: var(--color-status-error);
+}
+
+.apiStatusDot[data-status="checking"] {
+  background: var(--color-text-tertiary);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.apiStatusLabel {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .themeToggle {

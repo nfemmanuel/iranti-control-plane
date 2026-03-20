@@ -1,8 +1,9 @@
 /* Iranti Control Plane — Instance & Project Manager */
 /* Route: /instances and /instances/:instanceId */
 /* CP-T015 — Two-column instance list + detail panel */
+/* CP-T029 — Last-checked timestamp, staleness indicator, precise status labels */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
@@ -25,28 +26,91 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
 
-/* ------------------------------------------------------------------ */
-/*  Status indicator                                                    */
-/* ------------------------------------------------------------------ */
-
-function RunningIndicator({ status }: { status: InstanceMetadata['runningStatus'] }) {
-  if (status === 'running') {
-    return <span className={styles.dotRunning} aria-label="Running" title="Running" />
-  }
-  if (status === 'unreachable') {
-    return <span className={styles.dotUnreachable} aria-label="Unreachable" title="Unreachable" />
-  }
-  return <span className={styles.dotUnknown} aria-label="Unknown" title="Unknown" />
+/**
+ * CP-T029: Returns age of a probe timestamp in minutes.
+ * Used to drive staleness warnings.
+ */
+function probeAgeMinutes(checkedAt: string | null): number | null {
+  if (!checkedAt) return null
+  return (Date.now() - new Date(checkedAt).getTime()) / 60_000
 }
 
-function StatusBadge({ status }: { status: InstanceMetadata['runningStatus'] }) {
+/**
+ * CP-T029: Staleness level for a probe timestamp.
+ * - 'fresh': < 5 minutes
+ * - 'stale': 5–10 minutes
+ * - 'very-stale': > 10 minutes
+ * - null: no timestamp available
+ */
+function getStalenesLevel(checkedAt: string | null): 'fresh' | 'stale' | 'very-stale' | null {
+  const age = probeAgeMinutes(checkedAt)
+  if (age === null) return null
+  if (age < 5) return 'fresh'
+  if (age < 10) return 'stale'
+  return 'very-stale'
+}
+
+/**
+ * CP-T029: Hook that re-renders every 30 seconds so staleness labels stay current.
+ */
+function useTimeTick(intervalMs: number): number {
+  const [tick, setTick] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return tick
+}
+
+/* ------------------------------------------------------------------ */
+/*  Status indicator — CP-T029: precise four-state vocabulary          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * CP-T029: Map internal runningStatus enum to display label.
+ * "unreachable" → "Could not connect" (internal value unchanged)
+ * "unknown" is never displayed — it shows as "Checking..." or "Could not connect"
+ * "stopped" treated as an alias for "unreachable" in Phase 1 (no shutdown event yet)
+ */
+function getStatusDisplayLabel(status: InstanceMetadata['runningStatus'], hasConnectionInfo: boolean): string {
+  if (!hasConnectionInfo) return 'Not configured'
+  switch (status) {
+    case 'running':     return 'Running'
+    case 'unreachable': return 'Could not connect'
+    case 'stopped':     return 'Could not connect'
+    case 'unknown':     return 'Could not connect'
+  }
+}
+
+function RunningIndicator({ status, hasConnectionInfo }: {
+  status: InstanceMetadata['runningStatus']
+  hasConnectionInfo: boolean
+}) {
+  const label = getStatusDisplayLabel(status, hasConnectionInfo)
   if (status === 'running') {
-    return <span className={styles.badgeRunning}>Running</span>
+    return <span className={styles.dotRunning} aria-label={label} title={label} />
   }
-  if (status === 'unreachable') {
-    return <span className={styles.badgeUnreachable}>Unreachable</span>
+  if (status === 'unreachable' || status === 'stopped') {
+    return <span className={styles.dotUnreachable} aria-label={label} title={label} />
   }
-  return <span className={styles.badgeUnknown}>Unknown</span>
+  return <span className={styles.dotUnknown} aria-label={label} title={label} />
+}
+
+function StatusBadge({ status, hasConnectionInfo }: {
+  status: InstanceMetadata['runningStatus']
+  hasConnectionInfo: boolean
+}) {
+  const label = getStatusDisplayLabel(status, hasConnectionInfo)
+  if (status === 'running') {
+    return <span className={styles.badgeRunning}>{label}</span>
+  }
+  if (status === 'unreachable' || status === 'stopped') {
+    return <span className={styles.badgeUnreachable}>{label}</span>
+  }
+  if (!hasConnectionInfo) {
+    return <span className={styles.badgeNotConfigured}>{label}</span>
+  }
+  return <span className={styles.badgeUnknown}>{label}</span>
 }
 
 /* ------------------------------------------------------------------ */
@@ -67,14 +131,18 @@ function InstanceListItem({
   instance,
   selected,
   onClick,
+  _tick,
 }: {
   instance: InstanceMetadata
   selected: boolean
   onClick: () => void
+  _tick: number  // time tick — causes re-render so staleness stays current
 }) {
+  const hasConnectionInfo = Boolean(instance.database)
   const dbSummary = instance.database
     ? `${instance.database.host}:${instance.database.port}/${instance.database.name}`
-    : 'No database'
+    : 'No database configured'
+  const staleLevel = getStalenesLevel(instance.runningStatusCheckedAt)
 
   return (
     <button
@@ -84,9 +152,12 @@ function InstanceListItem({
       aria-selected={selected}
     >
       <div className={styles.instanceItemHeader}>
-        <RunningIndicator status={instance.runningStatus} />
+        <RunningIndicator status={instance.runningStatus} hasConnectionInfo={hasConnectionInfo} />
         <span className={styles.instanceName}>{instance.name}</span>
         <span className={styles.instancePort}>:{instance.configuredPort}</span>
+        {(staleLevel === 'stale' || staleLevel === 'very-stale') && (
+          <span className={styles.stalenessIndicatorSmall} aria-label="Status may be stale" title="Status may be stale">⏱</span>
+        )}
       </div>
       <div className={styles.instanceItemMeta}>
         <span className={styles.instanceDbSummary}>{dbSummary}</span>
@@ -112,7 +183,14 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-function RuntimeSection({ instance }: { instance: InstanceMetadata }) {
+function RuntimeSection({ instance, onRefresh, isRefreshing }: {
+  instance: InstanceMetadata
+  onRefresh: () => void
+  isRefreshing: boolean
+}) {
+  const hasConnectionInfo = Boolean(instance.database)
+  const staleLevel = getStalenesLevel(instance.runningStatusCheckedAt)
+
   return (
     <section className={styles.detailSection}>
       <SectionTitle>Runtime</SectionTitle>
@@ -123,20 +201,48 @@ function RuntimeSection({ instance }: { instance: InstanceMetadata }) {
         <span className={styles.monoValue}>{instance.configuredPort}</span>
       </FieldRow>
       <FieldRow label="Status">
-        <StatusBadge status={instance.runningStatus} />
+        <StatusBadge status={instance.runningStatus} hasConnectionInfo={hasConnectionInfo} />
       </FieldRow>
       <FieldRow label="Version">
         {instance.irantVersion ?? <span className={styles.dimValue}>Version unknown</span>}
       </FieldRow>
-      {instance.runningStatusCheckedAt && (
-        <FieldRow label="Checked">
+
+      {/* CP-T029: Last-checked timestamp — always visible when available */}
+      <FieldRow label="Last checked">
+        {instance.runningStatusCheckedAt ? (
           <span className={styles.dimValue}>
             {formatRelativeTime(instance.runningStatusCheckedAt)}
-            {' '}
-            <span className={styles.helpText}>(status may be stale)</span>
+            {staleLevel === 'stale' && (
+              <span className={styles.stalenessWarning} aria-label="Status may be stale"> — Status may be stale</span>
+            )}
+            {staleLevel === 'very-stale' && (
+              <span className={styles.stalenessWarningStrong} aria-label="Status is stale">{' '}— Status is stale</span>
+            )}
           </span>
-        </FieldRow>
-      )}
+        ) : (
+          <span className={styles.dimValue}>Not yet checked</span>
+        )}
+      </FieldRow>
+
+      {/* CP-T029: Refresh button — debounced, shows spinner while probe is in flight */}
+      <FieldRow label="">
+        <button
+          className={`${styles.refreshProbeBtn} ${isRefreshing ? styles.refreshProbeBtnActive : ''}`}
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          type="button"
+          aria-label="Refresh instance health probe"
+        >
+          {isRefreshing ? (
+            <><span className={styles.spinnerSmall} aria-hidden="true" /> Checking…</>
+          ) : (
+            <>↺ Refresh status</>
+          )}
+        </button>
+        {staleLevel === 'very-stale' && !isRefreshing && (
+          <span className={styles.stalenessCtaHint}>Probe data is over 10 minutes old</span>
+        )}
+      </FieldRow>
     </section>
   )
 }
@@ -281,10 +387,15 @@ function ProjectsSection({ instance }: { instance: InstanceMetadata }) {
   )
 }
 
-function DetailPanel({ instance }: { instance: InstanceMetadata }) {
+function DetailPanel({ instance, onRefresh, isRefreshing }: {
+  instance: InstanceMetadata
+  onRefresh: () => void
+  isRefreshing: boolean
+}) {
   const { setActiveInstance, activeInstance } = useInstanceContext()
   const navigate = useNavigate()
   const isActive = activeInstance?.id === instance.instanceId
+  const hasConnectionInfo = Boolean(instance.database)
 
   // Map InstanceMetadata to the Instance type expected by context
   const handleSetActive = () => {
@@ -304,7 +415,7 @@ function DetailPanel({ instance }: { instance: InstanceMetadata }) {
     <div className={styles.detailPanel}>
       <div className={styles.detailHeader}>
         <div className={styles.detailTitleRow}>
-          <RunningIndicator status={instance.runningStatus} />
+          <RunningIndicator status={instance.runningStatus} hasConnectionInfo={hasConnectionInfo} />
           <h2 className={styles.detailTitle}>{instance.name}</h2>
           {isActive && <span className={styles.activeBadge}>Active</span>}
         </div>
@@ -320,17 +431,22 @@ function DetailPanel({ instance }: { instance: InstanceMetadata }) {
         </div>
       </div>
 
-      {instance.runningStatus === 'unreachable' && (
+      {/* CP-T029: Specific message for unreachable instances */}
+      {(instance.runningStatus === 'unreachable' || instance.runningStatus === 'stopped') && (
         <div className={styles.errorBanner}>
-          Instance offline as of {instance.runningStatusCheckedAt
-            ? formatRelativeTime(instance.runningStatusCheckedAt)
-            : 'unknown time'
-          }
+          <strong>Could not connect.</strong>{' '}
+          Iranti runtime could not be reached at the configured port (:{instance.configuredPort}).
+          {' '}Start the runtime with <code className={styles.inlineCode}>iranti start</code> and refresh.
+          {instance.runningStatusCheckedAt && (
+            <span className={styles.errorBannerTime}>
+              {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
+            </span>
+          )}
         </div>
       )}
 
       <div className={styles.detailSections}>
-        <RuntimeSection instance={instance} />
+        <RuntimeSection instance={instance} onRefresh={onRefresh} isRefreshing={isRefreshing} />
         <DatabaseSection instance={instance} />
         <EnvironmentSection instance={instance} />
         <IntegrationsSection instance={instance} />
@@ -347,6 +463,13 @@ function DetailPanel({ instance }: { instance: InstanceMetadata }) {
 export function InstanceManager() {
   const { id: routeInstanceId } = useParams<{ id?: string }>()
 
+  // CP-T029: Track whether a manual per-instance probe refresh is in flight
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // CP-T029: Time tick — forces re-render every 30s so relative timestamps and
+  // staleness indicators stay current without a full API refetch
+  const tick = useTimeTick(30_000)
+
   const { data, isLoading, error, refetch } = useQuery<InstanceListResponse, Error>({
     queryKey: ['instances'],
     queryFn: () => apiFetch<InstanceListResponse>('/instances'),
@@ -359,6 +482,18 @@ export function InstanceManager() {
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
   const selectedId = routeInstanceId ?? localSelectedId ?? instances[0]?.instanceId ?? null
   const selectedInstance = instances.find(i => i.instanceId === selectedId) ?? null
+
+  // CP-T029: Manual probe refresh — triggers a full refetch and shows spinner
+  // Debounced: button is disabled while probe is in flight (no parallel probes)
+  const handleProbeRefresh = async () => {
+    if (isRefreshing) return
+    setIsRefreshing(true)
+    try {
+      await refetch()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -426,6 +561,7 @@ export function InstanceManager() {
             instance={inst}
             selected={inst.instanceId === selectedId}
             onClick={() => setLocalSelectedId(inst.instanceId)}
+            _tick={tick}
           />
         ))}
         {data?.discoveredAt && (
@@ -438,7 +574,11 @@ export function InstanceManager() {
       {/* Right: detail panel */}
       <div className={styles.detailColumn}>
         {selectedInstance ? (
-          <DetailPanel instance={selectedInstance} />
+          <DetailPanel
+            instance={selectedInstance}
+            onRefresh={() => void handleProbeRefresh()}
+            isRefreshing={isRefreshing}
+          />
         ) : (
           <div className={styles.noSelection}>
             <span className={styles.noSelectionText}>Select an instance to view details</span>
