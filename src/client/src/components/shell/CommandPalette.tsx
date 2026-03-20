@@ -1,6 +1,6 @@
 /* Iranti Control Plane — Command Palette */
 /* CP-T024 — Global Cmd+K / Ctrl+K command palette */
-/* Navigation-only in this ticket. KB search deferred to CP-T024-search. */
+/* CP-T042 — Inline help: descriptions + shortcuts section + "?" footer trigger */
 
 import {
   useState,
@@ -10,7 +10,7 @@ import {
   useMemo,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import styles from './CommandPalette.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -23,6 +23,7 @@ interface NavCommand {
   label: string
   icon: string
   to: string
+  description: string
   hint?: string
 }
 
@@ -38,17 +39,117 @@ type Command = NavCommand | ActionCommand
 
 /* ------------------------------------------------------------------ */
 /*  Navigation commands — all Phase 1 views                            */
+/* Descriptions authored by PM (CP-T042)                               */
 /* ------------------------------------------------------------------ */
 
 const NAV_COMMANDS: NavCommand[] = [
-  { type: 'nav', id: 'nav-memory',          label: 'Memory Explorer',  icon: '▦', to: '/memory' },
-  { type: 'nav', id: 'nav-archive',         label: 'Archive',          icon: '◫', to: '/archive' },
-  { type: 'nav', id: 'nav-activity',        label: 'Staff Activity',   icon: '⚡', to: '/activity' },
-  { type: 'nav', id: 'nav-instances',       label: 'Instances',        icon: '⊞', to: '/instances' },
-  { type: 'nav', id: 'nav-health',          label: 'Health',           icon: '♥', to: '/health' },
-  { type: 'nav', id: 'nav-conflicts',       label: 'Conflicts',        icon: '⚖', to: '/conflicts' },
-  { type: 'nav', id: 'nav-getting-started', label: 'Getting Started',  icon: '◎', to: '/getting-started' },
+  {
+    type: 'nav',
+    id: 'nav-memory',
+    label: 'Memory Explorer',
+    icon: '▦',
+    to: '/memory',
+    description: 'Browse and search all facts Iranti currently holds, filtered by entity type, key, or source.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-archive',
+    label: 'Archive',
+    icon: '◫',
+    to: '/archive',
+    description: 'Inspect retired and superseded facts with their archival reason and full history.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-activity',
+    label: 'Staff Activity',
+    icon: '⚡',
+    to: '/activity',
+    description: 'Watch Librarian, Archivist, Attendant, and Resolutionist events in real time as they happen.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-instances',
+    label: 'Instances',
+    icon: '⊞',
+    to: '/instances',
+    description: 'View all connected Iranti instances, their project bindings, and instance health status.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-health',
+    label: 'Health',
+    icon: '♥',
+    to: '/health',
+    description: 'Diagnose system connectivity, provider config, and Iranti component health at a glance.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-conflicts',
+    label: 'Conflicts',
+    icon: '⚖',
+    to: '/conflicts',
+    description: 'Review pending escalations — conflicting facts the Resolutionist couldn\u2019t auto-resolve.',
+  },
+  {
+    type: 'nav',
+    id: 'nav-getting-started',
+    label: 'Getting Started',
+    icon: '◎',
+    to: '/getting-started',
+    description: 'Step-by-step setup status for a new Iranti installation.',
+  },
 ]
+
+/* ------------------------------------------------------------------ */
+/*  Shortcuts — CP-T042                                                 */
+/*                                                                      */
+/*  Audit result (2026-03-20): No view-specific keyboard shortcuts     */
+/*  are currently implemented in any Phase 1 view component.           */
+/*  Only global shortcuts are listed. View-specific shortcuts will     */
+/*  be added here as they are implemented in their target components.  */
+/* ------------------------------------------------------------------ */
+
+interface ShortcutEntry {
+  keys: string[]           // Display tokens — e.g. ['Cmd+K', 'Ctrl+K']
+  action: string
+  scope: string | null     // null = global; string = view name
+  viewPath: string | null  // null = global; path prefix = view-specific
+}
+
+const SHORTCUT_ENTRIES: ShortcutEntry[] = [
+  {
+    keys: ['Cmd+K', 'Ctrl+K'],
+    action: 'Open command palette',
+    scope: null,
+    viewPath: null,
+  },
+  {
+    keys: ['↑', '↓'],
+    action: 'Navigate results',
+    scope: null,
+    viewPath: null,
+  },
+  {
+    keys: ['↵'],
+    action: 'Select / activate',
+    scope: null,
+    viewPath: null,
+  },
+  {
+    keys: ['Esc'],
+    action: 'Close palette / dismiss panel',
+    scope: null,
+    viewPath: null,
+  },
+]
+
+/** Returns shortcuts applicable for the given pathname */
+function getApplicableShortcuts(pathname: string): ShortcutEntry[] {
+  return SHORTCUT_ENTRIES.filter(
+    s => s.viewPath === null || pathname.startsWith(s.viewPath)
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /*  Fuzzy / substring match                                             */
@@ -86,6 +187,21 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // CP-T042: Determine if we should show the Shortcuts section.
+  // Shown when query is empty, or when user types "?", "help", or "shortcuts".
+  const trimmedQuery = query.trim()
+  const showShortcuts =
+    trimmedQuery === '' ||
+    trimmedQuery === '?' ||
+    trimmedQuery.toLowerCase() === 'help' ||
+    trimmedQuery.toLowerCase() === 'shortcuts'
+
+  const applicableShortcuts = useMemo(
+    () => getApplicableShortcuts(location.pathname),
+    [location.pathname]
+  )
 
   // Build the action commands inside the component so we have access to callbacks
   const actionCommands: ActionCommand[] = useMemo(() => [
@@ -116,11 +232,19 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
     [actionCommands]
   )
 
-  // Filter by query
+  // Filter by query.
+  // When the query is a shortcuts-only trigger ("?", "help", "shortcuts"),
+  // show all nav+action commands so the shortcuts section is a supplement,
+  // not the only thing visible. When a real search query is entered, fuzzy-filter.
+  const isShortcutsOnlyQuery =
+    trimmedQuery === '?' ||
+    trimmedQuery.toLowerCase() === 'help' ||
+    trimmedQuery.toLowerCase() === 'shortcuts'
+
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) return allCommands
-    return allCommands.filter(cmd => fuzzyMatch(cmd.label, query))
-  }, [query, allCommands])
+    if (!trimmedQuery || isShortcutsOnlyQuery) return allCommands
+    return allCommands.filter(cmd => fuzzyMatch(cmd.label, trimmedQuery))
+  }, [trimmedQuery, isShortcutsOnlyQuery, allCommands])
 
   // Keep selectedIndex in bounds
   useEffect(() => {
@@ -284,7 +408,7 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
                   <li
                     key={cmd.id}
                     id={`cp-cmd-${cmd.id}`}
-                    className={`${styles.resultItem} ${isSelected ? styles.resultItemSelected : ''}`}
+                    className={`${styles.resultItemWithDesc} ${isSelected ? styles.resultItemWithDescSelected : ''}`}
                     role="option"
                     aria-selected={isSelected}
                     data-selected={isSelected}
@@ -292,7 +416,10 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
                     onClick={() => activateCommand(cmd)}
                   >
                     <span className={styles.resultIcon} aria-hidden="true">{cmd.icon}</span>
-                    <span className={styles.resultLabel}>{cmd.label}</span>
+                    <span className={styles.resultLabelGroup}>
+                      <span className={styles.resultLabel}>{cmd.label}</span>
+                      <span className={styles.resultDesc}>{cmd.description}</span>
+                    </span>
                     {cmd.hint && (
                       <span className={styles.resultHint}>{cmd.hint}</span>
                     )}
@@ -329,9 +456,37 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
               })}
             </>
           )}
+
+          {/* CP-T042: Shortcuts section — visible when query is empty or is "?", "help", "shortcuts" */}
+          {showShortcuts && applicableShortcuts.length > 0 && (
+            <>
+              <li className={styles.sectionHeader} role="presentation">Shortcuts</li>
+              {applicableShortcuts.map((s, i) => (
+                <li
+                  key={i}
+                  className={styles.shortcutRow}
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <span className={styles.shortcutKeys}>
+                    {s.keys.map((k, ki) => (
+                      <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {ki > 0 && <span className={styles.shortcutSlash}>/</span>}
+                        <kbd className={styles.kbdShortcut}>{k}</kbd>
+                      </span>
+                    ))}
+                  </span>
+                  <span className={styles.shortcutAction}>{s.action}</span>
+                  {s.scope && (
+                    <span className={styles.shortcutScope}>{s.scope}</span>
+                  )}
+                </li>
+              ))}
+            </>
+          )}
         </ul>
 
-        {/* Footer hint */}
+        {/* Footer — CP-T042: "?" shortcuts trigger button on the right */}
         <div className={styles.footer}>
           <span className={styles.footerHint}>
             <kbd className={styles.kbd}>↑</kbd><kbd className={styles.kbd}>↓</kbd> navigate
@@ -340,6 +495,24 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
             <span className={styles.footerSep} />
             <kbd className={styles.kbd}>Esc</kbd> close
           </span>
+          <button
+            className={`${styles.footerShortcutsBtn} ${showShortcuts ? styles.footerShortcutsBtnActive : ''}`}
+            type="button"
+            tabIndex={-1}
+            aria-label="Show keyboard shortcuts"
+            onClick={() => {
+              if (showShortcuts && query === '') {
+                // Already showing shortcuts via empty query — no-op (they're visible)
+                inputRef.current?.focus()
+              } else {
+                setQuery('?')
+                inputRef.current?.focus()
+              }
+            }}
+            data-palette-focusable
+          >
+            <span aria-hidden="true">⌨</span> shortcuts
+          </button>
         </div>
       </div>
     </div>,

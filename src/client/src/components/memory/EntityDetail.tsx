@@ -6,8 +6,9 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { EntityDetailResponse, KBFact, ArchiveFact, Relationship } from '../../api/types'
+import type { EntityDetailResponse, KBFact, ArchiveFact } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
+import { RelationshipGraphView } from './RelationshipGraphView'
 import styles from './EntityDetail.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -195,78 +196,7 @@ function ArchivedFactsTable({ facts }: { facts: ArchiveFact[] }) {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Relationships List                                                  */
-/* ------------------------------------------------------------------ */
-
-function RelationshipsList({
-  relationships,
-  entityType,
-  entityId,
-}: {
-  relationships: Relationship[]
-  entityType: string
-  entityId: string
-}) {
-  if (relationships.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <span className={styles.emptyIcon} aria-hidden="true">⬡</span>
-        <p className={styles.emptyTitle}>No relationships</p>
-        <p className={styles.emptyBody}>This entity has no recorded relationships to other entities.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className={styles.tableWrapper}>
-      <table className={styles.table} aria-label="Entity relationships">
-        <thead>
-          <tr>
-            <th>Direction</th>
-            <th>Relationship</th>
-            <th>Other entity</th>
-            <th>Conf</th>
-            <th>Source</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {relationships.map(rel => {
-            const isFrom = rel.fromEntityType === entityType && rel.fromEntityId === entityId
-            const otherType = isFrom ? rel.toEntityType : rel.fromEntityType
-            const otherId = isFrom ? rel.toEntityId : rel.fromEntityId
-            return (
-              <tr key={rel.id} className={styles.dataRow}>
-                <td className={styles.cellDirection}>
-                  <span className={isFrom ? styles.dirFrom : styles.dirTo}>
-                    {isFrom ? 'outgoing' : 'incoming'}
-                  </span>
-                </td>
-                <td className={styles.cellRelType}>{rel.relationshipType}</td>
-                <td className={styles.cellEntity}>
-                  <Link
-                    to={`/memory/${encodeURIComponent(otherType)}/${encodeURIComponent(otherId)}`}
-                    className={styles.entityLink}
-                  >
-                    <span className={styles.entityType}>{otherType}</span>
-                    <span className={styles.entitySep}>/</span>
-                    <span className={styles.entityIdText}>{otherId}</span>
-                  </Link>
-                </td>
-                <td className={styles.cellConfidence}>
-                  {rel.confidence != null ? <ConfidenceBar value={rel.confidence} /> : '—'}
-                </td>
-                <td className={styles.cellMeta}>{rel.source ?? '—'}</td>
-                <td className={styles.cellMeta}>{formatRelativeTime(rel.createdAt)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+/* RelationshipsList removed — replaced by RelationshipGraphView (CP-T032) */
 
 /* ------------------------------------------------------------------ */
 /*  Tab types                                                           */
@@ -432,8 +362,7 @@ export function EntityDetail() {
           <ArchivedFactsTable facts={archivedFacts} />
         )}
         {activeTab === 'relationships' && (
-          <RelationshipsList
-            relationships={relationships}
+          <RelationshipGraphView
             entityType={decodedType}
             entityId={decodedId}
           />

@@ -534,6 +534,197 @@ kbRouter.get(
 )
 
 // ---------------------------------------------------------------------------
+// GET /entities/:entityType/:entityId/relationships/graph  (CP-T032)
+// Must be registered before /entities/:entityType/:entityId to prevent prefix capture.
+// ---------------------------------------------------------------------------
+
+interface GraphNode {
+  entityType: string
+  entityId: string
+  factCount: number
+  isRoot: boolean
+}
+
+interface GraphEdge {
+  fromEntityType: string
+  fromEntityId: string
+  toEntityType: string
+  toEntityId: string
+  relationshipType: string
+  confidence: number | null
+  source: string | null
+  createdBy: string | null
+}
+
+kbRouter.get(
+  '/entities/:entityType/:entityId/relationships/graph',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { entityType, entityId } = req.params
+
+      const rawDepth = req.query.depth !== undefined ? parseInt(String(req.query.depth), 10) : 1
+      const depth = isNaN(rawDepth) ? 1 : Math.min(Math.max(rawDepth, 1), 2)
+
+      const rawLimit = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : 50
+      const perLevelLimit = isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 50)
+
+      const relationshipTypesParam = req.query.relationshipTypes as string | undefined
+      const typeFilter = relationshipTypesParam
+        ? relationshipTypesParam.split(',').map(t => t.trim()).filter(Boolean)
+        : null
+
+      // BFS from root — visited set prevents cycles
+      const visitedKey = (et: string, ei: string) => `${et}::${ei}`
+      const visited = new Set<string>()
+      visited.add(visitedKey(entityType, entityId))
+
+      const allEdges: GraphEdge[] = []
+      const allNodeKeys = new Set<string>()
+      allNodeKeys.add(visitedKey(entityType, entityId))
+
+      let truncated = false
+
+      // Queue of (entityType, entityId) pairs to expand at each depth level
+      let frontier: Array<{ et: string; ei: string }> = [{ et: entityType, ei: entityId }]
+
+      for (let d = 0; d < depth; d++) {
+        if (frontier.length === 0) break
+
+        // Build IN clause for the current frontier
+        const frontierParams: unknown[] = []
+        const frontierConditions = frontier.map(({ et, ei }) => {
+          frontierParams.push(et, ei)
+          const base = frontierParams.length - 1
+          return `("fromType" = $${base} AND "fromId" = $${base + 1}) OR ("toType" = $${base} AND "toId" = $${base + 1})`
+        })
+
+        const whereType = typeFilter && typeFilter.length > 0
+          ? (() => {
+              frontierParams.push(typeFilter)
+              return ` AND "relationshipType" = ANY($${frontierParams.length}::text[])`
+            })()
+          : ''
+
+        const limitParam = perLevelLimit + 1  // fetch one extra to detect truncation
+        frontierParams.push(limitParam)
+        const limitIdx = frontierParams.length
+
+        const relResult = await query(
+          `SELECT
+            "fromType"         AS "fromEntityType",
+            "fromId"           AS "fromEntityId",
+            "toType"           AS "toEntityType",
+            "toId"             AS "toEntityId",
+            "relationshipType",
+            confidence,
+            source,
+            "createdBy"
+          FROM "EntityRelationship"
+          WHERE (${frontierConditions.join(' OR ')})${whereType}
+          ORDER BY "createdAt" DESC
+          LIMIT $${limitIdx}`,
+          frontierParams
+        )
+
+        const rows = relResult.rows as Record<string, unknown>[]
+
+        if (rows.length > perLevelLimit) {
+          truncated = true
+        }
+
+        const effectiveRows = rows.slice(0, perLevelLimit)
+
+        const nextFrontier: Array<{ et: string; ei: string }> = []
+
+        for (const row of effectiveRows) {
+          const feType = String(row.fromEntityType ?? '')
+          const feId = String(row.fromEntityId ?? '')
+          const teType = String(row.toEntityType ?? '')
+          const teId = String(row.toEntityId ?? '')
+
+          const edge: GraphEdge = {
+            fromEntityType: feType,
+            fromEntityId: feId,
+            toEntityType: teType,
+            toEntityId: teId,
+            relationshipType: String(row.relationshipType ?? ''),
+            confidence: row.confidence != null ? Number(row.confidence) : null,
+            source: (row.source as string | null) ?? null,
+            createdBy: (row.createdBy as string | null) ?? null,
+          }
+          allEdges.push(edge)
+          allNodeKeys.add(visitedKey(feType, feId))
+          allNodeKeys.add(visitedKey(teType, teId))
+
+          // Add unvisited neighbors to next frontier
+          for (const [nt, ni] of [[feType, feId], [teType, teId]] as [string, string][]) {
+            const k = visitedKey(nt, ni)
+            if (!visited.has(k)) {
+              visited.add(k)
+              nextFrontier.push({ et: nt, ei: ni })
+            }
+          }
+        }
+
+        frontier = nextFrontier
+      }
+
+      // Build nodes with fact counts
+      const nodeEntries = Array.from(allNodeKeys).map(k => {
+        const sep = k.indexOf('::')
+        return { et: k.slice(0, sep), ei: k.slice(sep + 2) }
+      })
+
+      // Fetch fact counts for all nodes in a single query
+      let nodes: GraphNode[]
+
+      if (nodeEntries.length > 0) {
+        const countParams: unknown[] = []
+        const countConditions = nodeEntries.map(({ et, ei }) => {
+          countParams.push(et, ei)
+          const base = countParams.length - 1
+          return `("entityType" = $${base} AND "entityId" = $${base + 1})`
+        })
+
+        const countResult = await query(
+          `SELECT "entityType", "entityId", COUNT(*) AS cnt
+           FROM knowledge_base
+           WHERE ${countConditions.join(' OR ')}
+           GROUP BY "entityType", "entityId"`,
+          countParams
+        )
+
+        const countMap = new Map<string, number>()
+        for (const row of countResult.rows as Record<string, unknown>[]) {
+          countMap.set(
+            visitedKey(String(row.entityType ?? ''), String(row.entityId ?? '')),
+            Number(row.cnt ?? 0)
+          )
+        }
+
+        nodes = nodeEntries.map(({ et, ei }) => ({
+          entityType: et,
+          entityId: ei,
+          factCount: countMap.get(visitedKey(et, ei)) ?? 0,
+          isRoot: et === entityType && ei === entityId,
+        }))
+      } else {
+        nodes = []
+      }
+
+      res.json({
+        rootEntity: { entityType, entityId },
+        nodes,
+        edges: allEdges,
+        truncated,
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
 // GET /entities/:entityType/:entityId
 // ---------------------------------------------------------------------------
 
