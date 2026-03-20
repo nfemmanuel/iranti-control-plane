@@ -297,7 +297,17 @@ chatRouter.post('/chat', async (req: Request, res: Response, next: NextFunction)
         .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n')
 
-      // Step 1: Call Iranti /memory/attend to retrieve relevant memory facts
+      // Step 1: Call Iranti /memory/attend to retrieve relevant memory facts.
+      //
+      // Why this call exists alongside /chat/completions:
+      //   - attend returns structured RetrievedFact[] surfaced to the operator in the chat panel
+      //   - The operator visibility of cited entity/key facts is a product feature, not plumbing
+      //   - Iranti's /chat/completions may or may not perform its own internal memory injection;
+      //     if it does, mild redundancy is acceptable — the explicit panel cards are load-bearing
+      //   - If /chat/completions does NOT inject memory internally, removing this call would
+      //     silently break memory retrieval for the operator
+      //
+      // PM decision (2026-03-20): two-call pattern is approved and must be retained.
       let attendResult: AttendResult = { facts: [], shouldInject: false, reason: 'skipped', entitiesDetected: [], alreadyPresent: 0, totalFound: 0 }
       try {
         attendResult = await irantiFetchAttend(agentId, conversationContext, message, controller.signal)
