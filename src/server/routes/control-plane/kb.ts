@@ -64,6 +64,27 @@ function toIso(val: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Archived reason labels (used by serializeArchiveRow and history endpoint)
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps raw archivedReason codes to human-readable labels before they reach the frontend.
+ * Unknown codes fall back to the raw code with an "(unknown reason)" suffix so that
+ * undocumented values in production data do not silently vanish or break the UI.
+ */
+const ARCHIVED_REASON_LABELS: Record<string, string> = {
+  superseded: 'Superseded by newer write',
+  contradicted: 'Contradicted by conflicting source',
+  expired: 'Expired (validUntil passed)',
+  decayed: 'Decayed by Archivist',
+}
+
+function labelArchivedReason(raw: string | null): string | null {
+  if (raw == null) return null
+  return ARCHIVED_REASON_LABELS[raw] ?? `${raw} (unknown reason)`
+}
+
+// ---------------------------------------------------------------------------
 // Row serializers
 // ---------------------------------------------------------------------------
 
@@ -105,7 +126,7 @@ function serializeArchiveRow(row: Record<string, unknown>): ArchiveFact {
     validFrom: toIso(row.valid_from ?? row.validFrom),
     validUntil: toIso(row.valid_until ?? row.validUntil),
     archivedAt: toIso(row.archived_at ?? row.archivedAt) ?? new Date(0).toISOString(),
-    archivedReason: (row.archived_reason ?? row.archivedReason) as string | null ?? null,
+    archivedReason: labelArchivedReason((row.archived_reason ?? row.archivedReason) as string | null ?? null),
     supersededBy: row.superseded_by != null ? String(row.superseded_by) : null,
     resolutionState: (row.resolution_state ?? row.resolutionState) as string | null ?? null,
     resolutionNote: (row.resolution_note ?? row.resolutionNote) as string | null ?? null,
@@ -118,10 +139,10 @@ function serializeArchiveRow(row: Record<string, unknown>): ArchiveFact {
 function serializeRelationshipRow(row: Record<string, unknown>): Relationship {
   return {
     id: String(row.id),
-    fromEntityType: String(row.from_entity_type ?? row.fromEntityType ?? ''),
-    fromEntityId: String(row.from_entity_id ?? row.fromEntityId ?? ''),
-    toEntityType: String(row.to_entity_type ?? row.toEntityType ?? ''),
-    toEntityId: String(row.to_entity_id ?? row.toEntityId ?? ''),
+    fromEntityType: String(row.from_entity_type ?? row.fromType ?? row.fromEntityType ?? ''),
+    fromEntityId: String(row.from_entity_id ?? row.fromId ?? row.fromEntityId ?? ''),
+    toEntityType: String(row.to_entity_type ?? row.toType ?? row.toEntityType ?? ''),
+    toEntityId: String(row.to_entity_id ?? row.toId ?? row.toEntityId ?? ''),
     relationshipType: String(row.relationship_type ?? row.relationshipType ?? ''),
     confidence: row.confidence != null ? Number(row.confidence) : null,
     source: (row.source as string | null) ?? null,
@@ -399,23 +420,6 @@ kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction)
 // GET /entities/:entityType/:entityId/history/:key  (must be registered before /:entityType/:entityId)
 // ---------------------------------------------------------------------------
 
-/**
- * Maps raw archivedReason codes to human-readable labels before they reach the frontend.
- * Unknown codes fall back to the raw code with an "(unknown reason)" suffix so that
- * undocumented values in production data do not silently vanish or break the UI.
- */
-const ARCHIVED_REASON_LABELS: Record<string, string> = {
-  superseded: 'Superseded by newer write',
-  contradicted: 'Contradicted by conflicting source',
-  expired: 'Expired (validUntil passed)',
-  decayed: 'Decayed by Archivist',
-}
-
-function labelArchivedReason(raw: string | null): string | null {
-  if (raw == null) return null
-  return ARCHIVED_REASON_LABELS[raw] ?? `${raw} (unknown reason)`
-}
-
 kbRouter.get(
   '/entities/:entityType/:entityId/history/:key',
   async (req: Request, res: Response, next: NextFunction) => {
@@ -433,7 +437,7 @@ kbRouter.get(
             "valueSummary",
             "valueRaw",
             confidence,
-            "agentId",
+            "createdBy"             AS "agentId",
             source                  AS "providerSource",
             "validFrom",
             "validUntil",
@@ -449,7 +453,7 @@ kbRouter.get(
             "valueSummary",
             "valueRaw",
             confidence,
-            "agentId",
+            "createdBy"             AS "agentId",
             source                  AS "providerSource",
             "validFrom",
             "validUntil",
@@ -555,9 +559,9 @@ kbRouter.get(
           : Promise.resolve({ rows: [] }),
         includeRelationships
           ? query(
-              `SELECT * FROM entity_relationships
-               WHERE ("fromEntityType" = $1 AND "fromEntityId" = $2)
-                  OR ("toEntityType" = $1 AND "toEntityId" = $2)
+              `SELECT * FROM "EntityRelationship"
+               WHERE ("fromType" = $1 AND "fromId" = $2)
+                  OR ("toType" = $1 AND "toId" = $2)
                ORDER BY "createdAt" DESC`,
               [entityType, entityId]
             )
@@ -619,22 +623,22 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
         const pt = params.length - 1
         const pi = params.length
         clauses.push(
-          `(("fromEntityType" = $${pt} AND "fromEntityId" = $${pi}) OR ("toEntityType" = $${pt} AND "toEntityId" = $${pi}))`
+          `(("fromType" = $${pt} AND "fromId" = $${pi}) OR ("toType" = $${pt} AND "toId" = $${pi}))`
         )
       } else {
         params.push(entityId)
         const p = params.length
-        clauses.push(`("fromEntityId" = $${p} OR "toEntityId" = $${p})`)
+        clauses.push(`("fromId" = $${p} OR "toId" = $${p})`)
       }
     }
 
     if (fromEntityId) {
       params.push(fromEntityId)
-      clauses.push(`"fromEntityId" = $${params.length}`)
+      clauses.push(`"fromId" = $${params.length}`)
     }
     if (toEntityId) {
       params.push(toEntityId)
-      clauses.push(`"toEntityId" = $${params.length}`)
+      clauses.push(`"toId" = $${params.length}`)
     }
     if (relationshipType) {
       params.push(relationshipType)
@@ -646,10 +650,10 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
     const dataParams = [...params, limit, offset]
     const [dataResult, countResult] = await Promise.all([
       query(
-        `SELECT * FROM entity_relationships ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `SELECT * FROM "EntityRelationship" ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       ),
-      query(`SELECT COUNT(*) AS total FROM entity_relationships ${where}`, params),
+      query(`SELECT COUNT(*) AS total FROM "EntityRelationship" ${where}`, params),
     ])
 
     const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
