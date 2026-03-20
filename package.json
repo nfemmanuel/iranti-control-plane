@@ -11,9 +11,11 @@
     "build": "npm run build:client && npm run build:server",
     "start": "cd src/server && npm start",
     "migrate": "cd src/server && npm run migrate",
-    "setup": "npm install --prefix src/server && npm install --prefix src/client"
+    "setup": "node scripts/setup-wizard.js",
+    "dev-setup": "npm install --prefix src/server && npm install --prefix src/client"
   },
   "devDependencies": {
+    "@clack/prompts": "^1.1.0",
     "concurrently": "^8.2.2"
   }
 }
