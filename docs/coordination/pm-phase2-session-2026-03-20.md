@@ -658,3 +658,181 @@ Recommendation: spawn technical_writer for items 3 (docs update for new features
 4. Write `ticket/cp_t025 upstream_approval` to approve upstream PR submission — review cp-t025-upstream-pr.md first
 5. Check user_researcher competitor refresh status — LangSmith and Langfuse assessment still pending
 6. Initiate design partner handoff preparation — v0.1.0 shipped, need to identify first design partner candidates and define handoff artifact checklist
+
+---
+
+---
+
+# PM Phase 2 Session 6 — 2026-03-20 (CP-T020 Assessment, CP-T025 Approval, Wave 3 Assignments)
+
+**PM:** `product_manager`
+**Date:** 2026-03-20 (sixth session block)
+**Triggered by:** Carry-forward items from Session 5: CP-T020 first PM assessment needed, CP-T025 upstream approval needed after reading final PR doc, CP-T023 implementation readiness check, Phase 2 exit criteria audit.
+
+---
+
+## Session Overview
+
+1. CP-T020 (Embedded Chat Panel) — first PM assessment written, ticket conditionally ready
+2. CP-T025 upstream PR — approved for submission after reading 298-line document
+3. Phase 2 exit criteria audit — roadmap updated with accurate status per criterion
+4. CP-T023 status check — spike complete, implementation not started, ready to assign
+5. Wave 3 agent assignments written (Assignments 12–16)
+6. Competitor update attempt — web search unavailable; wrote note to Iranti with prior intelligence and user_researcher escalation
+7. Technical_writer round 3 interrupt — accepted; Gap 1 (stale hold note) self-fixed; Gap 2 (What's Available Now table) assigned as round 4 to technical_writer
+
+---
+
+## CP-T020 — Embedded Chat Panel: First PM Assessment
+
+**Verdict: CONDITIONALLY READY**
+
+This was the first PM review of CP-T020 in any session. Assessment completed in full.
+
+**Dependencies resolved:**
+- CP-T017 shell slot: MET — Phase 1 complete
+- Phase 1 API stability: MET — v0.1.0 shipped
+- CP-T022 provider alignment: PARTIAL — mitigation specified (fallback to env vars)
+- Iranti Chat integration path: UNRESOLVED — this is the primary unknown
+
+**5 PM decisions made** (previously open questions in the ticket):
+1. Chat persistence: in-memory only for Phase 2 (no server-side session storage)
+2. Slash command palette: static list of top 10 known Iranti slash commands first; dynamic endpoint is stretch goal
+3. Conversation history: retain on view switch (ER3 — per tab, not per view)
+4. Viewport breakpoint: panel overlays at < 1280px (does not push)
+5. Streaming: full-response rendering is the AC; streaming is stretch-only
+
+**Resolutionist integration risk clarified:** CP-T020 does NOT require CP-T021 integration. The chat panel is a chat surface. Conflicts triggered by chat-initiated writes flow through the normal Librarian escalation path and appear in CP-T021's queue. No special handling in CP-T020.
+
+**Implementation sequence established:** backend investigates integration path (2-day gate) in parallel with frontend building panel shell. Backend integration path gate is the key risk management checkpoint.
+
+**Written to Iranti:** `ticket/cp_t020`, `key: pm_assessment`
+
+---
+
+## CP-T025 — Upstream PR: Approved After Document Review
+
+**Decision: CONFIRMED APPROVED**
+
+Prior session had approved the upstream PR before reading the final 298-line document. This session read the document in full.
+
+**Static module-level setter pattern:** APPROVED. Appropriate for this codebase. The pattern (module-level `let _emitter` + `setStaffEventEmitter()` / `getStaffEventEmitter()`) avoids threading an emitter parameter through 4 Staff component function chains — a massive diff surface for no behavioral benefit. The pattern is correctly documented: call once at SDK construction, `resetStaffEventEmitter()` is test-only.
+
+**LISTEN/NOTIFY architecture:** APPROVED. Sound for local-first. DbStaffEventEmitter (control plane scope) writes to `staff_events` table and calls `pg_notify`. Control plane's dedicated LISTEN client receives, fetches by eventId, and broadcasts via SSE. 10–50ms end-to-end latency is credible on local hardware.
+
+**Rollback safety:** CONFIRMED SAFE. No-op default, no upstream schema changes, no function signature changes.
+
+**18 injection points verified:** All 18 injection points across Librarian (6), Attendant (5), Archivist (5), Resolutionist (2) are correctly specified.
+
+**Remaining action:** system_architect must produce the actual TypeScript diff files (7 files + 4 test files) before the PR can be submitted. PR body = `docs/specs/cp-t025-upstream-pr.md` verbatim. Assigned as Wave 3 Assignment 15.
+
+**Written to Iranti:** `ticket/cp_t025`, `key: upstream_approval_session6`
+
+---
+
+## Phase 2 Exit Criteria Audit
+
+Updated `docs/roadmap.md` Phase 2 Exit Criteria with accurate status for all 14 criteria:
+
+| Criterion | Status |
+|-----------|--------|
+| Entity detail view (CP-T036) | FULLY MET |
+| Temporal history (CP-T036) | FULLY MET |
+| Getting Started screen (CP-T035) | MET — QA end-to-end pending |
+| Staff 4-component coverage (CP-T025) | PARTIALLY MET — upstream PR PM-approved, diff files needed, polling fallback confirmed |
+| Live mode UX (CP-T037) | FULLY MET |
+| Command palette (CP-T024) | FULLY MET |
+| Entity relationship graph (CP-T032) | FULLY MET |
+| Integration repair actions (CP-T033) | MET — QA end-to-end pending |
+| Provider visibility (CP-T034) | MET — Health Dashboard section; standalone /providers deferred to CP-T046 |
+| Provider manager write path (CP-T022) | NOT MET — PM-scoped read-only for Phase 2; write is Phase 3 |
+| Conflict review (CP-T021) | FULLY MET |
+| Embedded chat (CP-T020) | NOT STARTED — Wave 3 assignment issued |
+| CLI wizard (CP-T023) | NOT STARTED — Wave 3 assignment issued |
+| QA final check | ONGOING |
+
+---
+
+## CP-T023 Status Check
+
+Spike complete. `docs/specs/cp-t023-wizard-design.md` exists. 6 PM decisions written. Ticket status updated to "Spike complete — PM decisions written 2026-03-20. Ready for implementation." Implementation not started. No Iranti entity existed for `ticket/cp_t023 implementation_status` — created.
+
+**Wave 3 assignment issued:** devops_engineer (Assignment 14).
+
+---
+
+## Technical_writer Round 3 Acceptance (Interrupt)
+
+**Decision: ACCEPTED**
+
+Three documents updated correctly: staff-activity-stream.md (Live Mode section), memory-explorer.md (Relationship Graph subsection), getting-started.md (Navigation Tips / Keyboard Shortcuts + What's Coming table).
+
+**Gap 1 (PM self-fixed):** Stale hold note at line 278 of getting-started.md ("v0.1.0 release is on hold due to CP-D001...design partner handoff is blocked"). Hold was lifted 2026-03-20. PM replaced with accurate note: "v0.1.0 shipped 2026-03-20."
+
+**Gap 2 (Round 4 assigned):** "What's Available Now (Phase 1 Complete)" table only lists Phase 1 views. 7 Phase 2 shipped features are missing. "What's Coming" table still shows shipped features as upcoming. Technical_writer assigned round 4 (Assignment 16) to update both tables.
+
+---
+
+## Competitor Update
+
+Web search unavailable in this session (permission denied). Prior competitive intelligence from Session 2 recorded to Iranti at `research/competitor_update, key: 2026-03-20`. Key note: user_researcher Assignment 4 (competitor refresh with web research) is still pending — elevated to P1 given design partner handoff is now unblocked.
+
+---
+
+## Wave 3 Agent Assignments
+
+Written to `docs/coordination/agent-assignments-phase2.md`:
+
+| Assignment | Agent | Ticket(s) | Priority |
+|-----------|-------|-----------|----------|
+| 12 | frontend_developer | CP-T020 panel shell + CP-T046 frontend | P1 + P2 |
+| 13 | backend_developer | CP-T020 integration path investigation + CP-T022 status check | P1 |
+| 14 | devops_engineer | CP-T023 implementation | P1 |
+| 15 | system_architect | CP-T025 diff file production (11 files) | P1 |
+| 16 | technical_writer | Docs round 4 (What's Available Now + What's Coming cleanup) | P2 |
+
+user_researcher (Assignment 4 from Wave 1) remains unassigned / pending — elevated to P1 given design partner handoff urgency.
+
+---
+
+## PM Deliverables This Session
+
+- [x] `ticket/cp_t020 pm_assessment` — written to Iranti (5 decisions, risks, implementation sequence)
+- [x] `ticket/cp_t025 upstream_approval_session6` — written to Iranti (confirmed approved after full doc review)
+- [x] `ticket/cp_t023 implementation_status` — written to Iranti (spec complete, not started)
+- [x] `research/competitor_update 2026-03-20` — written to Iranti (no web search; prior intel + user_researcher escalation)
+- [x] `docs/roadmap.md` — Phase 2 status updated to Wave 3, all exit criteria annotated with current status
+- [x] `docs/guides/getting-started.md` — stale v0.1.0 hold note removed (self-fix)
+- [x] `docs/coordination/agent-assignments-phase2.md` — Assignments 12–16 written
+- [x] `ticket/cp_tw_round3 pm_decision` — written to Iranti (round 3 accepted, round 4 issued)
+- [x] `docs/coordination/pm-phase2-session-2026-03-20.md` — this session record appended
+
+---
+
+## CP-T046 — Provider Manager (Interrupt: Accepted During Session)
+
+**Decision: ACCEPTED** — commit 8eef46b
+
+Implementation verified against AC: `/providers` route, two-pane layout (card list + detail panel), in-session reachability history, per-provider warning threshold (localStorage), Health Dashboard amber banner (reachability-based; balance-threshold wired and will auto-activate when any provider returns live balance), Together AI integration (defensive fallback), Groq rate-limit headers, AppShell Providers nav item, TypeScript clean.
+
+**Condition noted:** AC #5 (Health Dashboard warning banner) triggers on `keyPresent+!reachable` in the current implementation, which is the correct and useful Phase 2 behavior. Balance-threshold-based trigger is wired but inactive — no provider currently returns live balance. This matches the same accepted pattern from CP-T034. Not a defect.
+
+**getting-started.md Gap 1 clarification communicated:** The stale hold note at line 278 was SELF-FIXED by PM in this session. technical_writer does NOT need to handle it.
+
+**Roadmap updated:** CP-T046 status set to PM-ACCEPTED 2026-03-20.
+
+Written to Iranti: `ticket/cp_t046 pm_decision` = accepted.
+
+---
+
+## Open PM Actions (Next Session)
+
+1. **Monitor CP-T020 backend integration path finding** — backend_developer has 2-day gate to report. If no viable path found without upstream changes: PM decides scope adjustment or upstream escalation.
+2. **CP-T022 status** — backend_developer to confirm Wave 2 Assignment 10 completion status in CP-T020 investigation report.
+3. **CP-T025 diff files** — monitor system_architect Assignment 15 completion. Once done, coordinate actual upstream PR submission.
+4. **CP-T023 implementation progress** — devops_engineer Wave 3. Monitor for upstream CLI entry point blocker (if iranti setup command requires upstream patching, devops must escalate to PM within 2 days).
+5. **user_researcher competitor refresh** — still pending. Escalated to P1. Must complete before design partner handoff brief is finalized.
+6. **Design partner handoff sequence** — v0.1.0 is shipped and hold is lifted. PM needs to: (a) define handoff artifact checklist, (b) identify first 1-3 design partner candidates from Marcus/Priya/Dev personas, (c) decide whether to hold handoff until CP-T023 wizard reduces onboarding friction, or proceed now with documented workarounds.
+7. **Technical_writer round 4** — monitor Assignment 16 completion.
+8. **QA end-to-end for CP-T035 and CP-T033** — both accepted by PM but not QA-verified end-to-end. QA assignment needed once backend routes are confirmed stable.
+9. **CP-T046 Refresh button verification** — confirm React Query `refetch()` is wired to the Refresh button in the Provider Detail Panel (not explicitly confirmed by implementer). Minor verification item.

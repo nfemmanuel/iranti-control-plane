@@ -118,7 +118,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 2 — Interactive Management
 
-**Status: IN PROGRESS — Wave 1 complete, Wave 2 completions accepted 2026-03-20 PM session 3**
+**Status: IN PROGRESS — Wave 2 complete, Wave 3 assignments issued 2026-03-20 PM session 6**
 **v0.1.0 HOLD: LIFTED** — All regression tests pass after CP-D002 fix (commit bbdb6ee). Hold lifted 2026-03-20 by PM.
 **Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted and shipped 2026-03-20
 
@@ -148,7 +148,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec deliverables PM-ACCEPTED 2026-03-20; upstream PR ready for submission |
 | CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (all 7 descriptions, shortcuts section, "?" trigger; view-specific shortcuts deferred pending implementation) |
 | CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (BFS graph endpoint, pure SVG radial layout, all AC pass) |
-| CP-T046 | Provider Manager: Standalone View, Warning Thresholds, Health Banner | CP-E009 | frontend + backend | P2 | Open — new ticket 2026-03-20, deferred from CP-T034 |
+| CP-T046 | Provider Manager: Standalone View, Warning Thresholds, Health Banner | CP-E009 | frontend + backend | P2 | PM-ACCEPTED 2026-03-20 (commit 8eef46b — /providers route, two-pane layout, localStorage thresholds, Together AI + Groq integrations) |
 | CP-T033 | Integration Repair Actions UI | CP-E004 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 |
 | CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (Health Dashboard section delivered; /providers view + warning thresholds deferred to CP-T046) |
 | CP-T035 | Getting Started Screen and First-Run Onboarding | CP-E010 | frontend + backend | P0 | PM-ACCEPTED 2026-03-20 |
@@ -179,20 +179,20 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ### Exit Criteria
 
-- [ ] Entity detail view renders full facts/archive/relationships (CP-T036) — P0
-- [ ] Temporal history timeline renders for a fact key with interval list and raw JSON expand (CP-T036) — P0
-- [ ] Getting Started screen renders with 4-step setup status and auto-shows on first run (CP-T035) — P0
-- [ ] Staff Activity Stream shows events from all four Staff components (CP-T025), or upstream PR is documented and in-progress with polling fallback active
-- [ ] Live mode pulse indicator, velocity counter, and hover-pause are functional (CP-T037)
-- [ ] Command palette is functional from every view (CP-T024)
-- [ ] Entity relationship graph renders for entities with relationships (CP-T032)
-- [ ] Integration repair actions (mcp-json, claude-md, run doctor) work and log to audit trail (CP-T033)
-- [ ] Provider quota and credit visibility shows for configured providers (CP-T034)
-- [ ] User can configure providers and models from the UI without manually editing config files (CP-T022)
-- [ ] User can review and take action on Resolutionist conflicts from the control plane (CP-T021)
-- [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020)
-- [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023)
-- [ ] All Phase 2 acceptance criteria checked by QA before PM accepts
+- [x] Entity detail view renders full facts/archive/relationships (CP-T036) — PM-ACCEPTED 2026-03-20
+- [x] Temporal history timeline renders for a fact key with interval list and raw JSON expand (CP-T036) — PM-ACCEPTED 2026-03-20
+- [x] Getting Started screen renders with 4-step setup status and auto-shows on first run (CP-T035) — PM-ACCEPTED 2026-03-20 (frontend + backend; QA end-to-end pending)
+- [ ] Staff Activity Stream shows events from all four Staff components (CP-T025), **or** upstream PR is documented and in-progress with polling fallback active — **PARTIALLY MET**: upstream PR description complete and PM-approved for submission (2026-03-20); system_architect must produce diff files; polling fallback confirmed feasible at 500ms; full 4-component coverage pending PR acceptance
+- [x] Live mode pulse indicator, velocity counter, and hover-pause are functional (CP-T037) — PM-ACCEPTED 2026-03-20
+- [x] Command palette is functional from every view (CP-T024) — PM-ACCEPTED 2026-03-20 (nav palette; recent/search deferred to follow-on)
+- [x] Entity relationship graph renders for entities with relationships (CP-T032) — PM-ACCEPTED 2026-03-20
+- [x] Integration repair actions (mcp-json, claude-md, run doctor) work and log to audit trail (CP-T033) — PM-ACCEPTED 2026-03-20 (frontend + backend; QA end-to-end pending)
+- [x] Provider quota and credit visibility shows for configured providers (CP-T034) — PM-ACCEPTED 2026-03-20 (Health Dashboard section; standalone /providers view deferred to CP-T046)
+- [ ] User can configure providers and models from the UI without manually editing config files (CP-T022) — **NOT MET**: PM-scoped to read-only for Phase 2 (write path deferred to Phase 3); backend provider/model API assigned Wave 2 Assignment 10 — implementation status unknown
+- [x] User can review and take action on Resolutionist conflicts from the control plane (CP-T021) — PM-ACCEPTED 2026-03-20 (full ticket)
+- [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020) — **NOT STARTED**: PM assessment written 2026-03-20; Wave 3 assignment pending
+- [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023) — **NOT STARTED**: design spike complete, PM decisions written; Wave 3 implementation assignment pending
+- [ ] All Phase 2 acceptance criteria checked by QA before PM accepts — ongoing
 
 **Primary agents**: frontend_developer, backend_developer, devops_engineer, system_architect, qa_engineer
 

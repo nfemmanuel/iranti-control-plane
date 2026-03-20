@@ -818,3 +818,351 @@ The v0.1.0-release-notes.md says CP-D001 is "FIXED." This remains true, but QA h
 - Any other documentation gaps found during this pass
 
 ---
+
+---
+
+# Wave 3 Assignments — 2026-03-20 (PM Session 6)
+
+**Issued by:** `product_manager`
+**Date:** 2026-03-20 (sixth session block)
+**Context:** Wave 2 complete. CP-T020 PM assessment written. CP-T025 upstream approval confirmed. CP-T023 spike complete. Wave 3 focuses on: CP-T020 implementation, CP-T023 implementation, CP-T025 diff file production, CP-T022 status check, CP-T046 (provider manager), and technical_writer round 4.
+
+## Wave 3 Status Summary
+
+| Agent | Assignment | Priority |
+|-------|-----------|----------|
+| frontend_developer | CP-T020 panel shell (parallel with backend integration investigation) + CP-T046 frontend | P1 + P2 |
+| backend_developer | CP-T020 integration path investigation (2-day gate) → CP-T020 chat endpoint → CP-T022 status check | P1 |
+| devops_engineer | CP-T023 implementation (wizard framework + macOS Sections 1–5) | P1 |
+| system_architect | CP-T025 diff file production (7 TypeScript files for upstream PR) | P1 |
+| technical_writer | Docs round 4: What's Available Now table update, What's Coming section cleanup | P2 |
+| user_researcher | Assignment 4 (Wave 1) still pending — ELEVATE: competitor refresh needed before design partner handoff | P1 (elevated) |
+
+---
+
+## Assignment 12: `frontend_developer` → CP-T020 Panel Shell + CP-T046 Frontend
+
+**Tickets:** CP-T020 (Embedded Chat Panel — panel shell first), CP-T046 (Provider Manager standalone view)
+**Priority:** CP-T020 P1, CP-T046 P2
+**Phase:** 2, Wave 3
+
+### Prompt for frontend_developer
+
+You are the `frontend_developer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "frontend_developer"`, task: "CP-T020 Embedded Chat Panel (panel shell) + CP-T046 Provider Manager standalone view"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files first:**
+- `docs/tickets/cp-t020.md` — full ticket with acceptance criteria
+- `docs/tickets/cp-t046.md` — Provider Manager standalone view
+- `docs/protocols/development.md` — Steps 1–6 mandatory
+
+**Step 4 — Query PM decisions before starting CP-T020:**
+Query Iranti: `entity: ticket/cp_t020`, `key: pm_assessment` — READ THIS IN FULL before writing any code. It contains 5 resolved PM decisions that are not reflected in the ticket text.
+
+Key PM decisions (also listed here for convenience):
+1. Chat persistence: in-memory only (no server-side session storage) for Phase 2
+2. Slash command palette: static list of top 10 known Iranti slash commands (not a dynamic endpoint)
+3. Conversation history: RETAIN on view switch (ER3 — per-tab, not per-view)
+4. Viewport breakpoint: panel overlays (does not push) at < 1280px viewport width
+5. Streaming: full-response rendering is the acceptance criterion; streaming is stretch-only
+
+**Step 5 — CP-T020: Build the panel shell FIRST (no API calls needed yet)**
+
+The backend_developer is simultaneously investigating the Iranti Chat integration path. You do not need to wait for them to build:
+
+1. **Panel DOM slot** — the Phase 2 right-side panel slot in `AppShell.tsx`. 380px wide, collapsible. Renders alongside (not over) the main content area at ≥ 1280px. Overlays at < 1280px.
+
+2. **Toggle button** — in the shell topbar or sidebar (match existing shell chrome style). Clicking it opens/closes the panel.
+
+3. **localStorage persistence** — panel open/close state persisted to `localStorage` key `iranti_cp_chat_panel_open`. Restored on page load.
+
+4. **Panel header** — contains: panel title ("Iranti Chat"), a Clear button (trash icon), and a close button. The Clear button needs inline confirmation (not a modal — a second click or inline "Confirm clear?" text).
+
+5. **Agent ID selector** — dropdown at top of panel. Free-text editable. Defaults to `IRANTI_AGENT_ID` from env if present (read from the backend env endpoint), otherwise defaults to `operator`.
+
+6. **Provider/model selector** — dropdown below agent ID. Shows configured providers from the providers API (`GET /api/control-plane/providers`). Falls back to detected env vars if CP-T022 backend is not ready. Session-scoped only — does not write back to config.
+
+7. **Message input** — multiline textarea, auto-grow, max 6 lines before scrolling. `Enter` to send, `Shift+Enter` for newline. Send button for mouse users.
+
+8. **Conversation thread area** — scrollable list of messages. Empty state: "Send a message to start chatting with Iranti." Each message shows: role (user/assistant), content area (prose), and for assistant messages: a placeholder for memory block cards (empty for now — backend integration not yet complete).
+
+9. **Loading state placeholder** — disabled input + spinner visible when `isLoading: true` state is set. Cancel button appears. (Wire the cancel to an `AbortController` — you'll hook it to the actual fetch once the backend integration path is confirmed.)
+
+Do NOT implement the actual message send/receive yet — that requires the backend integration path to be confirmed. Build a UI stub that shows loading state when send is clicked but does not make a real API call.
+
+**Step 6 — After backend_developer confirms integration path:**
+Wire the message send to `POST /api/control-plane/chat` once the backend has implemented it. Then implement:
+- Memory block card rendering (entity type/id, key, summary, confidence badge, source)
+- "View in Memory Explorer" jump link on each card (navigates main content area to `/memory/:entityType/:entityId`, panel stays open)
+- Slash command palette (static list from PM decision above — `/write`, `/query`, `/search`, `/handshake`, `/attend`, `/ingest`, `/observe`, `/relate`, `/who_knows`, `/clear`)
+
+**Step 7 — CP-T046: Provider Manager standalone view**
+
+After CP-T020 panel shell is committed, implement the `/providers` route:
+- Read `docs/tickets/cp-t046.md` fully before starting
+- Standalone route at `/providers` showing provider list + detail panel
+- Warning threshold via localStorage (key: `iranti_cp_provider_thresholds`)
+- Health Dashboard warning banner (frontend-only check against localStorage thresholds + React Query cache)
+
+**Step 8 — Protocol compliance:**
+- `cd src/client && npx tsc --noEmit` must exit 0
+- Both light and dark mode verified for all new components
+- TypeScript — no `any` in the chat panel component tree (explicit AC)
+
+**Step 9 — Write to Iranti:**
+- `entity: ticket/cp_t020`, `key: frontend_status` — panel shell complete, wiring pending backend integration path
+- `entity: ticket/cp_t046`, `key: frontend_status` — what was implemented
+
+**Step 10 — Report back to PM with:**
+- CP-T020 panel shell: what is built, what is still wired to stub
+- CP-T046: what was implemented, AC check
+- Any UX decisions made (clear confirmation UX, provider selector interaction)
+
+---
+
+## Assignment 13: `backend_developer` → CP-T020 Integration Investigation + CP-T022 Status
+
+**Tickets:** CP-T020 (integration path), CP-T022 (status check)
+**Priority:** P1
+**Phase:** 2, Wave 3
+
+### Prompt for backend_developer
+
+You are the `backend_developer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "backend_developer"`, task: "CP-T020 Iranti Chat integration path investigation + CP-T022 provider API status check"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files:**
+- `docs/tickets/cp-t020.md` — especially the Dependencies section (Option A vs Option B)
+- Query Iranti: `entity: ticket/cp_t020`, `key: pm_assessment` — read all PM decisions and risk notes
+
+**Step 4 — CRITICAL 2-day gate: Investigate the Iranti Chat integration path**
+
+This investigation MUST be completed and reported to PM within 2 days of task pickup. If neither Option A nor B is feasible without upstream changes, escalate immediately — do not proceed.
+
+**Option A (preferred):** Determine whether Iranti exposes a programmatic HTTP or WebSocket chat API.
+- Check `http://localhost:3001` for any chat-related endpoints
+- Check the Iranti package documentation or source (if accessible at `~/.iranti/` or via `npm list -g iranti`) for a Chat API
+- Specifically look for: POST endpoint for sending a message and getting a response, any session/thread model, streaming support
+- Check whether the `/api/control-plane/chat` endpoint can be implemented as a thin proxy to an existing Iranti HTTP endpoint
+
+**Option B (fallback):** Assess subprocess wrapping.
+- Can `iranti chat` be spawned as a subprocess with structured stdin/stdout?
+- What is the response format from `iranti chat`?
+- Is there a non-interactive / `--json` mode?
+
+**Step 5 — Once integration path is confirmed, implement:**
+
+`POST /api/control-plane/chat` — the chat session endpoint:
+- Request body: `{ agentId: string, providerId?: string, modelId?: string, message: string, sessionId?: string }`
+- Response: `{ role: "assistant", content: string, retrievedFacts?: RetrievedFact[], sessionId: string }`
+- `RetrievedFact`: `{ entityType: string, entityId: string, key: string, summary: string, confidence: number, source: string }`
+- If the integration path does NOT return structured retrieved facts separately from prose: return `retrievedFacts: []` and document this limitation for the PM
+- A `DELETE /api/control-plane/chat/:sessionId` endpoint for cancel/abort (or implement via `AbortController` on the client side if the integration is synchronous)
+
+**Step 6 — CP-T022 status check:**
+Query Iranti for `ticket/cp_t022, key: backend_status`. Was the provider/model API implemented in Wave 2 (Assignment 10)? If yes — read what was implemented and confirm it aligns with CP-T020's provider selector needs. If not implemented — note this in your report. The CP-T020 panel falls back to env var detection if CP-T022 API is not available, so this is non-blocking.
+
+**Step 7 — Write to Iranti:**
+- `entity: ticket/cp_t020`, `key: backend_integration_path` — the chosen path (Option A or B), feasibility finding, response structure confirmation, and any blockers found
+- `entity: ticket/cp_t020`, `key: backend_status` — status after implementation
+
+**Step 8 — Report back to PM with:**
+- Integration path chosen and why
+- Response structure: does the Iranti Chat API return structured retrieved facts, or only prose?
+- Streaming: is it available or not?
+- CP-T022 status
+- Any blockers that require PM decision before proceeding
+
+---
+
+## Assignment 14: `devops_engineer` → CP-T023 Implementation
+
+**Ticket:** CP-T023 — Build CLI Setup Wizard (`iranti setup`)
+**Priority:** P1
+**Phase:** 2, Wave 3
+
+### Prompt for devops_engineer
+
+You are the `devops_engineer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "devops_engineer"`, task: "CP-T023 CLI Setup Wizard implementation — iranti setup command"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files before starting:**
+- `docs/tickets/cp-t023.md` — full ticket with acceptance criteria. The status block at the top of the file has the 6 PM scope amendments from the design spike. READ THEM.
+- `docs/specs/cp-t023-wizard-design.md` — your own design spike spec. This is your implementation blueprint.
+- `docs/protocols/development.md` — Steps 1–6 mandatory
+- Query Iranti: `entity: decision/cp_t023_*` entities for all 6 PM decisions
+
+**Step 4 — PM scope amendments (must be followed exactly):**
+1. Entry point: extend the existing upstream `iranti setup` command (not a standalone package). `iranti setup` already exists in v0.2.9.
+2. Instance registry format: per-instance `~/.iranti/instances/<name>/instance.json` files (upstream-compatible). The `instances.json` aggregated format in the ticket body is superseded.
+3. Phase 2 scope: fresh install only. Re-run/update mode is Phase 3.
+4. Gemini is NOT in the Phase 2 provider list.
+5. Offer to launch server on completion (Y/n prompt — not auto-launch).
+6. Windows: reduced depth confirmed — Node check, provider key, MCP, project binding cross-platform. pgvector and PostgreSQL service start are macOS-specific.
+
+**Step 5 — Implement the wizard:**
+
+All 5 sections from the ticket:
+
+1. **Section 1: System Checks** — Node.js version, macOS version (soft), PostgreSQL check, pgvector check
+2. **Section 2: Database Setup** — DATABASE_URL construction wizard (host/port/dbname/user/password), database creation offer, migration runner, write to `.env.iranti`
+3. **Section 3: Provider Setup** — multiselect providers (Anthropic, OpenAI, Ollama, Groq, Mistral — NOT Gemini), per-provider key entry (hidden input), default provider selection, Ollama detection
+4. **Section 4: Integrations** — MCP registration check, project binding, Claude Code integration check
+5. **Section 5: Verification** — health check run, success/partial/fail state, offer to launch server (Y/n)
+
+Using `@clack/prompts` as the wizard framework (your own spike recommendation). Spinners, group headers, inline status indicators.
+
+**Key implementation requirements from AC:**
+- API keys: hidden input mode, NEVER written to log file
+- Verbose log: written to `~/.iranti/setup-log-[timestamp].txt` after every run
+- Ctrl+C: graceful exit with "Setup cancelled" message, no partial env file writes
+- Windows: runs without crashing, shows "Not available on Windows" for macOS-specific steps
+- `iranti setup` entry point: runnable from the main Iranti CLI
+
+**Step 6 — Protocol compliance:**
+- Test: run through the wizard on macOS in a fresh-install scenario (PostgreSQL present, no Iranti DB yet)
+- Time the run: target < 3 minutes from launch to "Setup complete"
+- Confirm API keys do NOT appear in the log file
+- Confirm Ctrl+C during Section 3 (key entry) exits cleanly without partial writes
+
+**Step 7 — Write to Iranti:**
+- `entity: ticket/cp_t023`, `key: implementation_status` — update to "complete" or blockers found
+- `entity: ticket/cp_t023`, `key: devops_completion` — AC check, timing result, any scope adjustments made
+
+**Step 8 — Report back to PM with:**
+- All 10 AC items checked explicitly
+- Timing result (macOS fresh-install scenario)
+- Top 3 CP-T005 failure points — confirm each is addressed by a specific wizard step
+- Any upstream Iranti package changes required (if `iranti setup` entry point required patching)
+- Windows scope: confirm which steps run and which show "not supported"
+
+---
+
+## Assignment 15: `system_architect` → CP-T025 Diff File Production
+
+**Ticket:** CP-T025 — produce the actual TypeScript diff files for upstream PR submission
+**Priority:** P1
+**Phase:** 2, Wave 3
+
+### Prompt for system_architect
+
+You are the `system_architect` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "system_architect"`, task: "CP-T025 produce TypeScript implementation files for upstream Iranti PR"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files:**
+- `docs/specs/cp-t025-upstream-pr.md` — the 298-line PR description. This is your spec. Every file, every function, every injection point is specified here.
+- `docs/specs/cp-t025-emitter-design.md` — the full 1,035-line design spec for additional context
+- `docs/specs/cp-t025-fallback-confirmed.md` — fallback design (not needed for diff files but context for implementation)
+
+**Step 4 — PM upstream approval is confirmed (read before proceeding):**
+Query Iranti: `entity: ticket/cp_t025`, `key: upstream_approval` — the original approval conditions
+Query Iranti: `entity: ticket/cp_t025`, `key: upstream_approval_session6` — PM session 6 confirmation after reading the full PR document
+
+The PR is approved for submission. Your job is to produce the actual TypeScript files that constitute the diff.
+
+**Step 5 — Produce the 7 new/modified TypeScript files:**
+
+Write these files to `docs/upstream-pr/cp-t025/`:
+
+**New files:**
+1. `docs/upstream-pr/cp-t025/src/lib/staffEventEmitter.ts` — the full implementation from the PR spec (lines 46–101 of the PR doc, plus buildStaffEvent)
+2. `docs/upstream-pr/cp-t025/src/lib/staffEventRegistry.ts` — the full implementation from the PR spec (lines 108–137 of the PR doc)
+
+**Modified files (produce the full modified version, not a patch):**
+3. `docs/upstream-pr/cp-t025/src/librarian/index.ts.diff` — OR write a prose file `librarian-changes.md` describing the exact line-level changes: before/after for each of the 6 injection points (write_created, write_replaced, write_escalated, write_rejected x5, write_deduplicated). Since you don't have the upstream source, produce a patch-format description (unified diff style if possible, prose if not).
+4. `docs/upstream-pr/cp-t025/src/attendant/AttendantInstance.ts.diff` — injection point changes for the 5 Attendant events
+5. `docs/upstream-pr/cp-t025/src/archivist/index.ts.diff` — injection point changes for the 5 Archivist events
+6. `docs/upstream-pr/cp-t025/src/resolutionist/index.ts.diff` — injection point changes for the 2 Resolutionist events
+7. `docs/upstream-pr/cp-t025/src/sdk/index.ts.diff` — IrantiConfig extension + setStaffEventEmitter call in constructor + re-exports
+
+**Test files (new):**
+Write the 4 test file templates:
+8. `docs/upstream-pr/cp-t025/src/librarian/__tests__/emitter.test.ts`
+9. `docs/upstream-pr/cp-t025/src/attendant/__tests__/emitter.test.ts`
+10. `docs/upstream-pr/cp-t025/src/archivist/__tests__/emitter.test.ts`
+11. `docs/upstream-pr/cp-t025/src/resolutionist/__tests__/emitter.test.ts`
+
+Each test file should use the RecordingEmitter pattern from the PR spec (lines 222–247). Write realistic test cases — one per action type, with assertions on actionType, staffComponent, agentId, and key metadata fields.
+
+**Step 6 — Write to Iranti:**
+- `entity: ticket/cp_t025`, `key: diff_files_status` — "complete — 11 files produced at docs/upstream-pr/cp-t025/"
+
+**Step 7 — Report back to PM with:**
+- All files produced (list with paths)
+- Any injection points where the exact line was ambiguous from the spec alone — note these explicitly
+- Whether the test files are self-contained enough to be submitted with the PR or need upstream source to run against
+
+---
+
+## Assignment 16: `technical_writer` → Docs Round 4 (What's Available Now + What's Coming cleanup)
+
+**Priority:** P2
+**Phase:** 2
+
+### Prompt for technical_writer
+
+You are the `technical_writer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "technical_writer"`, task: "Docs round 4 — getting-started.md What's Available Now table and What's Coming table cleanup"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Two specific tasks in `docs/guides/getting-started.md`:**
+
+**Task A — Update "What's Available Now" table:**
+
+The current table is titled "What's Available Now (Phase 1 Complete)" and lists only Phase 1 views. Phase 2 has shipped several features that belong in this table. Add the following rows and rename the section heading to **"What's Available Now"** (remove the Phase 1 qualifier):
+
+| View | What it does |
+|---|---|
+| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` (Phase 2 — CP-T036) |
+| **Temporal History** | Fact history timeline at `/memory/:entityType/:entityId/:key` (Phase 2 — CP-T036) |
+| **Entity Relationship Graph** | Interactive radial graph in the Entity Detail Relationships tab — depth 1 or 2, click to navigate (Phase 2 — CP-T032) |
+| **Getting Started / Onboarding** | First-run setup status at `/getting-started` with 4-step checklist (Phase 2 — CP-T035) |
+| **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
+| **Conflict and Escalation Review** | Review and resolve Resolutionist escalations at `/conflicts` (Phase 2 — CP-T021) |
+| **Provider Status** | Provider key presence, reachability, and model list in Health Dashboard (Phase 2 — CP-T034) |
+
+Also update the Staff Activity Stream row to mention Live Mode features (velocity counter, hover-pause, Live/Paused badge).
+
+**Task B — Update "What's Coming in Phase 2" table:**
+
+Rename the section to **"Phase 2 — In Progress"**. Remove or relabel the already-shipped items:
+- CP-T035 (Getting Started): remove from "coming" — it shipped
+- CP-T033 (Repair Actions): remove from "coming" — it shipped
+- CP-T032 (Relationship Graph): remove from "coming" — it shipped
+- CP-T024/T042 (Command Palette): remove from "coming" — it shipped
+- CP-T037 (Live Mode): remove from "coming" — it shipped
+- CP-T021 (Conflict Review): remove from "coming" — it shipped
+- CP-T034 (Provider Status): remove from "coming" — it shipped (Health Dashboard section)
+
+Items remaining in "In Progress":
+- CP-T020 Embedded Chat Panel (Open)
+- CP-T022 Provider and Model Manager write path (Phase 3)
+- CP-T023 CLI Setup Wizard (In progress)
+- CP-T025 Native Staff Emitter Injection — Attendant + Resolutionist events (Upstream PR pending)
+- CP-T046 Provider Manager standalone view (Open)
+
+**Step 4 — Write to Iranti:**
+- `entity: ticket/cp_tw_round3`, `key: round4_status` — "complete" with summary of changes
+
+**Step 5 — Report back to PM with:**
+- Updated section headings and row counts
+- Any inconsistencies found between the doc and actual shipped feature state

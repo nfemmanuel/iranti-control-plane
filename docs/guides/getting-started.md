@@ -275,7 +275,7 @@ Phase 2 is currently in progress as of 2026-03-20. The following features are no
 
 **Note on the Staff Activity Stream:** The live mode UI (status badge, velocity counter, hover-pause) has shipped in Phase 2 (CP-T037). Event coverage for all four Staff components remains partial: Librarian and Archivist events are emitted; Attendant and Resolutionist events will not appear until native emitter injection ships (CP-T025). The stream UI labels this limitation explicitly.
 
-**Note on v0.1.0 hold:** As of 2026-03-20, the v0.1.0 release is on hold due to defect CP-D001 — a column naming mismatch between the control plane's SQL queries (snake_case) and the Iranti Prisma database schema (camelCase). This affects all data read paths: Memory Explorer, Archive Explorer, Entity Detail, Temporal History, and Staff Activity Stream. The fix is in progress. Design partner handoff is blocked until CP-D001 is resolved and CI regression tests pass.
+**v0.1.0 shipped 2026-03-20.** The column naming defects (CP-D001, CP-D002) identified in QA are resolved in commit `bbdb6ee`. All regression tests pass. Design partner handoff is unblocked.
 
 ---
 
