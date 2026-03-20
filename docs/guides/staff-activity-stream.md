@@ -78,20 +78,58 @@ The stream shows the most recent 100 events on initial load. Use the **Since** f
 
 ---
 
-## Phase 1 Limitations
+## Live Mode
 
-**Phase 1 covers Librarian and Archivist events only.**
+The Activity Stream operates in one of two rendering states at all times. A badge in the top-right corner of the stream panel indicates the current state.
 
-In Phase 1, the Staff event stream is populated by an adapter that instruments the Librarian and Archivist. The Attendant and Resolutionist have not yet received event emission hooks. **Attendant and Resolutionist events require native emitter injection (Phase 2: CP-T025).** Until CP-T025 ships, this means:
+### Status Badges
+
+**`● LIVE`** — The stream is connected and actively receiving events via the SSE (Server-Sent Events) connection. New events appear at the top of the table as they arrive. The `●` pulse animates to indicate an active connection.
+
+**`⏸ PAUSED`** — The stream is connected but rendering is suspended. New events are buffered in memory and will be flushed to the table when rendering resumes. The badge appears in either of two cases:
+
+- **Manual pause:** Click the `● LIVE` badge to toggle to `⏸ PAUSED`. Click the badge again (or click **Resume**) to return to live rendering and flush all buffered events at once.
+- **Hover-pause:** While your mouse is over the event list, rendering pauses automatically so rows don't shift under your cursor. When your mouse leaves the list, rendering resumes immediately and all buffered events are flushed. Hover-pause does not change the badge to `⏸ PAUSED` — it is a transparent rendering hold, not a user-initiated pause.
+
+Clicking the badge is the primary way to toggle between live and paused states. The stream connection itself remains open in both states — no events are lost, only deferred.
+
+### Velocity Counter
+
+The stream panel displays a **velocity counter** alongside the status badge: for example, `14 evt/min`. This is the rate of events arriving over a **60-second rolling window**. The counter updates each time a new event arrives.
+
+- If no events have arrived in the last 60 seconds, the counter shows `0 evt/min`.
+- Velocity is calculated from the live SSE stream, not from the database. It reflects the current activity rate, not the total event count.
+- High velocity (hundreds of events per minute) typically indicates active agent sessions with many writes or an Archivist decay scan in progress. Switching the Level filter to `audit` (if it isn't already) is the most effective way to reduce noise at high velocity.
+
+### Reconnection Behavior
+
+If the browser tab loses focus or the SSE connection drops (for example, the control plane server restarts), the stream reconnects automatically using the `Last-Event-ID` header. Events that arrived during the disconnection are backfilled — you won't miss events just because the tab was briefly in the background.
+
+---
+
+## Phase 2 Coverage
+
+**Phase 2 covers all four Staff components for UI and live mode features. Event coverage for Attendant and Resolutionist is pending CP-T025.**
+
+The stream UI (live mode, velocity counter, filter bar, hover-pause) ships in Phase 2 and applies to all events the stream receives. However, which Staff components actually emit events to the stream depends on the upstream Iranti emitter work:
+
+| Component | Event coverage | Source |
+|---|---|---|
+| **Librarian** | Full — all write events | Phase 1 DB adapter |
+| **Archivist** | Full — all archive/decay events | Phase 1 DB adapter (polling) |
+| **Attendant** | Pending CP-T025 | Native emitter not yet injected |
+| **Resolutionist** | Pending CP-T025 | Native emitter not yet injected |
+
+Until CP-T025 ships:
 
 - You will not see `handshake_completed`, `attend_completed`, `reconvene_completed`, or `session_expired` events from the Attendant.
 - You will not see `resolution_filed`, `resolution_applied`, `resolution_rejected`, `escalation_deferred`, or `escalation_expired` events from the Resolutionist.
 
-What you **will** see in Phase 1:
+What you **will** see:
 - All Librarian write events: `write_created`, `write_replaced`, `write_escalated`, `write_rejected`
 - All Archivist lifecycle events: `entry_archived`, `entry_decayed`, `escalation_processed`, `resolution_consumed`
 
-This is enough to observe the primary memory write and archival lifecycle. Full four-component event coverage (all four Staff members in the stream) is planned for Phase 2 (CP-T025), when native event emitters are added to the Attendant and Resolutionist in the upstream Iranti codebase. When CP-T025 ships, the adapter layer becomes unnecessary — the control plane will receive events through the injected `IStaffEventEmitter` interface rather than by polling the database tables. The `staff_events` table schema and SSE stream infrastructure are unchanged; only the event production path changes.
+When CP-T025 ships, the polling adapter becomes unnecessary — the control plane will receive events through the injected `IStaffEventEmitter` interface. The `staff_events` table schema and SSE stream infrastructure are unchanged; only the event production path changes.
 
 **The `staff_events` table must exist.** If `npm run migrate` hasn't been run, the Activity Stream shows an error rather than events. The Health dashboard's `staff_events_table` check tells you whether the migration has been applied.
 

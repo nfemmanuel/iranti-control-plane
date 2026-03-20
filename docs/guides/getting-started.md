@@ -142,6 +142,29 @@ You'll land on the **Memory Explorer** by default. Use the sidebar on the left t
 
 ---
 
+## Navigation Tips
+
+### Keyboard Shortcuts
+
+The control plane ships with a command palette and keyboard navigation support as of Phase 2 (CP-T042).
+
+**Opening the command palette:**
+
+Press `Cmd+K` (macOS) or `Ctrl+K` (Windows / Linux) from any view to open the command palette. The palette is available everywhere — you do not need to be on a specific page.
+
+The palette lists all views by name with a short description of each. To navigate:
+
+- **Type** to search — the list filters as you type. Partial matches work: typing `mem` shows Memory Explorer and Archive Explorer.
+- **`↑` / `↓` arrow keys** — move the highlight up and down through the results.
+- **`Enter`** — navigate to the highlighted view.
+- **`Esc`** — close the palette without navigating.
+
+**Viewing all available shortcuts:**
+
+Type `?` in the palette input, or click the `⌨ shortcuts` link at the bottom of the palette, to see a full list of keyboard shortcuts available in the current view. The shortcut reference updates depending on which view you are on — Activity Stream shortcuts (like toggling pause) appear only when you are on the Activity Stream page.
+
+---
+
 ## The Health Dashboard
 
 The Health dashboard (`/health`) shows a list of checks run against your local setup:
@@ -237,19 +260,20 @@ Phase 2 is currently in progress as of 2026-03-20. The following features are no
 
 | Feature | Ticket | Status |
 |---|---|---|
-| **Getting Started / First-Run Onboarding Screen** | CP-T035 | In implementation |
-| **Integration Repair Actions** (regenerate `.mcp.json`, update `CLAUDE.md`, run doctor) | CP-T033 | In implementation |
-| **Entity Relationship Graph View** | CP-T032 | Open |
+| **Getting Started / First-Run Onboarding Screen** | CP-T035 | Shipped — pending QA end-to-end verification |
+| **Integration Repair Actions** (regenerate `.mcp.json`, update `CLAUDE.md`, run doctor) | CP-T033 | Shipped — pending QA end-to-end verification |
+| **Entity Relationship Graph View** | CP-T032 | Shipped |
+| **Command Palette** (Cmd+K) | CP-T024 | Shipped — CP-T042 |
+| **Activity Stream Live Mode** (velocity counter, hover-pause, status badge) | CP-T037 | Shipped |
 | **Embedded Chat Panel** | CP-T020 | Open |
 | **Conflict and Escalation Review** | CP-T021 | Open |
 | **Provider and Model Manager** | CP-T022 | Open |
 | **CLI Setup Wizard** (`iranti setup`) | CP-T023 | Open |
-| **Command Palette** (Cmd+K) | CP-T024 | Open |
 | **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Open |
 | **Full-text search** (tsvector-based, replacing substring matching) | — | Phase 2 |
 | **Entity aliases** | — | Phase 2 (pending upstream schema) |
 
-**Note on the Staff Activity Stream:** In Phase 1, the stream covers Librarian and Archivist events only. Attendant events (handshakes, reconvenes) and Resolutionist events (conflict resolutions) will not appear in the stream until native event emitter injection ships in Phase 2 (CP-T025). The stream UI labels this limitation explicitly.
+**Note on the Staff Activity Stream:** The live mode UI (status badge, velocity counter, hover-pause) has shipped in Phase 2 (CP-T037). Event coverage for all four Staff components remains partial: Librarian and Archivist events are emitted; Attendant and Resolutionist events will not appear until native emitter injection ships (CP-T025). The stream UI labels this limitation explicitly.
 
 **Note on v0.1.0 hold:** As of 2026-03-20, the v0.1.0 release is on hold due to defect CP-D001 — a column naming mismatch between the control plane's SQL queries (snake_case) and the Iranti Prisma database schema (camelCase). This affects all data read paths: Memory Explorer, Archive Explorer, Entity Detail, Temporal History, and Staff Activity Stream. The fix is in progress. Design partner handoff is blocked until CP-D001 is resolved and CI regression tests pass.
 

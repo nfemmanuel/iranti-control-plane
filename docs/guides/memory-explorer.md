@@ -141,6 +141,64 @@ The standalone Relationships view (accessible from the sidebar) shows the global
 
 ---
 
+## Relationship Graph
+
+The **Relationships** tab in the entity detail view includes a visual graph in addition to the flat list. This section describes the graph and how to use it.
+
+### Where It Appears
+
+Open any entity's detail page (click "View Related Entities" from a Memory Explorer expanded row, or navigate to `/memory/:entityType/:entityId` directly). The Relationships tab is one of three tabs on that page, alongside Current Facts and Archived Facts. The graph is the default rendering inside the Relationships tab.
+
+### The Radial Layout
+
+The graph uses a radial layout centered on the entity you are viewing:
+
+- **Center node** — the root entity. Always shown in the center, labeled with `entityType / entityId`.
+- **Inner ring** — direct neighbors (1 hop). Every entity that has a relationship directly to or from the root entity.
+- **Outer ring** — depth-2 neighbors (2 hops). Every entity that has a relationship to or from a direct neighbor, excluding the root itself.
+
+### Depth Toggle
+
+A **1 / 2** toggle above the graph controls how many hops to render:
+
+- **1** — shows only the root and its direct neighbors (inner ring only). Use this for dense graphs where the outer ring adds too much noise.
+- **2** — shows root, inner ring, and outer ring. This is the default.
+
+Switching the toggle re-renders the graph immediately; no page reload is needed.
+
+### Graph and List View Toggle
+
+A **Graph / List** toggle lets you switch between the two renderings of the same relationship data:
+
+- **Graph** — the radial visualization described above. Best for exploring the shape of the neighborhood at a glance.
+- **List** — a flat edge table. Each row shows one relationship with columns for direction (→ outbound / ← inbound), relationship type, confidence, and the source agent that created the relationship. Use the list view when you need to read exact values or copy entity IDs.
+
+### Hover Tooltip
+
+Hovering over any node in the graph shows a tooltip with three lines:
+
+```
+entityType
+entityId
+N facts
+```
+
+`N facts` is the count of currently-active knowledge base entries for that entity. This gives a quick sense of how much is known about a neighbor without navigating away.
+
+### Navigating to a Neighbor
+
+Click any node in the graph to navigate to that entity's detail page. The graph re-centers on the clicked entity, and the breadcrumb updates. Use the browser Back button or the breadcrumb to return to the previous entity.
+
+### Empty State
+
+If the entity has no recorded relationships in `entity_relationships`, the Relationships tab shows an empty state message: "No relationships recorded for this entity." This is not an error — it means no agent has called `iranti_relate` (or equivalent) for this entity, or all relationships have been removed.
+
+### Truncation
+
+The graph renders a maximum of **50 nodes per depth level** (50 direct neighbors + up to 50 depth-2 nodes per inner node, capped globally at 50 outer nodes total). If an entity has more than 50 relationships at a given depth, the graph shows the 50 most recently created and displays a notice: "Graph truncated — showing 50 of N neighbors." The full set is always accessible in List view, which has no truncation limit.
+
+---
+
 ## Phase 1 Known Limitations
 
 The following limitations apply in Phase 1 and are accepted scope boundaries — not bugs. See [`docs/reference/known-issues.md`](../reference/known-issues.md) for the complete known-issues list with severities, workarounds, and Phase 2 fix references.
