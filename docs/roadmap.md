@@ -149,7 +149,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 | CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | Open — new ticket 2026-03-20 |
 | CP-T032 | Entity Relationship Graph View | CP-E002 enhancement | frontend + backend | P1 | Not started |
 | CP-T033 | Integration Repair Actions UI | CP-E004 enhancement | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 |
-| CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 | Not started |
+| CP-T034 | Provider Credit and Quota Visibility | CP-E009 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (Health Dashboard section delivered; /providers view + warning thresholds deferred to CP-T046) |
 | CP-T035 | Getting Started Screen and First-Run Onboarding | CP-E010 | frontend + backend | P0 | PM-ACCEPTED 2026-03-20 |
 | CP-T036 | Entity Detail and Temporal History Views | CP-E002 | frontend_developer | P0 | PM-accepted (prior session) |
 | CP-T037 | Staff Activity Stream Live Mode UX | CP-E003 enhancement | frontend_developer | P1 | PM-ACCEPTED 2026-03-20 |

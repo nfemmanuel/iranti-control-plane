@@ -434,9 +434,9 @@ User confirmed PostgreSQL + Prisma as the database stack. Written to Iranti: `pr
 
 ## Open PM Actions (Next Session)
 
-1. Assign frontend_developer to CP-T042 (command palette inline help) — ready to start
-2. Assign frontend_developer to CP-T032 (Entity Relationship Graph) — CP-T037 and CP-T024 are now both complete
-3. Assign backend_developer + frontend_developer to CP-T034 (Provider Credit/Quota Visibility) — unassigned
+1. Assign frontend_developer to CP-T042 (command palette inline help) — ready to start (CP-T024 complete)
+2. Assign frontend_developer to CP-T032 (Entity Relationship Graph) — CP-T037 and CP-T024 both complete
+3. CP-T034 accepted (this session — see below) — create CP-T046 for deferred items (standalone /providers view, warning thresholds, health warning banner)
 4. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed in any PM session
 5. Determine upstream PR submission path for CP-T025 — write `ticket/cp_t025 upstream_approval` when PM approves submission
 6. Review user_researcher competitor refresh when complete (LangSmith and Langfuse)
@@ -444,3 +444,95 @@ User confirmed PostgreSQL + Prisma as the database stack. Written to Iranti: `pr
 8. Formally ticket CP-T043/T044/T045 for Phase 3 if warranted after Phase 2 retrospective check
 9. Monitor CP-T022 (Provider Manager) — assigned to backend_developer Wave 2 Assignment 10, status unknown
 10. Design partner handoff is now unblocked — v0.1.0 hold is lifted. PM should initiate handoff sequence.
+
+---
+
+---
+
+# PM Phase 2 Session 4 — 2026-03-20 (CP-T034 Review)
+
+**PM:** `product_manager`
+**Date:** 2026-03-20 (fourth session block)
+**Triggered by:** frontend_developer / backend_developer reporting CP-T034 complete (commit 21ddd37). CP-T042 and CP-T032 in flight.
+
+---
+
+## CP-T034 — Provider Credit and Quota Visibility
+
+**Decision: ACCEPTED with documented deferred items.**
+
+### What was delivered
+
+**Backend (providers.ts):**
+- `GET /providers` — detects ANTHROPIC_API_KEY, OPENAI_API_KEY, OLLAMA_BASE_URL; parallel reachability checks with 5s timeout + 1-min reachability cache; ProviderStatus[] with masked key (last 4 chars), isDefault flag, lastChecked timestamp.
+- `GET /providers/:providerId/models` — Anthropic: static list (9 models); OpenAI: live /v1/models with static fallback; Ollama: live /api/tags. `source: "static"|"live"|"fallback"` field present.
+- `GET /:instanceId/providers/:providerId/quota` — Anthropic: `supported:false` with correct normalization copy; OpenAI: `supported:true` with `balance:null` and org:read scope explanation; Groq/Together/Replicate: `supported:false` with provider-specific reasons. 5-min cache. Key never returned in any response — confirmed.
+- Wired into index.ts at flat and instance-scoped paths.
+
+**Frontend (ProviderStatus.tsx in HealthDashboard):**
+- One card per provider. Left-border color encodes state (emerald=connected, amber=unreachable, muted=not configured).
+- Default badge, masked key display, last-checked timestamp, "✓ Key set / ✗ No key" indicators.
+- Expand-to-show-models panel: lazy-loads on first expand via React Query; up to 8 models with "+N more" overflow; source label ("live" / "fallback list" / "static list").
+- Empty state with env var copy instructions (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_BASE_URL`).
+- Refresh button with spinning state while fetching.
+- Light/dark mode via custom property tokens. TypeScript clean. CI green.
+
+### AC Assessment
+
+| AC Item | Result | Notes |
+|---------|--------|-------|
+| Quota endpoint for OpenAI — correct supported:true behavior | PASS | balance:null with org:read note — pragmatically correct |
+| Anthropic returns supported:false with normalization reason | PASS | Exact copy present |
+| Groq returns partial rate limit data | PARTIAL | Returns supported:false with reason; no live header extraction. Acceptable — no Groq key in typical setup |
+| 5-min cache; cached:true returned | PASS | quotaCache with CACHE_TTL_MS = 5*60*1000 |
+| Provider Manager view at /providers | NOT MET | PM-scoped to Health Dashboard section — deferred to CP-T046 |
+| Provider detail panel with balance, rate limits, warning state | NOT MET | No standalone detail panel; model list shown instead. Deferred to CP-T046 |
+| Warning threshold configurable | NOT MET | No live balance available to trigger threshold; deferred to CP-T046 |
+| Health dashboard warning item for triggered threshold | NOT MET | Depends on threshold; deferred to CP-T046 |
+| Refresh triggers live call, bypasses cache | PASS | refetch() via React Query |
+| API key never returned | PASS | maskKey() last 4 chars only |
+| TypeScript clean | PASS | Reported |
+| Light/dark mode | PASS | Custom property tokens |
+
+### PM Rationale for Acceptance
+
+Live balance retrieval is practically blocked for all three detected providers in a typical installation:
+- Anthropic: no credits API — this is correct and permanent.
+- OpenAI: requires `org:read` scope separate from the standard `api` scope. Most user keys will not have this. Returning `supported:true, balance:null` with a clear explanation is the right UX.
+- Ollama: local model server — no billing concept.
+
+The warning threshold feature is only meaningful once live balance is available. Deferring it alongside the standalone `/providers` view is correct sequencing. Design partner feedback will determine whether the full Provider Manager view should be accelerated in Phase 2 or moved to Phase 3.
+
+The Health Dashboard section covers the immediate operational need: operators can see at a glance which providers are configured, reachable, and which models are available, without leaving the health view. This is genuine Phase 2 value.
+
+### Deferred Items → CP-T046
+
+The following must be created as **CP-T046 — Provider Manager: Standalone View, Warning Thresholds, and Health Warning Banner**:
+1. `/providers` route (Provider Manager view) with provider list and detail panel
+2. Configurable warning threshold (per provider, persists — likely local storage or `.env.iranti` comment)
+3. Health dashboard warning item when threshold triggered
+4. Together AI `/v1/billing/credit` integration if endpoint becomes accessible
+5. Groq live rate limit header extraction from most recent API call
+
+PM will create CP-T046 in the next session.
+
+---
+
+## PM Deliverables This Session
+
+- [x] CP-T034 pm_decision written to Iranti: accepted with deferred items
+- [x] `docs/roadmap.md` — CP-T034 status updated
+- [x] `docs/coordination/pm-phase2-session-2026-03-20.md` — this session record appended
+
+---
+
+## Open PM Actions (Carried Forward + New)
+
+1. Create CP-T046 — Provider Manager: Standalone View, Warning Thresholds, Health Warning Banner
+2. Receive and review CP-T042 (command palette inline help) completion report — in flight
+3. Receive and review CP-T032 (entity relationship graph) completion report — in flight
+4. Assign frontend_developer to CP-T042 / CP-T032 when current sprint finishes (or they are the same agent)
+5. Review CP-T020 (Embedded Chat Panel) ticket — not yet assessed
+6. Write `ticket/cp_t025 upstream_approval` when PM approves PR submission to upstream Iranti
+7. Review user_researcher competitor refresh (LangSmith + Langfuse) when complete
+8. Initiate design partner handoff sequence — v0.1.0 unblocked
