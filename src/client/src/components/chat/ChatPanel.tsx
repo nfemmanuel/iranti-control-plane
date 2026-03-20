@@ -1,11 +1,12 @@
 /* Iranti Control Plane — Embedded Chat Panel */
-/* CP-T020: Panel shell — stub UI, no live API calls yet. */
+/* CP-T020: Live chat wired to POST /api/control-plane/chat. */
 /* PM decisions applied:
  *   - Persistence: in-memory only (no server-side session storage)
- *   - Slash commands: static list of top 10 known commands
+ *   - Slash commands: static list of 13 confirmed commands from Iranti source
  *   - History: retained on view switch (per-tab, not per-view)
  *   - Breakpoint: panel overlays at < 1280px viewport width
  *   - Streaming: stretch goal — full-response rendering is AC
+ *   - SessionId: maintained in component state, passed to each request
  */
 
 import {
@@ -26,7 +27,7 @@ import styles from './ChatPanel.module.css'
 
 type MessageRole = 'user' | 'assistant'
 
-/** A retrieved memory block as returned by Iranti Chat (future, stubbed). */
+/** A retrieved memory block as returned by the chat backend (from Iranti attend). */
 interface MemoryBlock {
   entityType: string
   entityId: string
@@ -34,6 +35,25 @@ interface MemoryBlock {
   summary: string
   confidence: number
   source: string
+}
+
+/** Request body for POST /api/control-plane/chat */
+interface ChatRequest {
+  agentId: string
+  providerId?: string
+  modelId?: string
+  message: string
+  sessionId?: string
+}
+
+/** Response from POST /api/control-plane/chat */
+interface ChatResponse {
+  role: 'assistant'
+  content: string
+  retrievedFacts: MemoryBlock[]
+  sessionId: string
+  model: string
+  provider: string
 }
 
 interface ChatMessage {
@@ -58,21 +78,22 @@ const CHAT_PANEL_STORAGE_KEY = 'iranti_cp_chat_panel_open'
 
 const DEFAULT_AGENT_ID = 'operator'
 
+/** 13 slash commands confirmed from Iranti source (cp-t020-integration-findings.md). */
 const SLASH_COMMANDS: readonly string[] = [
   '/write',
   '/query',
+  '/queryAll',
+  '/history',
   '/search',
-  '/handshake',
-  '/attend',
   '/ingest',
-  '/observe',
   '/relate',
-  '/who_knows',
+  '/related',
+  '/resolve',
+  '/confidence',
   '/clear',
+  '/provider',
+  '/help',
 ]
-
-const STUB_RESPONSE =
-  'Chat integration pending backend confirmation. The backend_developer is investigating the Iranti Chat integration path (Option A: HTTP/SDK vs Option B: subprocess). Once the path is confirmed, this stub will be replaced with live responses.'
 
 /* ------------------------------------------------------------------ */
 /*  localStorage helpers                                                */
@@ -167,15 +188,25 @@ interface MemoryBlockCardProps {
 }
 
 function MemoryBlockCard({ block, onViewInExplorer }: MemoryBlockCardProps) {
+  // Confidence is a 0–1 float from Iranti; display as rounded percentage.
+  const confidencePct = `${Math.round(block.confidence * 100)}%`
+
   return (
     <div className={styles.memoryCard} aria-label={`Memory block: ${block.entityType}/${block.entityId}`}>
       <div className={styles.memoryCardHeader}>
-        <span className={styles.memoryCardEntity}>
-          {block.entityType}/{block.entityId}
+        <span className={styles.memoryCardEntityType} aria-label="Entity type">
+          {block.entityType}
         </span>
-        <span className={styles.memoryCardKey}>{block.key}</span>
-        <span className={styles.memoryCardConfidence} aria-label={`Confidence ${block.confidence}`}>
-          {block.confidence}
+        <span className={styles.memoryCardEntityId} aria-label="Entity ID">
+          {block.entityId}
+        </span>
+        <span className={styles.memoryCardKey} title={block.key}>{block.key}</span>
+        <span
+          className={styles.memoryCardConfidence}
+          aria-label={`Confidence ${confidencePct}`}
+          title={`Confidence: ${confidencePct}`}
+        >
+          {confidencePct}
         </span>
       </div>
       <p className={styles.memoryCardSummary}>{block.summary}</p>
@@ -363,6 +394,8 @@ export function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
+  /** Opaque session ID returned by the backend; passed on each subsequent request. */
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined)
 
   // ── Agent ID selector ─────────────────────────────────────────────
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID)
@@ -521,41 +554,78 @@ export function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
     setIsLoading(true)
 
     try {
-      // Stub: simulate 1s backend call, then show stub response
-      await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(resolve, 1000)
-        controller.signal.addEventListener('abort', () => {
-          clearTimeout(t)
-          reject(new DOMException('Aborted', 'AbortError'))
-        })
+      const requestBody: ChatRequest = {
+        agentId,
+        message: text,
+        ...(selectedProviderId != null ? { providerId: selectedProviderId } : {}),
+        ...(sessionId !== undefined ? { sessionId } : {}),
+      }
+
+      const res = await fetch('/api/control-plane/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody),
       })
 
-      if (!controller.signal.aborted) {
-        const assistantMsg: ChatMessage = {
-          id: nextMsgId(),
-          role: 'assistant',
-          content: STUB_RESPONSE,
-          memoryBlocks: [],
-          createdAt: new Date(),
+      if (!res.ok) {
+        let reason = `HTTP ${res.status}`
+        try {
+          const errBody = await res.json() as { error?: string; message?: string }
+          reason = errBody.error ?? errBody.message ?? reason
+        } catch {
+          // Body not JSON — fall back to status text
+          reason = res.statusText || reason
         }
-        setMessages(prev => [...prev, assistantMsg])
+        throw new Error(reason)
       }
+
+      const data = await res.json() as ChatResponse
+
+      // Persist sessionId for conversation continuity
+      if (data.sessionId) {
+        setSessionId(data.sessionId)
+      }
+
+      // Map retrievedFacts to MemoryBlock[] (shapes are identical)
+      const memoryBlocks: MemoryBlock[] = Array.isArray(data.retrievedFacts)
+        ? data.retrievedFacts
+        : []
+
+      const assistantMsg: ChatMessage = {
+        id: nextMsgId(),
+        role: 'assistant',
+        content: data.content,
+        memoryBlocks: memoryBlocks.length > 0 ? memoryBlocks : undefined,
+        createdAt: new Date(),
+      }
+      setMessages(prev => [...prev, assistantMsg])
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        // Cancelled by user — add a system note
+        // Cancelled by user — show inline note
         const cancelMsg: ChatMessage = {
           id: nextMsgId(),
           role: 'assistant',
-          content: '(Request cancelled)',
+          content: 'Message cancelled.',
           createdAt: new Date(),
         }
         setMessages(prev => [...prev, cancelMsg])
+      } else {
+        // Network or non-ok response error — show inline error
+        const reason = err instanceof Error ? err.message : 'Unknown error'
+        const errorMsg: ChatMessage = {
+          id: nextMsgId(),
+          role: 'assistant',
+          content: `Failed to send message — ${reason}. Try again.`,
+          createdAt: new Date(),
+        }
+        setMessages(prev => [...prev, errorMsg])
       }
     } finally {
       setIsLoading(false)
       abortControllerRef.current = null
     }
-  }, [inputValue, isLoading])
+  }, [inputValue, isLoading, agentId, selectedProviderId, sessionId])
 
   // ── Cancel handler ────────────────────────────────────────────────
   const handleCancel = () => {
@@ -567,6 +637,7 @@ export function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   // ── Clear handler ─────────────────────────────────────────────────
   const handleClear = () => {
     setMessages([])
+    setSessionId(undefined)
   }
 
   // ── View in Memory Explorer ───────────────────────────────────────
