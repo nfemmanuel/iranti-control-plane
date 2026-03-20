@@ -1199,6 +1199,24 @@ async function main() {
 
   intro('  Iranti Control Plane — Setup Wizard  ')
 
+  // B1: Fresh-install guard — detect existing instance configuration
+  const instanceExists = fs.existsSync(INSTANCE_JSON_PATH)
+
+  if (instanceExists) {
+    log.warning(
+      'An existing Iranti instance is already configured at ' + INSTANCE_JSON_PATH + '.\n' +
+      'Re-running setup will overwrite your provider keys and other settings.'
+    )
+    const shouldContinue = await confirm({
+      message: 'Continue anyway?',
+      initialValue: false,
+    })
+    if (isCancel(shouldContinue) || !shouldContinue) {
+      outro('Setup cancelled — your existing configuration was not changed.')
+      process.exit(0)
+    }
+  }
+
   console.log('  This wizard will guide you through 5 sections:')
   console.log('  1. System Checks')
   console.log('  2. Database Setup')
@@ -1239,18 +1257,19 @@ async function main() {
   writeLog()
 
   if (criticalFails.length === 0 && warnings.length === 0) {
-    outro(`Setup complete. Verbose log saved to: ${LOG_PATH}`)
+    outro(`Setup complete! Your Iranti Control Plane is ready.\n  Verbose log: ${LOG_PATH}`)
   } else if (criticalFails.length === 0) {
     outro(
-      `Setup complete with ${warnings.length} warning(s).\n` +
+      `Setup complete! Your Iranti Control Plane is ready (with ${warnings.length} warning(s)).\n` +
       `  Run 'npm run setup' again to address warnings.\n` +
       `  Verbose log: ${LOG_PATH}`
     )
   } else {
-    outro(
-      `Setup could not be fully completed (${criticalFails.length} critical issue(s)).\n` +
-      `  Verbose log: ${LOG_PATH}`
+    log.error(
+      `Setup could not be fully completed — ${criticalFails.length} critical issue(s) remain.\n` +
+      `  Check the log at ${LOG_PATH} for details.`
     )
+    outro(`Resolve the issues above and re-run: npm run setup`)
   }
 }
 
