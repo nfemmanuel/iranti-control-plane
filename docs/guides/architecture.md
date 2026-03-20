@@ -12,7 +12,7 @@ This document describes the structure and design principles of the Iranti Contro
   │                                                                 │
   │  ┌──────────────────┐       ┌───────────────────────────────┐  │
   │  │  Iranti Runtime  │       │  Control Plane Server         │  │
-  │  │  (port 3001)     │       │  (port 4000)                  │  │
+  │  │  (port 3001)     │       │  (port 3002)                  │  │
   │  │                  │       │                               │  │
   │  │  Librarian       │       │  Express API server           │  │
   │  │  Attendant       │       │  /api/control-plane/*         │  │
@@ -28,7 +28,7 @@ This document describes the structure and design principles of the Iranti Contro
   │  │  (port 5432)      │                                         │
   │  │                   │       ┌───────────────────────────────┐  │
   │  │  knowledge_base   │       │  Control Plane Frontend       │  │
-  │  │  archive          │       │  (served from port 4000)      │  │
+  │  │  archive          │       │  (Vite dev server, port 5173) │  │
   │  │  entity_          │       │                               │  │
   │  │    relationships  │       │  React SPA                    │  │
   │  │  staff_events     │       │  Memory Explorer              │  │
@@ -41,7 +41,7 @@ This document describes the structure and design principles of the Iranti Contro
   │                                             │                   │
   │                                             ▼                   │
   │                                        Browser                  │
-  │                                   http://localhost:4000         │
+  │                           http://localhost:5173 (dev)          │
   └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +57,7 @@ Iranti's runtime is already responsible for MCP serving, the Librarian, the Atte
 
 Instead, the control plane server is a lightweight Express application that connects to Iranti's existing PostgreSQL database as a read-only client. It:
 
-- runs on port `4000` by default (configurable via `PORT` in `.env`)
+- runs on port `3002` by default (configurable via `CONTROL_PLANE_PORT` in `.env`)
 - connects to PostgreSQL using the `DATABASE_URL` in its own `.env` file (typically the same value as Iranti's `.env.iranti`)
 - serves both the REST API (`/api/control-plane/`) and the compiled React frontend from the same process
 - requires no changes to the running Iranti runtime

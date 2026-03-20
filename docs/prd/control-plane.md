@@ -1,6 +1,8 @@
 # Iranti Control Plane PRD
 
-> **Document status as of 2026-03-20:** Phase 0 complete. Phase 1 **COMPLETE** — all 10 core tickets delivered and PM-accepted, all 5 P0 blocker tickets (CP-T026–T030) PM-accepted, CP-T031 conditionally accepted (Phase 1 single-backend architecture documented). v0.1.0 declared ready by PM. CI green. Phase 2 tickets written (CP-T020–T025, CP-T032–T035) and ready to start.
+> **Document status as of 2026-03-20:** Phase 0 complete. Phase 1 **COMPLETE** — all 10 core tickets delivered and PM-accepted, all 5 P0 blocker tickets (CP-T026–T030) PM-accepted, CP-T031 conditionally accepted (Phase 1 single-backend architecture documented). CP-T036 (Entity Detail + Temporal History Views) PM-accepted 2026-03-20 — CI green, all ACs passed. Phase 2 in progress.
+>
+> **⚠ v0.1.0 ON HOLD — CP-D001 P0 DEFECT:** QA seed testing (CP-T030) revealed that all SQL queries in `src/server/routes/control-plane/kb.ts` use snake_case column names but the Iranti Prisma DB uses camelCase. All data read paths (Memory Explorer, Archive Explorer, Entity Detail, Temporal History, Staff Activity Stream) fail on a live DB instance. Design partner handoff is blocked until CP-D001 fix is merged, CI is green, and QA regression passes (REG-001–REG-005). See `docs/tickets/cp-d001.md` for fix specification and v0.1.0 lift criteria.
 
 ## Problem
 

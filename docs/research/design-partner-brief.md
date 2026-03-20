@@ -48,12 +48,6 @@ The following actions are available in the current release. These are specific c
 **Instance and Project Manager:**
 - You can see all detected local Iranti instances with their runtime root path, database target, port, and active/inactive status.
 - You can see which projects are bound to each instance, with `.env.iranti` key completeness and Claude integration status for each binding.
-- You can run `iranti doctor` for a specific instance from the UI and see results without opening a terminal.
-
-**Getting Started screen (CP-T035):**
-- On first load (or if any setup step is incomplete), you see a guided Getting Started screen listing setup steps with their completion status.
-- Each incomplete step shows a plain-English description of what to do and why.
-- The shell header shows a setup badge when any step is incomplete.
 
 ---
 
@@ -85,7 +79,7 @@ Open the control plane connected to your personal instance. Find a fact specific
 Last week you rotated an API key for one of your instances. Without opening a terminal or editing a file, verify from the control plane that the key is correctly configured and the provider is reachable.
 
 **Task 3: Evaluate the onboarding story for a new team member.**
-Imagine you are onboarding a team member who has never set up Iranti. Walk through the Getting Started screen and Health dashboard as if showing them the setup. Is there enough guidance for someone who has never seen Iranti? What is missing?
+Imagine you are onboarding a team member who has never set up Iranti. Walk through the Health dashboard as if showing them the setup — what do the health check results tell them, and is the guidance actionable without the terminal? What is missing from the control plane for a new-user onboarding flow?
 
 ---
 
