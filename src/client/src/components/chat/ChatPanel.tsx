@@ -418,6 +418,23 @@ export function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   // ── Thread scroll ─────────────────────────────────────────────────
   const threadRef = useRef<HTMLDivElement>(null)
 
+  // ── Fetch env-defaults on mount (pre-populate agent ID) ──────────
+  useEffect(() => {
+    fetch('/api/control-plane/instances/local/env-defaults')
+      .then(res => {
+        if (!res.ok) return null
+        return res.json() as Promise<{ agentId: string | null }>
+      })
+      .then(data => {
+        if (data?.agentId) {
+          setAgentId(data.agentId)
+        }
+      })
+      .catch(() => {
+        // Non-fatal — fall back to DEFAULT_AGENT_ID silently
+      })
+  }, [])
+
   // ── Fetch providers on mount ──────────────────────────────────────
   useEffect(() => {
     setProvidersLoading(true)
