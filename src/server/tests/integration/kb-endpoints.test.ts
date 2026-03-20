@@ -420,9 +420,11 @@ describe('GET /entities/:entityType/:entityId/history/:key', () => {
     expect(b.entityType).toBe('agent')
     expect(b.entityId).toBe('test_agent_001')
     expect(b.key).toBe('current_assignment')
-    expect(Array.isArray(b.intervals)).toBe(true)
-    expect(typeof b.totalIntervals).toBe('number')
-    expect(b.totalIntervals).toBe((b.intervals as unknown[]).length)
+    // CP-T030: response must use current/history/hasHistory shape
+    expect(b).toHaveProperty('current')
+    expect(Array.isArray(b.history)).toBe(true)
+    expect(typeof b.hasHistory).toBe('boolean')
+    expect(b.hasHistory).toBe((b.history as unknown[]).length > 0)
   })
 
   it('HI-004: valueRaw is not truncated on the history endpoint (full value returned)', async () => {
@@ -435,14 +437,19 @@ describe('GET /entities/:entityType/:entityId/history/:key', () => {
     const { status, body } = await get(`/entities/${entityType}/${entityId}/history/${key}`)
     if (status !== 200) return
 
-    const intervals = (body as Record<string, unknown>).intervals as Record<string, unknown>[]
+    const b = body as Record<string, unknown>
     // On the history endpoint, valueRawTruncated should NOT be present (full value returned)
-    for (const interval of intervals) {
+    const current = b.current as Record<string, unknown> | null
+    if (current) {
+      expect(current).not.toHaveProperty('valueRawTruncated')
+    }
+    const history = b.history as Record<string, unknown>[]
+    for (const interval of history) {
       expect(interval).not.toHaveProperty('valueRawTruncated')
     }
   })
 
-  it('HI-006: providerSource field present (not source)', async () => {
+  it('HI-006: providerSource field present (not source) on history intervals', async () => {
     const { body: kbBody } = await get('/kb?limit=1')
     const items = (kbBody as Record<string, unknown>).items as Record<string, unknown>[]
     if (items.length === 0) return
@@ -451,9 +458,58 @@ describe('GET /entities/:entityType/:entityId/history/:key', () => {
     const { status, body } = await get(`/entities/${entityType}/${entityId}/history/${key}`)
     if (status !== 200) return
 
-    const intervals = (body as Record<string, unknown>).intervals as Record<string, unknown>[]
-    if (intervals.length > 0) {
-      expect(intervals[0]).toHaveProperty('providerSource')
+    const b = body as Record<string, unknown>
+    const current = b.current as Record<string, unknown> | null
+    if (current) {
+      expect(current).toHaveProperty('providerSource')
+    }
+    const history = b.history as Record<string, unknown>[]
+    if (history.length > 0) {
+      expect(history[0]).toHaveProperty('providerSource')
+    }
+  })
+
+  it('HI-007: archivedReason on history intervals is human-readable (not raw enum code)', async () => {
+    // Find an entity with archive rows — try seed entity first
+    const { body: kbBody } = await get('/kb?limit=10')
+    const items = (kbBody as Record<string, unknown>).items as Record<string, unknown>[]
+    if (items.length === 0) return
+
+    for (const item of items) {
+      const { entityType, entityId, key } = item as { entityType: string; entityId: string; key: string }
+      const { status, body } = await get(`/entities/${entityType}/${entityId}/history/${key}`)
+      if (status !== 200) continue
+      const history = (body as Record<string, unknown>).history as Record<string, unknown>[]
+      for (const interval of history) {
+        const reason = interval.archivedReason as string | null
+        if (reason !== null) {
+          // Must NOT be a bare raw code like 'superseded', 'contradicted', 'expired', 'decayed'
+          const rawCodes = ['superseded', 'contradicted', 'expired', 'decayed']
+          expect(rawCodes, `archivedReason "${reason}" is a raw enum code — must be human-readable`).not.toContain(reason)
+        }
+      }
+    }
+  })
+
+  it('HI-008: hasHistory is false when entity+key has no archived intervals', async () => {
+    // Find an entity+key that exists in KB but has no archive rows
+    // We scan the first few KB items and check for hasHistory: false
+    const { body: kbBody } = await get('/kb?limit=20')
+    const items = (kbBody as Record<string, unknown>).items as Record<string, unknown>[]
+    let foundNoHistory = false
+    for (const item of items) {
+      const { entityType, entityId, key } = item as { entityType: string; entityId: string; key: string }
+      const { status, body } = await get(`/entities/${entityType}/${entityId}/history/${key}`)
+      if (status !== 200) continue
+      const b = body as Record<string, unknown>
+      if (b.hasHistory === false) {
+        expect(b.history).toEqual([])
+        foundNoHistory = true
+        break
+      }
+    }
+    if (!foundNoHistory) {
+      console.warn('HI-008: All sampled KB items have archive history — could not verify hasHistory: false path')
     }
   })
 })

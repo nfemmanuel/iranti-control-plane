@@ -53,9 +53,11 @@ export interface HistoryInterval {
   validFrom: string | null
   validUntil: string | null
   archivedAt: string | null
+  /** Human-readable label — raw archive reason codes are mapped before leaving the backend. */
   archivedReason: string | null
   supersededBy: string | null
   resolutionState: string | null
+  conflictLog: Record<string, unknown> | null
   createdAt: string
 }
 

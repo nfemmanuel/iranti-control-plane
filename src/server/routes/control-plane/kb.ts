@@ -399,59 +399,74 @@ kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction)
 // GET /entities/:entityType/:entityId/history/:key  (must be registered before /:entityType/:entityId)
 // ---------------------------------------------------------------------------
 
+/**
+ * Maps raw archivedReason codes to human-readable labels before they reach the frontend.
+ * Unknown codes fall back to the raw code with an "(unknown reason)" suffix so that
+ * undocumented values in production data do not silently vanish or break the UI.
+ */
+const ARCHIVED_REASON_LABELS: Record<string, string> = {
+  superseded: 'Superseded by newer write',
+  contradicted: 'Contradicted by conflicting source',
+  expired: 'Expired (validUntil passed)',
+  decayed: 'Decayed by Archivist',
+}
+
+function labelArchivedReason(raw: string | null): string | null {
+  if (raw == null) return null
+  return ARCHIVED_REASON_LABELS[raw] ?? `${raw} (unknown reason)`
+}
+
 kbRouter.get(
   '/entities/:entityType/:entityId/history/:key',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { entityType, entityId, key } = req.params
 
-      // UNION ALL of knowledge_base and archive for this entity+key
-      const result = await query(
-        `
-        SELECT
-          id::text                  AS id,
-          'kb'                      AS source,
-          summary                   AS "valueSummary",
-          value_raw                 AS "valueRaw",
-          confidence,
-          agent_id                  AS "agentId",
-          source                    AS "providerSource",
-          valid_from                AS "validFrom",
-          valid_until               AS "validUntil",
-          NULL::timestamptz         AS "archivedAt",
-          NULL::text                AS "archivedReason",
-          NULL::text                AS "supersededBy",
-          NULL::text                AS "resolutionState",
-          created_at                AS "createdAt"
-        FROM knowledge_base
-        WHERE entity_type = $1 AND entity_id = $2 AND key = $3
+      // Run KB and archive queries in parallel for this entity+key.
+      // Keeping them separate lets us distinguish "current" from "archived" intervals
+      // cleanly and satisfy the { current, history, hasHistory } contract required by
+      // CP-T030 without relying on a source discriminator column.
+      const [kbResult, archiveResult] = await Promise.all([
+        query(
+          `SELECT
+            id::text                AS id,
+            summary                 AS "valueSummary",
+            value_raw               AS "valueRaw",
+            confidence,
+            agent_id                AS "agentId",
+            source                  AS "providerSource",
+            valid_from              AS "validFrom",
+            valid_until             AS "validUntil",
+            created_at              AS "createdAt"
+          FROM knowledge_base
+          WHERE entity_type = $1 AND entity_id = $2 AND key = $3
+          LIMIT 1`,
+          [entityType, entityId, key]
+        ),
+        query(
+          `SELECT
+            id::text                AS id,
+            summary                 AS "valueSummary",
+            value_raw               AS "valueRaw",
+            confidence,
+            agent_id                AS "agentId",
+            source                  AS "providerSource",
+            valid_from              AS "validFrom",
+            valid_until             AS "validUntil",
+            archived_at             AS "archivedAt",
+            archived_reason         AS "archivedReason",
+            superseded_by::text     AS "supersededBy",
+            resolution_state        AS "resolutionState",
+            conflict_log            AS "conflictLog",
+            created_at              AS "createdAt"
+          FROM archive
+          WHERE entity_type = $1 AND entity_id = $2 AND key = $3
+          ORDER BY valid_from DESC NULLS LAST, created_at DESC`,
+          [entityType, entityId, key]
+        ),
+      ])
 
-        UNION ALL
-
-        SELECT
-          id::text                  AS id,
-          'archive'                 AS source,
-          summary                   AS "valueSummary",
-          value_raw                 AS "valueRaw",
-          confidence,
-          agent_id                  AS "agentId",
-          source                    AS "providerSource",
-          valid_from                AS "validFrom",
-          valid_until               AS "validUntil",
-          archived_at               AS "archivedAt",
-          archived_reason           AS "archivedReason",
-          superseded_by::text       AS "supersededBy",
-          resolution_state          AS "resolutionState",
-          created_at                AS "createdAt"
-        FROM archive
-        WHERE entity_type = $1 AND entity_id = $2 AND key = $3
-
-        ORDER BY "validFrom" DESC NULLS LAST, "createdAt" DESC
-        `,
-        [entityType, entityId, key]
-      )
-
-      if (result.rows.length === 0) {
+      if (kbResult.rows.length === 0 && archiveResult.rows.length === 0) {
         throw createApiError(
           `No history found for ${entityType}/${entityId}/${key}`,
           'NOT_FOUND',
@@ -459,27 +474,55 @@ kbRouter.get(
         )
       }
 
-      const intervals: HistoryInterval[] = result.rows.map((row) => {
+      // Serialize the current KB fact (if it exists)
+      const currentRow = kbResult.rows.length > 0
+        ? (kbResult.rows[0] as Record<string, unknown>)
+        : null
+
+      const current = currentRow
+        ? {
+            id: String(currentRow.id),
+            valueSummary: (currentRow.valueSummary as string | null) ?? null,
+            valueRaw: serializeFullValueRaw(currentRow.valueRaw),
+            confidence: Number(currentRow.confidence ?? 0),
+            agentId: (currentRow.agentId as string | null) ?? null,
+            providerSource: (currentRow.providerSource as string | null) ?? null,
+            validFrom: toIso(currentRow.validFrom),
+            validUntil: toIso(currentRow.validUntil),
+            createdAt: toIso(currentRow.createdAt) ?? new Date(0).toISOString(),
+          }
+        : null
+
+      // Serialize archived intervals with human-readable archivedReason labels
+      const history: HistoryInterval[] = archiveResult.rows.map((row) => {
         const r = row as Record<string, unknown>
         return {
           id: String(r.id),
-          source: r.source as 'kb' | 'archive',
+          source: 'archive' as const,
           valueSummary: (r.valueSummary as string | null) ?? null,
-          valueRaw: serializeFullValueRaw(r.valueRaw),  // No truncation on history
+          valueRaw: serializeFullValueRaw(r.valueRaw),
           confidence: Number(r.confidence ?? 0),
           agentId: (r.agentId as string | null) ?? null,
           providerSource: (r.providerSource as string | null) ?? null,
           validFrom: toIso(r.validFrom),
           validUntil: toIso(r.validUntil),
           archivedAt: toIso(r.archivedAt),
-          archivedReason: (r.archivedReason as string | null) ?? null,
+          archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
           supersededBy: (r.supersededBy as string | null) ?? null,
           resolutionState: (r.resolutionState as string | null) ?? null,
+          conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
           createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
         }
       })
 
-      res.json({ entityType, entityId, key, intervals, totalIntervals: intervals.length })
+      res.json({
+        entityType,
+        entityId,
+        key,
+        current,
+        history,
+        hasHistory: history.length > 0,
+      })
     } catch (err) {
       next(err)
     }
