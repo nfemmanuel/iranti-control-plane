@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppShell } from './components/shell/AppShell'
 import { MemoryExplorer } from './components/memory/MemoryExplorer'
 import { ArchiveExplorer } from './components/memory/ArchiveExplorer'
+import { EntityDetail } from './components/memory/EntityDetail'
+import { TemporalHistory } from './components/memory/TemporalHistory'
 import { ActivityStream } from './components/stream/ActivityStream'
 import { InstanceManager } from './components/instances/InstanceManager'
 import { HealthDashboard } from './components/health/HealthDashboard'
@@ -60,8 +62,8 @@ createRoot(rootEl).render(
               <Route path="/" element={<AppShell />}>
                 <Route index element={<Navigate to="/health" replace />} />
                 <Route path="memory" element={<MemoryExplorer />} />
-                <Route path="memory/:entityType/:entityId" element={<PlaceholderView label="Entity Detail" />} />
-                <Route path="memory/:entityType/:entityId/:key" element={<PlaceholderView label="Temporal History" />} />
+                <Route path="memory/:entityType/:entityId" element={<EntityDetail />} />
+                <Route path="memory/:entityType/:entityId/:key" element={<TemporalHistory />} />
                 <Route path="archive" element={<ArchiveExplorer />} />
                 <Route path="activity" element={<ActivityStream />} />
                 <Route path="instances" element={<InstanceManager />} />

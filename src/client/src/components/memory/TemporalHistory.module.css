@@ -1,0 +1,572 @@
+/* Iranti Control Plane — Temporal History Styles */
+/* CP-T036. Terminals visual palette. Timeline of fact intervals. */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Header — breadcrumb + metadata
+   ────────────────────────────────────────────────────────────────── */
+
+.header {
+  flex-shrink: 0;
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: var(--space-3) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.breadcrumbLink {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.1s;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.breadcrumbLink:hover {
+  color: var(--color-accent-primary);
+}
+
+.breadcrumbSep {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.breadcrumbCurrent {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.entityTypePart {
+  color: var(--color-text-secondary);
+}
+
+.entitySepPart {
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.entityIdPart {
+  color: var(--color-text-primary);
+}
+
+.keyPart {
+  color: var(--color-accent-primary);
+}
+
+.headerMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.headerMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metaLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.metaValue {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+.metaValueBadge {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  display: inline-block;
+}
+
+.badgeYes {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+  border-color: var(--color-status-success);
+}
+
+.badgeNo {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-subtle);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Timeline region
+   ────────────────────────────────────────────────────────────────── */
+
+.timelineRegion {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: var(--space-6) var(--section-padding);
+}
+
+.timeline {
+  position: relative;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* Vertical line running through all interval dots */
+.timelineLine {
+  position: absolute;
+  left: 8px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  background: var(--color-border-subtle);
+  border-radius: 1px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Interval card
+   ────────────────────────────────────────────────────────────────── */
+
+.intervalCard {
+  position: relative;
+  margin-bottom: var(--space-4);
+  margin-left: 28px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  transition: border-color 0.1s;
+}
+
+.intervalCard:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Emerald accent border for the current/live fact */
+.intervalCardCurrent {
+  border-color: var(--color-accent-primary);
+  background: var(--color-bg-elevated);
+}
+
+.intervalCardCurrent::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  background: var(--color-accent-primary);
+  border-radius: var(--border-radius-md) 0 0 var(--border-radius-md);
+}
+
+.intervalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+}
+
+.intervalLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Timeline dot — positioned relative to the card, overlapping the line */
+.timelineDot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  border: 2px solid var(--color-bg-surface);
+  margin-top: 4px;
+  position: absolute;
+  left: -34px;
+  top: var(--space-4);
+}
+
+.timelineDot[data-current="true"] {
+  background: var(--color-accent-primary);
+  border-color: var(--color-bg-base);
+  width: 12px;
+  height: 12px;
+  left: -35px;
+}
+
+.intervalMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.intervalTopRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.currentBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-2);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-accent-primary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.confidence {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confidence[data-level="high"] {
+  color: var(--color-status-success);
+}
+
+.confidence[data-level="medium"] {
+  color: var(--color-status-warning);
+}
+
+.confidence[data-level="low"] {
+  color: var(--color-status-error);
+}
+
+.source {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.agent {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.valueSummary {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  margin: 0;
+  word-break: break-word;
+}
+
+.noValue {
+  font-style: italic;
+  color: var(--color-text-tertiary);
+}
+
+.intervalDates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dateItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dateLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.dateValue {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.dateSep {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.stillActive {
+  color: var(--color-accent-primary);
+  font-style: italic;
+}
+
+.archivedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.archivedReasonLabel {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.archivedReason {
+  font-size: 12px;
+  color: var(--color-status-warning);
+  font-family: var(--font-mono);
+}
+
+.archivedAt {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.supersededRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.supersededLabel {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.supersededId {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.expandToggle {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  padding-top: 4px;
+  transition: color 0.1s;
+}
+
+.intervalCard:hover .expandToggle {
+  color: var(--color-text-secondary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Raw JSON block
+   ────────────────────────────────────────────────────────────────── */
+
+.rawBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-4) var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.rawLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  display: block;
+  padding-top: var(--space-2);
+}
+
+.rawPre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.emptyIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading
+   ────────────────────────────────────────────────────────────────── */
+
+.loadingCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.errorIcon {
+  font-size: 28px;
+  color: var(--color-status-warning);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.errorTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.errorBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  max-width: 480px;
+  margin: 0;
+}
+
+.errorActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.ctaLink {
+  display: inline-flex;
+  align-items: center;
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ctaLink:hover {
+  background: var(--color-accent-subtle);
+}
+
+.retryButton {
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.retryButton:hover {
+  background: var(--color-status-warning-bg);
+}
+
+.backLink {
+  margin-top: var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+
+.backLink:hover {
+  color: var(--color-accent-primary);
+}

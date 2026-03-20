@@ -189,3 +189,47 @@ export interface InstanceListResponse {
   discoveredAt: string
   discoverySource: 'registry' | 'scan' | 'hybrid'
 }
+
+/* ------------------------------------------------------------------ */
+/*  Entity Detail                                                       */
+/* ------------------------------------------------------------------ */
+
+export interface EntityDetailResponse {
+  /** Always null in Phase 1 — entities table does not exist in current Iranti schema */
+  entity: null
+  currentFacts: KBFact[]
+  archivedFacts: ArchiveFact[]
+  relationships: Relationship[]
+}
+
+/* ------------------------------------------------------------------ */
+/*  Temporal History                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface HistoryInterval {
+  id: string
+  source: 'kb' | 'archive'
+  valueSummary: string | null
+  valueRaw: string | null
+  confidence: number
+  agentId: string | null
+  providerSource: string | null
+  validFrom: string | null
+  validUntil: string | null
+  archivedAt: string | null
+  /** Human-readable label — raw archive reason codes are mapped before leaving the backend */
+  archivedReason: string | null
+  supersededBy: string | null
+  resolutionState: string | null
+  conflictLog: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface TemporalHistoryResponse {
+  entityType: string
+  entityId: string
+  key: string
+  current: HistoryInterval | null
+  history: HistoryInterval[]
+  hasHistory: boolean
+}

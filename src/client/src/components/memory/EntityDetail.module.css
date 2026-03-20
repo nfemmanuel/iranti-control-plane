@@ -1,0 +1,525 @@
+/* Iranti Control Plane — Entity Detail Styles */
+/* CP-T036. Terminals visual palette. */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Header — breadcrumb + entity metadata
+   ────────────────────────────────────────────────────────────────── */
+
+.header {
+  flex-shrink: 0;
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: var(--space-3) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+
+.breadcrumbLink {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+
+.breadcrumbLink:hover {
+  color: var(--color-accent-primary);
+}
+
+.breadcrumbSep {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.breadcrumbCurrent {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.entityTypePart {
+  color: var(--color-text-secondary);
+}
+
+.entitySepPart {
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.entityIdPart {
+  color: var(--color-text-primary);
+}
+
+.entityMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.entityMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metaLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.metaValue {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+.metaValueMuted {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Tabs
+   ────────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0 var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  position: relative;
+  bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tabActive {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 18px;
+  padding: 0 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.tabActive .tabBadge {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Tab content
+   ────────────────────────────────────────────────────────────────── */
+
+.tabContent {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Table
+   ────────────────────────────────────────────────────────────────── */
+
+.tableWrapper {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+  table-layout: fixed;
+}
+
+.table thead th {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0 var(--space-3);
+  height: var(--table-header-height);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-default);
+  white-space: nowrap;
+}
+
+.table td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataRow {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dataRow:hover {
+  background: var(--color-bg-elevated);
+}
+
+.dataRowExpanded {
+  background: var(--color-accent-subtle);
+}
+
+.dataRowExpanded:hover {
+  background: var(--color-accent-subtle);
+}
+
+.cellKey {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.keyLink {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent-primary);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: color 0.1s;
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-border);
+  text-underline-offset: 2px;
+}
+
+.keyLink:hover {
+  color: var(--color-accent-hover);
+}
+
+.cellSummary {
+  color: var(--color-text-primary);
+}
+
+.summaryText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellConfidence {
+  text-align: right;
+  padding-right: var(--space-4);
+}
+
+.confidence {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confidence[data-level="high"] {
+  color: var(--color-status-success);
+}
+
+.confidence[data-level="medium"] {
+  color: var(--color-status-warning);
+}
+
+.confidence[data-level="low"] {
+  color: var(--color-status-error);
+}
+
+.cellMeta {
+  font-size: var(--table-meta-font-size);
+  color: var(--color-text-tertiary);
+}
+
+.cellMono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.cellArchivedReason {
+  font-size: 12px;
+  color: var(--color-status-warning);
+}
+
+.cellAction {
+  text-align: right;
+  padding-right: var(--space-3);
+}
+
+.historyLink {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.1s;
+  white-space: nowrap;
+}
+
+.historyLink:hover {
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Relationship cells
+   ────────────────────────────────────────────────────────────────── */
+
+.cellDirection {
+  white-space: nowrap;
+}
+
+.dirFrom {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-accent-primary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dirTo {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cellRelType {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.cellEntity {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.entityLink {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  transition: opacity 0.1s;
+}
+
+.entityLink:hover {
+  opacity: 0.8;
+}
+
+.entityType {
+  color: var(--color-text-secondary);
+}
+
+.entitySep {
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.entityIdText {
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading
+   ────────────────────────────────────────────────────────────────── */
+
+.loadingCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.errorIcon {
+  font-size: 28px;
+  color: var(--color-status-warning);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.errorTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.errorBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  max-width: 480px;
+  margin: 0;
+}
+
+.errorActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.ctaLink {
+  display: inline-flex;
+  align-items: center;
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ctaLink:hover {
+  background: var(--color-accent-subtle);
+}
+
+.retryButton {
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-warning);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.retryButton:hover {
+  background: var(--color-status-warning-bg);
+}
+
+.backLink {
+  margin-top: var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.1s;
+}
+
+.backLink:hover {
+  color: var(--color-accent-primary);
+}
