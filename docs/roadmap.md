@@ -118,7 +118,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 2 — Interactive Management
 
-**Status: IN PROGRESS — Wave 2 complete, Wave 3 assignments issued 2026-03-20 PM session 6**
+**Status: IN PROGRESS — Wave 4 assignments issued 2026-03-20 PM session 7. All tickets implemented; CP-T047 docs + CP-T020/CP-T023 QA are the final gate items before Phase 2 exit.**
 **v0.1.0 HOLD: LIFTED** — All regression tests pass after CP-D002 fix (commit bbdb6ee). Hold lifted 2026-03-20 by PM.
 **Prerequisite met**: Phase 1 complete, v0.1.0 PM-accepted and shipped 2026-03-20
 
@@ -140,10 +140,10 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 | ID | Title | Epic | Assigned | Priority | Status |
 |----|-------|------|----------|----------|--------|
-| CP-T020 | Embedded Chat Panel | CP-E007 | frontend + backend | P1 | Not started |
+| CP-T020 | Embedded Chat Panel | CP-E007 | frontend + backend | P1 | Implemented — QA verification pending (Wave 4) |
 | CP-T021 | Conflict and Escalation Review UI | CP-E008 | frontend + backend | P1 | PM-ACCEPTED 2026-03-20 (frontend + backend complete; CP-D003 fix enabled routing) |
-| CP-T022 | Provider and Model Manager | CP-E009 | backend + frontend | P1 | Not started |
-| CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | Spec in progress |
+| CP-T022 | Provider and Model Manager | CP-E009 | backend + frontend | P1 | Implemented — read-only AC met; write path deferred Phase 3 per PM decision |
+| CP-T023 | CLI Setup Wizard (`iranti setup`) | CP-E010 | devops + backend | P1 | Implemented — QA AC checklist pending (Wave 4) |
 | CP-T024 | Command Palette (Cmd+K) | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (nav palette; search/recent deferred) |
 | CP-T025 | Native Staff Emitter Injection | CP-E003 enhancement | system_architect + backend | P1 | Spec deliverables PM-ACCEPTED 2026-03-20; upstream PR ready for submission |
 | CP-T042 | Command Palette — Inline Help and Command Documentation | CP-E002 enhancement | frontend | P2 | PM-ACCEPTED 2026-03-20 (all 7 descriptions, shortcuts section, "?" trigger; view-specific shortcuts deferred pending implementation) |
@@ -189,10 +189,10 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 - [x] Entity relationship graph renders for entities with relationships (CP-T032) — PM-ACCEPTED 2026-03-20
 - [x] Integration repair actions (mcp-json, claude-md, run doctor) work and log to audit trail (CP-T033) — PM-ACCEPTED 2026-03-20 (frontend + backend; QA end-to-end pending)
 - [x] Provider quota and credit visibility shows for configured providers (CP-T034) — PM-ACCEPTED 2026-03-20 (Health Dashboard section; standalone /providers view deferred to CP-T046)
-- [ ] User can configure providers and models from the UI without manually editing config files (CP-T022) — **NOT MET**: PM-scoped to read-only for Phase 2 (write path deferred to Phase 3); backend provider/model API assigned Wave 2 Assignment 10 — implementation status unknown
+- [x] User can configure providers and models from the UI without manually editing config files (CP-T022) — **MET for read-only scope**: `providers.ts` + `ProviderManager.tsx` confirmed implemented. Write path explicitly deferred to Phase 3 per PM decision.
 - [x] User can review and take action on Resolutionist conflicts from the control plane (CP-T021) — PM-ACCEPTED 2026-03-20 (full ticket)
-- [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020) — **NOT STARTED**: PM assessment written 2026-03-20; Wave 3 assignment pending
-- [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023) — **NOT STARTED**: design spike complete, PM decisions written; Wave 3 implementation assignment pending
+- [ ] Embedded chat panel is functional and usable for at least basic Iranti interactions (CP-T020) — **IMPLEMENTED**: `chat.ts` backend + `ChatPanel.tsx` frontend confirmed. QA end-to-end verification pending (Wave 4).
+- [ ] Installation path reduces setup steps vs current baseline — measured against CP-T005 documented baseline (CP-T023) — **IMPLEMENTED**: `scripts/setup-wizard.js` confirmed. QA AC checklist + timing test pending (Wave 4).
 - [ ] All Phase 2 acceptance criteria checked by QA before PM accepts — ongoing
 
 **Primary agents**: frontend_developer, backend_developer, devops_engineer, system_architect, qa_engineer

@@ -1166,3 +1166,363 @@ Items remaining in "In Progress":
 **Step 5 — Report back to PM with:**
 - Updated section headings and row counts
 - Any inconsistencies found between the doc and actual shipped feature state
+
+---
+
+---
+
+# Wave 4 Assignments — 2026-03-20 (PM Session 7)
+
+**Issued by:** `product_manager`
+**Date:** 2026-03-20 (seventh session block)
+**Context:** Full Phase 2 ticket audit complete. Nearly all tickets are implemented and PM-accepted. Three items remain before Phase 2 exit criteria are fully met:
+1. CP-T047 (Documentation Round 5) — unassigned, now assigned to technical_writer
+2. CP-T020 (Embedded Chat Panel) — both frontend and backend are implemented; needs QA end-to-end verification
+3. CP-T023 (CLI Setup Wizard) — wizard script exists; needs QA timing test and full AC checklist run
+
+## Phase 2 Ticket Audit — 2026-03-20 Wave 4
+
+### Confirmed Done (all backend + frontend implemented and/or PM-accepted)
+
+| Ticket | Evidence | Status |
+|--------|----------|--------|
+| CP-T020 | `src/server/routes/control-plane/chat.ts` + `src/client/src/components/chat/ChatPanel.tsx` + route in `main.tsx` | Implemented — QA pending |
+| CP-T021 | `src/server/routes/control-plane/escalations.ts` + `ConflictReview.tsx` + `/conflicts` route | PM-ACCEPTED |
+| CP-T022 | `src/server/routes/control-plane/providers.ts` (all read-only AC met) + `ProviderManager.tsx` at `/providers` | Implemented — write path Phase 3 per PM decision |
+| CP-T023 | `scripts/setup-wizard.js` exists, all 5 sections implemented | Implemented — QA AC checklist pending |
+| CP-T024 | `CommandPalette.tsx` confirmed, all nav items | PM-ACCEPTED |
+| CP-T025 | Spec + diff files + upstream PR description complete | PM-ACCEPTED (spec deliverables); upstream PR pending external acceptance |
+| CP-T032 | `RelationshipGraphView.tsx` confirmed | PM-ACCEPTED |
+| CP-T033 | `repair.ts` with all 3 endpoints confirmed | PM-ACCEPTED |
+| CP-T034 | `ProviderStatus.tsx` in health components confirmed | PM-ACCEPTED |
+| CP-T035 | `GettingStarted.tsx` + `setup.ts` confirmed | PM-ACCEPTED |
+| CP-T036 | `EntityDetail.tsx` + `TemporalHistory.tsx` confirmed | PM-ACCEPTED |
+| CP-T037 | `ActivityStream.tsx` updated | PM-ACCEPTED |
+| CP-T039 | staff_events migration | PM-ACCEPTED |
+| CP-T040 | Release notes | PM-ACCEPTED |
+| CP-T041 | memory-explorer.md review | PM-ACCEPTED |
+| CP-T042 | Command palette shortcuts | PM-ACCEPTED |
+| CP-T046 | `ProviderManager.tsx` at `/providers` | PM-ACCEPTED |
+| CP-T047 | — | **Open — assigned Wave 4** |
+
+### Phase 3 Tickets (do not assign in this wave)
+
+- CP-T038 (Entity Aliases) — Phase 3 candidate 1
+- CP-T048 (Platform Installer Packages) — Phase 3
+- CP-T049, CP-T050 — Phase 3
+
+---
+
+## Wave 4 Status Summary
+
+| Agent | Assignment | Priority |
+|-------|-----------|----------|
+| technical_writer | CP-T047 (Documentation Round 5 — 3 ACs) | P2 |
+| qa_engineer | CP-T020 end-to-end verification + CP-T023 AC checklist | P1 |
+| product_manager | CP-T022 formal AC acceptance review (after qa_engineer confirms chat + wizard) | P1 |
+
+---
+
+## Assignment 17: `technical_writer` → CP-T047 Documentation Round 5
+
+**Ticket:** CP-T047 — Documentation Round 5: Getting Started Guide Polish
+**Priority:** P2
+**Phase:** 2, Wave 4
+**Dependencies:** None — pure documentation
+
+### Prompt for technical_writer
+
+You are the `technical_writer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "technical_writer"`, task: "CP-T047 Documentation Round 5 — getting-started.md polish: sidebar nav list, Entity Detail/Temporal History row descriptions, Getting Started first-run behaviors"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these files before starting:**
+- `docs/tickets/cp-t047.md` — the full ticket with 3 ACs. READ ALL THREE before writing anything.
+- `docs/guides/getting-started.md` — the file you are editing
+- `docs/protocols/development.md` — Steps 1–6 mandatory before marking done
+
+**Step 4 — Implement all three ACs from cp-t047.md:**
+
+**AC1 — Sidebar nav list update:**
+Find the "Opening the Control Plane" section in `docs/guides/getting-started.md`. The current list of sidebar nav items is incomplete. Update it to list all current sidebar items in order:
+Memory, Archive, Activity, Instances, Health, Conflicts, Providers, Getting Started
+
+**AC2 — Expand Entity Detail and Temporal History row descriptions:**
+In the "What's Available Now" table, find the Entity Detail and Temporal History rows. Expand their descriptions to:
+- Entity Detail: "Full entity page at `/memory/:entityType/:entityId` — all KB facts for the entity, metadata, confidence, source, and relationship graph tab"
+- Temporal History: "Per-key fact history at `/memory/:entityType/:entityId/:key` — timeline of KB and archive versions with confidence, validFrom/validUntil, and archivedReason"
+
+**AC3 — Getting Started / Onboarding row expansion:**
+Find the Getting Started row in the "What's Available Now" table. Update its description to mention:
+1. First-run auto-show: the screen appears automatically on first load when no setup completion flag exists
+2. Persistent shell header badge: "Setup incomplete — N steps remaining" badge in the header until all 4 steps are marked complete
+
+Add a prose note below the table if the row description alone is insufficient to convey both behaviors.
+
+**Step 5 — Explicit AC check:**
+Before marking done, check each AC item from `docs/tickets/cp-t047.md` explicitly. For each: is it met? If not, why not?
+
+**Step 6 — Protocol compliance:**
+- Follow `docs/protocols/development.md` Steps 1–6
+- No code changes — pure documentation task
+
+**Step 7 — Write to Iranti:**
+- `entity: ticket/cp_t047`, `key: status` — "completed" with AC check
+- `entity: agent/technical_writer`, `key: wave4_docs_round5` — summary of changes made
+
+**Step 8 — Report back to PM with:**
+- All 3 ACs: met or not met, with evidence
+- Any inconsistencies found in the getting-started.md during this pass
+- Confirmation that the file accurately reflects the current sidebar nav and feature state
+
+---
+
+## Assignment 18: `qa_engineer` → CP-T020 End-to-End + CP-T023 AC Checklist
+
+**Tickets:** CP-T020 (Embedded Chat Panel — end-to-end QA), CP-T023 (CLI Setup Wizard — AC checklist)
+**Priority:** P1
+**Phase:** 2, Wave 4
+**Dependencies:** Server running at localhost:3002, Iranti running at localhost:3001
+
+### Prompt for qa_engineer
+
+You are the `qa_engineer` for the Iranti Control Plane project.
+
+**Step 1 — Handshake:**
+Call `iranti_handshake` with `agent: "qa_engineer"`, task: "Wave 4 QA: CP-T020 embedded chat end-to-end verification + CP-T023 CLI wizard AC checklist"
+
+**Step 2 — Use `iranti_attend` before every turn.**
+
+**Step 3 — Read these tickets before starting:**
+- `docs/tickets/cp-t020.md` — all 12 acceptance criteria
+- `docs/tickets/cp-t023.md` — all 10 acceptance criteria
+- `docs/protocols/development.md` — mandatory protocol steps
+
+**Step 4 — CP-T020 End-to-End Verification:**
+
+The chat panel backend is at `src/server/routes/control-plane/chat.ts`. The frontend is at `src/client/src/components/chat/ChatPanel.tsx`. Both are implemented. Your job is to verify the full round-trip.
+
+Test each AC from cp-t020.md explicitly:
+
+1. Panel opens/closes from any view without navigating away
+2. Panel open/close state persists in localStorage across page reload
+3. Agent ID selector defaults to IRANTI_AGENT_ID env var if present
+4. Provider/model selector shows at least the current default provider
+5. Slash command palette triggers on `/` prefix — verify at least 5 commands appear
+6. A sent message receives a response in the conversation thread (this requires Iranti to be running at localhost:3001)
+7. Retrieved memory blocks (if any) render as structured cards with entity, key, summary, confidence, source
+8. "View in Memory Explorer" link navigates main content area correctly with panel remaining open
+9. Session history persists until Clear or tab close
+10. Clear button works with inline confirmation — panel stays open
+11. Loading/in-flight state: input disabled, cancel mechanism exists
+12. TypeScript compiles without errors — run `cd src/client && npx tsc --noEmit`
+
+**If Iranti is not running at localhost:3001:** Document this as a QA environment blocker. Check the chat endpoint's error handling — it should return a structured error, not crash. Test the panel's error state (should show an error message inline, not a blank panel).
+
+**Step 5 — CP-T023 AC Checklist:**
+
+The wizard is at `scripts/setup-wizard.js`. Run `node scripts/setup-wizard.js` and check each AC:
+
+1. Entry point runs — does `npm run setup` or `node scripts/setup-wizard.js` launch the wizard?
+2. Time the run on macOS in a simulated fresh-install scenario — target < 3 minutes from launch to "Setup complete"
+3. Top 3 CP-T005 failure points — are they addressed? Read `docs/specs/installer-concept.md` to identify the failure points, then verify each is handled by a specific wizard step
+4. Setup ends with health verification step showing all critical system component statuses
+5. `~/.iranti/instances/local/instance.json` created on successful completion
+6. Re-running shows a startup warning ("An existing Iranti instance is already configured")
+7. Windows: if you have Windows access, run and verify the wizard doesn't crash. If not, note this as unverified.
+8. API keys use hidden input mode — confirm `@clack/prompts` text input is using the `obscure: true` option for key entry
+9. Verbose log written to `~/.iranti/setup-log-[timestamp].txt` after every run
+10. Ctrl+C exits gracefully with no partial env file writes
+
+**For items that cannot be tested in a CI/dev environment (e.g., full macOS fresh install with no DB), note them explicitly as "manual verification required" rather than skipping.**
+
+**Step 6 — Write to Iranti:**
+- `entity: ticket/cp_t020`, `key: qa_verification_result` — AC check results with pass/fail per item
+- `entity: ticket/cp_t023`, `key: qa_verification_result` — AC check results with pass/fail per item
+- `entity: ticket/cp_t020`, `key: qa_verdict` — overall: PASS, PASS_WITH_NOTES, or FAIL with blockers
+- `entity: ticket/cp_t023`, `key: qa_verdict` — overall: PASS, PASS_WITH_NOTES, or FAIL with blockers
+
+**Step 7 — Report back to PM with:**
+- CP-T020: AC check per item, overall verdict, any blockers requiring PM decision
+- CP-T023: AC check per item, overall verdict, items needing manual verification on clean macOS
+- TypeScript compilation status for client
+- Any new defects found (create defect tickets if critical)
+
+---
+
+## Phase 2 Exit Path
+
+After Wave 4 completes:
+
+1. CP-T047 accepted by PM → docs exit criterion met
+2. CP-T020 QA passes → PM accepts CP-T020 → embedded chat exit criterion met
+3. CP-T023 QA passes → PM accepts CP-T023 → CLI wizard exit criterion met
+4. PM retrospective written → Phase 2 declared complete
+5. Phase 3 scope confirmed → CP-T038 (Entity Aliases) elevated as Phase 3 Candidate 1
+
+The only remaining Phase 2 exit criterion that is structural (not ticket-gated) is CP-T025 upstream PR acceptance — which is external to this repo and does not block Phase 2 declaration. It will be tracked as an ongoing open item into Phase 3.
+
+---
+
+---
+
+# Wave 5 Assignments — 2026-03-20 (PM Session 8)
+
+**Issued by:** `product_manager`
+**Date:** 2026-03-20 (eighth session block)
+**Context:** Wave 4 QA returned CONDITIONAL PASS verdicts on CP-T020 and CP-T023. CP-T047 is formally accepted. Wave 5 closes out the two remaining fix items before Phase 2 can be declared.
+
+## Wave 4 Outcomes — PM Decisions
+
+| Ticket | QA Verdict | PM Decision | Status |
+|--------|-----------|-------------|--------|
+| CP-T047 | PASS (all 3 ACs confirmed) | **ACCEPTED** 2026-03-20 | Done |
+| CP-T020 | CONDITIONAL PASS | Fix required (AC3 env-defaults + AC6 manual) — see below | Fix assigned |
+| CP-T023 | CONDITIONAL PASS | Fix required (line 1160 warnings bug) + 2 ACs manual verification | Fix assigned |
+
+## Updated Phase 2 Ticket Audit — Wave 5
+
+| Ticket | Status |
+|--------|--------|
+| CP-T020 | Fix in progress (env-defaults endpoint + frontend mount fetch) — QA re-verify after fix |
+| CP-T021 | PM-ACCEPTED |
+| CP-T022 | PM-ACCEPTED (read-only; write path Phase 3) |
+| CP-T023 | Fix in progress (line 1160 warnings filter) + manual macOS timing/failure-scenario pending |
+| CP-T024 | PM-ACCEPTED |
+| CP-T025 | PM-ACCEPTED (spec deliverables); upstream PR pending external acceptance |
+| CP-T032 | PM-ACCEPTED |
+| CP-T033 | PM-ACCEPTED |
+| CP-T034 | PM-ACCEPTED |
+| CP-T035 | PM-ACCEPTED |
+| CP-T036 | PM-ACCEPTED |
+| CP-T037 | PM-ACCEPTED |
+| CP-T039 | PM-ACCEPTED |
+| CP-T040 | PM-ACCEPTED |
+| CP-T041 | PM-ACCEPTED |
+| CP-T042 | PM-ACCEPTED |
+| CP-T046 | PM-ACCEPTED |
+| CP-T047 | **PM-ACCEPTED** 2026-03-20 |
+
+## Phase 2 Exit Gate Status
+
+| Gate | Status |
+|------|--------|
+| CP-T047 docs exit criterion | MET — accepted 2026-03-20 |
+| CP-T020 embedded chat | PENDING — fix assigned to backend_developer + frontend_developer |
+| CP-T023 CLI wizard | PENDING — fix assigned to devops_engineer + manual macOS verification |
+| CP-T025 upstream PR | EXTERNAL — does not block Phase 2 declaration |
+| PM retrospective | Not yet written — pending CP-T020 and CP-T023 final acceptance |
+
+---
+
+## Assignment 19: `backend_developer` → CP-T020 env-defaults endpoint fix
+
+**Priority:** P1 — blocks CP-T020 final acceptance
+**Estimated time:** 1 hour
+
+### Fix specification
+
+AC3 of CP-T020 states: "The dropdown defaults to `IRANTI_AGENT_ID` from the active instance's env if present." The current implementation has `getDefaultAgentId()` on the server but the frontend always sends `agentId: 'operator'` (hardcoded `DEFAULT_AGENT_ID`), bypassing the server-side default entirely.
+
+**What to implement:**
+
+Add a new route:
+```
+GET /api/control-plane/instances/:instanceId/env-defaults
+```
+
+Response shape:
+```typescript
+interface EnvDefaults {
+  agentId: string | null;  // value of IRANTI_AGENT_ID from the instance env, or null if not set
+}
+```
+
+Implementation notes:
+- Reuse the existing `env` object loaded in `chat.ts` (the dotenv-parsed instance env). The logic is: `return { agentId: env['IRANTI_AGENT_ID'] ?? null }`.
+- The `instanceId` param can be validated against the known instance. If the instance is not found, return 404.
+- This endpoint does NOT expose full env contents — only the specific key needed for UI pre-population.
+- Place the route in `src/server/routes/control-plane/setup.ts` (alongside the setup-status route) or a new small `env-defaults.ts` file.
+- Wire it in the control-plane router (`index.ts` or equivalent).
+
+**Protocol compliance:**
+- `cd src/server && npx tsc --noEmit` must exit 0
+- Write to Iranti: `entity: ticket/cp_t020`, `key: env_defaults_fix_status` — "complete" with commit SHA
+
+**Report back to PM with:** endpoint implemented, TypeScript clean, route wired.
+
+---
+
+## Assignment 20: `frontend_developer` → CP-T020 ChatPanel agent ID mount fetch
+
+**Priority:** P1 — depends on Assignment 19 (env-defaults endpoint)
+**Estimated time:** 30–45 minutes
+
+### Fix specification
+
+After the backend_developer has committed the env-defaults endpoint:
+
+In `src/client/src/components/chat/ChatPanel.tsx`:
+
+1. Remove (or keep as fallback) `const DEFAULT_AGENT_ID = 'operator'` — keep it as the fallback value.
+2. Add a `useEffect` that fires once on component mount:
+   - Fetches `GET /api/control-plane/instances/:instanceId/env-defaults`
+   - If the response returns a non-null `agentId`, calls `setAgentId(response.agentId)` to pre-populate the field
+   - If the fetch fails or returns null, the field remains at `DEFAULT_AGENT_ID = 'operator'`
+   - The fetch should be non-blocking — do not show a loading state for this pre-population; it should update the field silently
+3. The `instanceId` for the URL: use whatever mechanism the rest of the app uses to determine the active instance (check how other components reference the instance ID).
+
+**Protocol compliance:**
+- `cd src/client && npx tsc --noEmit` must exit 0
+- No `any` types introduced
+- Write to Iranti: `entity: ticket/cp_t020`, `key: frontend_agent_id_fix_status` — "complete" with commit SHA
+
+**Report back to PM with:** fix committed, TypeScript clean, behavior description.
+
+---
+
+## Assignment 21: `devops_engineer` → CP-T023 warnings filter fix + macOS manual verification
+
+**Priority:** P1 — blocks CP-T023 final acceptance
+**Estimated time:** 15 minutes for fix + manual macOS run
+
+### Fix specification
+
+In `scripts/setup-wizard.js`, line 1160:
+
+**Current:**
+```js
+const warnings = checks.filter(c => c.warning || (!c.ok && c.warning !== false))
+```
+
+**Fix:**
+```js
+const warnings = checks.filter(c => c.warning === true)
+```
+
+**Why:** The original condition incorrectly counts checks where `c.warning` is `undefined` and `c.ok` is `false` as warnings (`undefined !== false` evaluates to `true`). These checks are critical failures, not warnings. The fix uses strict equality to count only checks explicitly flagged as warnings.
+
+After committing the fix:
+
+**Manual macOS verification required (cannot be done statically):**
+1. AC2 — Time a simulated fresh-install run on real macOS. Start the wizard with Node installed, PostgreSQL installed but no Iranti DB. Record time from wizard launch to "Setup complete". Confirm under 3 minutes.
+2. AC3 — Simulate one of the top 3 CP-T005 failure points (e.g., PostgreSQL not running). Confirm the wizard detects it, shows guided remediation, and does not crash.
+
+Document results and write to Iranti:
+- `entity: ticket/cp_t023`, `key: warnings_fix_status` — "complete" with commit SHA
+- `entity: ticket/cp_t023`, `key: manual_verification_result` — timing result and failure-scenario test outcome
+
+**Report back to PM with:** fix committed, AC2 timing confirmed, AC3 failure scenario result.
+
+---
+
+## Post-fix QA
+
+After Assignments 19+20 are committed: `qa_engineer` re-verifies CP-T020 AC3 (agent ID pre-population with a custom IRANTI_AGENT_ID in env) and AC6 (live send/receive on real Iranti at localhost:3001).
+
+After Assignment 21 is committed: PM reviews the manual verification report and formally accepts CP-T023.
+
+Once both are accepted, PM writes the Phase 2 retrospective and declares v0.2.0-beta.
