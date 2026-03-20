@@ -338,6 +338,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
+/* CP-T020: Wrapper for chat toggle + theme toggle in sidebar footer */
+.sidebarFooterActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 /* CP-T027: API connection status indicator */

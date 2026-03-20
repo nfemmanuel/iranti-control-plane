@@ -8,6 +8,7 @@ import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-do
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSetupStatus } from '../onboarding/GettingStarted'
 import { CommandPalette, useCommandPalette } from './CommandPalette'
+import { ChatPanel, ChatToggleButton, loadPanelOpen } from '../chat/ChatPanel'
 import styles from './AppShell.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -284,6 +285,28 @@ export function AppShell() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const { open: isPaletteOpen, openPalette, closePalette } = useCommandPalette()
 
+  // CP-T020: Chat panel open/close state — persisted in localStorage
+  const [chatOpen, setChatOpen] = useState<boolean>(loadPanelOpen)
+  const handleChatToggle = () => {
+    setChatOpen(prev => {
+      const next = !prev
+      try {
+        localStorage.setItem('iranti_cp_chat_panel_open', String(next))
+      } catch {
+        // non-fatal
+      }
+      return next
+    })
+  }
+  const handleChatClose = () => {
+    setChatOpen(false)
+    try {
+      localStorage.setItem('iranti_cp_chat_panel_open', 'false')
+    } catch {
+      // non-fatal
+    }
+  }
+
   // Apply persisted theme on mount
   useEffect(() => {
     applyTheme(theme)
@@ -374,18 +397,22 @@ export function AppShell() {
           })}
         </nav>
 
-        {/* Footer: API connection status + theme toggle */}
+        {/* Footer: API connection status + chat toggle + theme toggle */}
         <div className={styles.sidebarFooter}>
           {/* CP-T027: Shell-level connection status indicator */}
           <ApiConnectionIndicator />
-          <button
-            className={styles.themeToggle}
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            <span aria-hidden="true">{theme === 'dark' ? '◑' : '◐'}</span>
-          </button>
+          <div className={styles.sidebarFooterActions}>
+            {/* CP-T020: Chat panel toggle */}
+            <ChatToggleButton isOpen={chatOpen} onClick={handleChatToggle} />
+            <button
+              className={styles.themeToggle}
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              <span aria-hidden="true">{theme === 'dark' ? '◑' : '◐'}</span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -419,14 +446,12 @@ export function AppShell() {
         />
       )}
 
-      {/* ── Phase 2 Chat Panel slot ───────────────────────────────── */}
-      {/* Width: 0, display: none in Phase 1. Layout refactor deferred to Phase 2. */}
-      {/* aria-hidden: true ensures screen readers skip this empty region. */}
-      <aside
-        className={styles.chatPanelSlot}
-        aria-hidden="true"
-        data-phase="2"
-        style={{ display: 'none' }}
+      {/* ── CP-T020: Embedded Chat Panel ─────────────────────────── */}
+      {/* 380px wide at ≥ 1280px (renders alongside main content). */}
+      {/* Overlays at < 1280px. Open/close persisted to localStorage. */}
+      <ChatPanel
+        isOpen={chatOpen}
+        onClose={handleChatClose}
       />
     </div>
   )
