@@ -74,13 +74,17 @@ function validateEventFilters(queryParams: Record<string, unknown>): EventFilter
   const since = queryParams.since as string | undefined
   const until = queryParams.until as string | undefined
 
-  if (staffComponent && !VALID_COMPONENTS.includes(staffComponent)) {
-    throw createApiError(
-      `Invalid staffComponent: ${staffComponent}`,
-      'INVALID_PARAM',
-      400,
-      { field: 'staffComponent', allowedValues: VALID_COMPONENTS, received: staffComponent }
-    )
+  if (staffComponent) {
+    const components = staffComponent.split(',').map(s => s.trim()).filter(Boolean)
+    const invalid = components.filter(c => !VALID_COMPONENTS.includes(c))
+    if (invalid.length > 0) {
+      throw createApiError(
+        `Invalid staffComponent value(s): ${invalid.join(', ')}`,
+        'INVALID_PARAM',
+        400,
+        { field: 'staffComponent', allowedValues: VALID_COMPONENTS, received: staffComponent }
+      )
+    }
   }
 
   if (!VALID_LEVELS.includes(level)) {
@@ -344,8 +348,14 @@ eventsRouter.get('/stream', async (req: Request, res: Response, next: NextFuncti
       const extraClauses: string[] = []
 
       if (filters.staffComponent) {
-        params.push(filters.staffComponent)
-        extraClauses.push(`AND staff_component = $${params.length}`)
+        const components = filters.staffComponent.split(',').map(s => s.trim()).filter(Boolean)
+        if (components.length === 1) {
+          params.push(components[0])
+          extraClauses.push(`AND staff_component = $${params.length}`)
+        } else if (components.length > 1) {
+          const placeholders = components.map(c => { params.push(c); return `$${params.length}` })
+          extraClauses.push(`AND staff_component IN (${placeholders.join(', ')})`)
+        }
       }
       if (filters.actionType) {
         params.push(filters.actionType)
