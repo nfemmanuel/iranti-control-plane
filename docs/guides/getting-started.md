@@ -8,19 +8,26 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ---
 
-## What's Available Now (Phase 1 Complete)
+## What's Available Now
 
-The control plane shipped Phase 1 in full. The following views are functional as of 2026-03-20:
+The following views are functional as of 2026-03-20:
 
 | View | What it does |
 |---|---|
 | **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. |
 | **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. |
-| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — current facts, archived facts, and relationships in one view. |
-| **Temporal History** | Fact history timeline at `/memory/:entityType/:entityId/:key` — every historical interval for an entity+key, newest first, with full raw JSON. |
-| **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, pauseable, real-time via SSE. |
+| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` (Phase 2 — CP-T036) |
+| **Temporal History** | Fact history timeline at `/memory/:entityType/:entityId/:key` (Phase 2 — CP-T036) |
+| **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
 | **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, and runtime version. |
 | **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
+| **Getting Started / Onboarding** | First-run setup status at `/getting-started` with 4-step checklist (Phase 2 — CP-T035) |
+| **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
+| **Conflict and Escalation Review** | Review and resolve Resolutionist escalations at `/conflicts` (Phase 2 — CP-T021) |
+| **Provider Status** | Provider key presence, reachability, and model list in Health Dashboard (Phase 2 — CP-T034) |
+| **Provider Manager** | Standalone provider management at `/providers` — reachability history, warning thresholds (Phase 2 — CP-T046) |
+| **Entity Relationship Graph** | Interactive radial graph in the Entity Detail Relationships tab — depth 1 or 2, click to navigate (Phase 2 — CP-T032) |
+| **Command Palette** | Global Cmd+K / Ctrl+K palette for navigation and inline shortcuts help (Phase 2 — CP-T024/CP-T042) |
 
 ---
 
@@ -254,24 +261,17 @@ Run `npm run migrate` from the project root. This creates the `staff_events` tab
 
 ---
 
-## What's Coming in Phase 2
+## Phase 2 — In Progress
 
-Phase 2 is currently in progress as of 2026-03-20. The following features are not yet available:
+Phase 2 is currently in progress as of 2026-03-20. The following features are actively being developed or are pending:
 
 | Feature | Ticket | Status |
 |---|---|---|
-| **Getting Started / First-Run Onboarding Screen** | CP-T035 | Shipped — pending QA end-to-end verification |
-| **Integration Repair Actions** (regenerate `.mcp.json`, update `CLAUDE.md`, run doctor) | CP-T033 | Shipped — pending QA end-to-end verification |
-| **Entity Relationship Graph View** | CP-T032 | Shipped |
-| **Command Palette** (Cmd+K) | CP-T024 | Shipped — CP-T042 |
-| **Activity Stream Live Mode** (velocity counter, hover-pause, status badge) | CP-T037 | Shipped |
-| **Embedded Chat Panel** | CP-T020 | Open |
-| **Conflict and Escalation Review** | CP-T021 | Open |
-| **Provider and Model Manager** | CP-T022 | Open |
-| **CLI Setup Wizard** (`iranti setup`) | CP-T023 | Open |
-| **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Open |
-| **Full-text search** (tsvector-based, replacing substring matching) | — | Phase 2 |
-| **Entity aliases** | — | Phase 2 (pending upstream schema) |
+| **Embedded Chat Panel** | CP-T020 | In progress — panel shell in development |
+| **Provider and Model Manager write path** | CP-T022 | Phase 3 — read-only provider status already shipped (CP-T034/CP-T046) |
+| **CLI Setup Wizard** (`iranti setup`) | CP-T023 | In progress |
+| **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Upstream PR pending — enables live Attendant + Resolutionist events |
+| **Entity Detail + Temporal History** | CP-T036 | In progress — frontend |
 
 **Note on the Staff Activity Stream:** The live mode UI (status badge, velocity counter, hover-pause) has shipped in Phase 2 (CP-T037). Event coverage for all four Staff components remains partial: Librarian and Archivist events are emitted; Attendant and Resolutionist events will not appear until native emitter injection ships (CP-T025). The stream UI labels this limitation explicitly.
 
