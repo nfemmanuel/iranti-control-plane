@@ -36,7 +36,7 @@ The filter bar sits at the top of the Memory Explorer. Each filter narrows the r
 | **Source** | Filter by the source label of the write. Common values: `mcp`, `api`, `cli`, `claude_code`. |
 | **Created By** | Filter by the agent ID that wrote the fact. |
 | **Min Confidence** | Show only facts at or above this confidence level (0–100). Use 90 to see only high-confidence facts; use 0 to see everything. |
-| **Search** | Full-text search across fact values and summaries. Uses substring matching in Phase 1 — search for `in_progress` to find any fact whose value or summary contains that string. |
+| **Search** | Substring search across fact values and summaries. Uses `ILIKE %term%` matching — search for `in_progress` to find any fact whose value or summary contains that string. Full-text ranked search is Phase 2 (see [Known Issues KI-004](../reference/known-issues.md#ki-004----search-uses-ilike-substring-matching-only)). |
 
 Filters combine with AND logic: if you set Entity Type to `agent` and Min Confidence to 80, you see only agent facts with confidence 80 or higher.
 
@@ -100,7 +100,7 @@ The Archive tab supports the same filter bar as the main Memory tab, plus additi
 
 ## Entity Detail View
 
-Click the entity identifier (e.g., `agent/product_manager`) in any row to open the entity detail page. This is the fastest way to answer: "What does Iranti currently believe about this entity?"
+To open the entity detail page, expand any row (click it) and click the **"View Related Entities →"** button in the expanded row actions. This is the fastest way to answer: "What does Iranti currently believe about this entity?"
 
 The entity detail page shows:
 
@@ -108,9 +108,11 @@ The entity detail page shows:
 - **Archived Facts** — all archived entries for this entity, ordered by `validFrom` descending, giving you the complete timeline.
 - **Relationships** — all `entity_relationships` entries where this entity appears as either the source or target.
 
+You can also navigate to an entity detail page directly from the Memory Explorer expanded row by clicking **"View History"** — this takes you to the Temporal History view for that specific entity+key pair (see below). The "View Related Entities →" button takes you to the full entity detail page for all facts about that entity.
+
 ### Temporal History
 
-Within the entity detail page, click any key name to open the **key history view**. This shows the complete temporal history for one `entity + key` pair — every version ever written, in order from newest to oldest.
+Within the entity detail page, click any key name to open the **key history view**. You can also click **"View History"** in a Memory Explorer expanded row to go directly to the history for that fact's entity+key. This view shows the complete temporal history for one `entity + key` pair — every version ever written, in order from newest to oldest.
 
 Each interval in the history shows:
 - **validFrom** — when this version became the current value
@@ -141,12 +143,12 @@ The standalone Relationships view (accessible from the sidebar) shows the global
 
 ## Phase 1 Known Limitations
 
-The following limitations apply in Phase 1 and are accepted scope boundaries — not bugs:
+The following limitations apply in Phase 1 and are accepted scope boundaries — not bugs. See [`docs/reference/known-issues.md`](../reference/known-issues.md) for the complete known-issues list with severities, workarounds, and Phase 2 fix references.
 
 **No alias lookup.** Iranti does not currently have an `entity_aliases` table. There is no way to search for an entity by an alternate name or display name. To find facts about a specific entity, you must know its exact `entityType` and `entityId`. For example, to find facts about the product manager agent, you must filter by `entityType=agent` and `entityId=product_manager` — searching for "PM" or "product manager" by name will not work.
 
-**Entity field is always null in the entity detail view.** The control plane spec includes an `EntityRecord` field in the entity detail response that would carry a canonical `displayName` for the entity. In Phase 1 this field is always `null` because Iranti's current schema does not have an `entities` table. Entity display always uses the raw `entityType/entityId` string.
+**Entity field is always null in the entity detail view.** The control plane spec includes an `EntityRecord` field in the entity detail response that would carry a canonical `displayName` for the entity. In Phase 1 this field is always `null` because Iranti's current schema does not have an `entities` table. Entity display always uses the raw `entityType/entityId` string. See [KI-002](../reference/known-issues.md#ki-002----entity-field-always-null-in-entity-detail-response) in the known-issues doc.
 
-**Search uses substring matching.** The `search` filter uses `ILIKE %term%` matching against value text and summaries. It is not full-text ranked search. For long or complex values, you may see unexpected matches or miss relevant results. Full-text search (tsvector-based) is planned for Phase 2.
+**Search uses substring matching.** The `search` filter uses `ILIKE %term%` matching against value text and summaries. It is not full-text ranked search. For long or complex values, you may see unexpected matches or miss relevant results. Full-text search (tsvector-based) is planned for Phase 2. See [KI-004](../reference/known-issues.md#ki-004----search-uses-ilike-substring-matching-only).
 
 **No write capability.** The Memory Explorer is entirely read-only. You cannot edit, delete, or directly archive facts from the UI. All mutations go through existing Iranti pathways (the MCP tools, CLI, or SDK).

@@ -244,3 +244,18 @@ Phase 2 is currently in progress as of 2026-03-20. The following features are no
 **Note on the Staff Activity Stream:** In Phase 1, the stream covers Librarian and Archivist events only. Attendant events (handshakes, reconvenes) and Resolutionist events (conflict resolutions) will not appear in the stream until native event emitter injection ships in Phase 2 (CP-T025). The stream UI labels this limitation explicitly.
 
 **Note on v0.1.0 hold:** As of 2026-03-20, the v0.1.0 release is on hold due to defect CP-D001 — a column naming mismatch between the control plane's SQL queries (snake_case) and the Iranti Prisma database schema (camelCase). This affects all data read paths: Memory Explorer, Archive Explorer, Entity Detail, Temporal History, and Staff Activity Stream. The fix is in progress. Design partner handoff is blocked until CP-D001 is resolved and CI regression tests pass.
+
+---
+
+## Known Issues
+
+Before filing a bug report, check [`docs/reference/known-issues.md`](../reference/known-issues.md) for the full list of confirmed issues in v0.1.0.
+
+Key items to be aware of:
+
+- **CP-D001** (KI-001): The column naming defect affecting all data read paths is **fixed in v0.1.0** (commit `8e5479c`).
+- **KI-002**: The `entity` field in entity detail responses is always `null` — the `entities` table is not yet in the Iranti schema.
+- **KI-003**: The Staff Activity Stream covers Librarian and Archivist events only. Attendant and Resolutionist events require Phase 2 native emitter injection (CP-T025).
+- **KI-005**: The `staff_events` migration must be run manually once with `npm run migrate`.
+
+See the [full known-issues list](../reference/known-issues.md) for severities, workarounds, and Phase 2 fix timelines.
