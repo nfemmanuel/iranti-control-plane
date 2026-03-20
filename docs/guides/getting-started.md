@@ -16,12 +16,12 @@ The following views are functional as of 2026-03-20:
 |---|---|
 | **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. |
 | **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. |
-| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` (Phase 2 — CP-T036) |
-| **Temporal History** | Fact history timeline at `/memory/:entityType/:entityId/:key` (Phase 2 — CP-T036) |
+| **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — a table of all current KB facts for the entity (key, value summary, confidence, source, agent, validFrom), a collapsible table of archived facts, a flat relationships list, and a breadcrumb back to Memory Explorer. (Phase 2 — CP-T036) |
+| **Temporal History** | Per-key fact history at `/memory/:entityType/:entityId/:key` — every interval that key has held, with confidence, validFrom/validUntil, and archivedReason. Click any interval to expand and read the full raw JSON value. The live fact carries a "current" badge. Empty state: "No history — this fact has not been superseded or archived." (Phase 2 — CP-T036) |
 | **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
 | **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, and runtime version. |
 | **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
-| **Getting Started / Onboarding** | First-run setup status at `/getting-started` with 4-step checklist (Phase 2 — CP-T035) |
+| **Getting Started / Onboarding** | Guided setup checklist at `/getting-started` — 4 steps covering database connection, provider configuration, project binding, and Claude/Codex integration. Auto-shown on first load when setup has never been completed. The sidebar nav item displays a persistent badge with the count of incomplete steps until all steps are resolved. A dismissible setup banner also appears in the page header until setup is complete. (Phase 2 — CP-T035) |
 | **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
 | **Conflict and Escalation Review** | Review and resolve Resolutionist escalations at `/conflicts` (Phase 2 — CP-T021) |
 | **Provider Status** | Provider key presence, reachability, and model list in Health Dashboard (Phase 2 — CP-T034) |
@@ -145,7 +145,32 @@ If you see a database connection error, confirm that PostgreSQL is running and t
 
 **In production (built frontend served by server):** Navigate to `http://localhost:3002/control-plane`.
 
-You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views: Memory, Activity Stream, Health, and Instances.
+You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all eight live sections in order:
+
+1. **Memory Explorer** (`/memory`) — browse the live knowledge base
+2. **Archive** (`/archive`) — browse superseded and decayed facts
+3. **Activity** (`/activity`) — live Staff event stream
+4. **Instances** (`/instances`) — discovered Iranti instances and project bindings
+5. **Health** (`/health`) — diagnostics and integration checks
+6. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
+7. **Providers** (`/providers`) — provider reachability and model management
+8. **Getting Started** (`/getting-started`) — guided first-run setup checklist
+
+**Settings** is a Phase 2 item — it appears in the sidebar as a disabled placeholder and is not yet functional.
+
+---
+
+## First-Run Behavior and Setup Status
+
+On a fresh install — before any setup steps have been completed and before the `.iranti-cp-setup-complete` flag file exists — the app automatically redirects to `/getting-started` on first load. This happens regardless of which URL you navigate to. It is not a hard block: clicking "Skip for now" on the Getting Started page dismisses the screen for the current session (it does not persist across page reloads until setup is marked complete).
+
+### Setup badge on the nav item
+
+The **Getting Started** sidebar nav item shows a persistent numeric badge with the count of incomplete or warning setup steps. The badge updates in real time as you complete steps and appears on every page — not only on `/getting-started`. Once all four steps reach a `complete` or `not_applicable` status, the badge disappears.
+
+### Setup banner in the page header
+
+A banner reading "Setup incomplete — N steps remaining" appears at the top of the content area on every page until setup is complete. The banner links to `/getting-started`. You can dismiss it for the current session by clicking the `×` button — the dismissal is stored in React component state only and resets on page reload. The banner does not reappear within a session once dismissed, even if you navigate away and return.
 
 ---
 
