@@ -33,8 +33,8 @@ The filter bar sits at the top of the Memory Explorer. Each filter narrows the r
 | **Entity Type** | Show only facts for a specific type of entity. Common values: `agent`, `ticket`, `decision`, `roadmap`, `research`, `blocker`. Enter the type exactly — it's case-sensitive. |
 | **Entity ID** | Show only facts for a specific entity. Use this together with Entity Type to drill into one entity. Example: set Entity Type to `agent` and Entity ID to `product_manager` to see all stored facts about the product manager agent. |
 | **Key** | Show only facts with a specific key name. Useful when you want to see the `status` or `current_assignment` for many entities at once. |
-| **Source** | Filter by the source label of the write. Common values: `mcp`, `api`, `cli`, `claude_code`. |
-| **Created By** | Filter by the agent ID that wrote the fact. |
+| **Source** | Filter by the caller-supplied provenance label. Common values: `mcp`, `api`, `cli`, `claude_code`, `git`, `manual`. |
+| **Written by** | Filter by the authenticated agent ID (`createdBy`) that wrote the fact. |
 | **Min Confidence** | Show only facts at or above this confidence level (0–100). Use 90 to see only high-confidence facts; use 0 to see everything. |
 | **Search** | Substring search across fact values and summaries. Uses `ILIKE %term%` matching — search for `in_progress` to find any fact whose value or summary contains that string. Full-text ranked search is Phase 2 (see [Known Issues KI-004](../reference/known-issues.md#ki-004----search-uses-ilike-substring-matching-only)). |
 
@@ -54,8 +54,8 @@ The main table shows one row per fact. Each column:
 | **Key** | The fact key in monospace font. Example: `current_assignment`. |
 | **Summary** | A plain-language summary of the value, written by the agent at write time. This is the human-readable version — not the raw JSON. |
 | **Confidence** | A number from 0 to 100. Higher means the writing agent was more certain. |
-| **Source** | Where the write came from: `mcp`, `api`, `cli`, or `claude_code`. |
-| **Agent** | The agent ID that created the fact. |
+| **Source** | The caller-supplied provenance label: `mcp`, `api`, `cli`, `git`, `manual`, etc. This is set by the writing agent, not derived from the authenticated identity. |
+| **Written by** | The authenticated agent ID (`createdBy`) that made the write. This maps to the agent's registered identity in the Agent Registry. |
 | **Valid From** | When this version of the fact became valid. |
 | **Created** | When this row was first written to the database. |
 
@@ -72,9 +72,31 @@ The expanded view shows all fields including:
 - **Value (Summary)** — the human-readable summary, in full.
 - **Value (Raw)** — the raw JSON stored in Iranti. This is what agents write and read. In the list view, values larger than 4 KB are truncated — you'll see a note saying "value truncated" with a link to view the full value. The entity detail page always shows the full value.
 - **validFrom / validUntil** — the temporal window during which this fact is considered current. `validUntil` is `null` for a currently-valid fact; it will be set when this fact is superseded or archived.
+- **Written by** — the authenticated agent ID (`createdBy`) that made the write API call. This is the agent's identity as established at `iranti_handshake` time, not a user-supplied label.
+- **Source** — the caller-supplied provenance label (e.g., `mcp`, `git`, `manual`). This is distinct from "Written by": an agent with ID `backend_developer` might write a fact with `source: "git"` to indicate the provenance of the data, not the writing agent itself. If the tooltip isn't visible, hover over the field label.
+- **Stability** — how many days of access stability this fact has accumulated. Higher stability means the fact has been read or refreshed recently and will be slower to decay. Only shown if non-null (relevant when memory decay is enabled — see [Health Dashboard](./health-dashboard.md#memory-decay-card)).
+- **Last Accessed** — when this fact was last read by any agent. Only shown if non-null.
 - **Properties** — optional JSONB metadata attached to the fact by the writing agent.
-- **Conflict Log** — if this fact was written after a conflict was detected, the conflict log records the prior value and the resolution decision.
 - **Updated At** — when this row was last modified.
+
+### Conflict History
+
+If a fact has had any conflicts — writes that were escalated, rejected, or resolved against it — a **Conflict History** section appears below the other fields. This replaces the old raw `conflictLog` JSON expand.
+
+Each entry in the conflict timeline shows:
+
+| Field | What it means |
+|---|---|
+| **Timestamp** | When the conflict event occurred (relative, with absolute time on hover). |
+| **Event type** | One of: `CONFLICT_ESCALATED` (amber), `CONFLICT_REJECTED` (red), `CONFLICT_RESOLVED` (green), `IDEMPOTENT_SKIP` (grey). |
+| **Reason** | The Librarian's explanation for what happened. |
+| **Used LLM** | Whether the Librarian called an LLM to arbitrate this conflict. |
+| **Existing vs. Incoming** | If scores are present: the confidence of the existing fact vs. the incoming challenger at the time of the conflict. |
+| **Incoming Source** | The source label of the challenging write, if present. |
+
+If `conflictLog` is empty, no Conflict History section appears — the fact has had no conflicts.
+
+The Conflict History timeline also appears in the **Archive Explorer** expanded row. Archived facts carry the same `conflictLog` data, so you can see the full conflict history for a fact even after it's been archived.
 
 > **Example**: If you expand the fact `ticket/cp_t001 → status`, you might see `valueRaw: {"status": "completed", "completedAt": "2026-03-20"}` and `confidence: 99`, written by `system_architect` via `mcp`.
 

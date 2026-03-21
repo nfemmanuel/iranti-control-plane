@@ -2,11 +2,11 @@
 /* Route: /memory */
 /* CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5 */
 
-import { Fragment, useState, useReducer, useEffect, useRef } from 'react'
+import { Fragment, useState, useReducer, useEffect, useRef, type CSSProperties } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { KBFact, KBListResponse } from '../../api/types'
+import type { KBFact, KBListResponse, ConflictEntry } from '../../api/types'
 import styles from './MemoryExplorer.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -105,6 +105,110 @@ function formatRelativeTime(iso: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  ConflictLog helpers (CP-T053)                                      */
+/* ------------------------------------------------------------------ */
+
+/** Cast the raw server value (Record<string, unknown> | null) to ConflictEntry[]. */
+function parseConflictLog(raw: Record<string, unknown> | null): ConflictEntry[] {
+  if (!raw) return []
+  // The server serialises conflictLog as an array stored under a numeric-keyed object
+  // when Prisma returns it, or it may arrive as a plain JSON array depending on the
+  // serialisation path. We handle both shapes defensively.
+  if (Array.isArray(raw)) return raw as ConflictEntry[]
+  // Prisma Json fields sometimes come back as a plain object with numeric string keys
+  const maybeArray = Object.values(raw)
+  if (maybeArray.length > 0 && typeof maybeArray[0] === 'object' && maybeArray[0] !== null && 'type' in (maybeArray[0] as object)) {
+    return maybeArray as ConflictEntry[]
+  }
+  return []
+}
+
+const CONFLICT_TYPE_LABELS: Record<ConflictEntry['type'], string> = {
+  CONFLICT_ESCALATED: 'Escalated',
+  CONFLICT_REJECTED: 'Rejected',
+  CONFLICT_RESOLVED: 'Resolved',
+  IDEMPOTENT_SKIP: 'Skipped',
+}
+
+function conflictTypeBadgeStyle(type: ConflictEntry['type']): CSSProperties {
+  switch (type) {
+    case 'CONFLICT_ESCALATED':
+      return { color: 'var(--color-status-warning)', background: 'var(--color-status-warning-bg)', border: '1px solid var(--color-status-warning)' }
+    case 'CONFLICT_REJECTED':
+      return { color: 'var(--color-status-error)', background: 'var(--color-status-error-bg)', border: '1px solid var(--color-status-error)' }
+    case 'CONFLICT_RESOLVED':
+      return { color: 'var(--color-status-success)', background: 'var(--color-status-success-bg)', border: '1px solid var(--color-status-success)' }
+    case 'IDEMPOTENT_SKIP':
+      return { color: 'var(--color-text-tertiary)', background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-subtle)' }
+  }
+}
+
+function ConflictTimeline({ conflictLog }: { conflictLog: Record<string, unknown> | null }) {
+  const entries = parseConflictLog(conflictLog)
+  if (entries.length === 0) return null
+
+  return (
+    <div style={{ marginTop: 'var(--space-3)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 'var(--space-3)' }}>
+      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 'var(--space-2)' }}>
+        Conflict History
+      </span>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {entries.map((entry, i) => (
+          <li key={i} style={{ display: 'flex', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderBottom: i < entries.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+            {/* Timeline dot */}
+            <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: conflictTypeBadgeStyle(entry.type).color ?? 'var(--color-text-tertiary)', marginTop: 5, display: 'inline-block', border: '1px solid var(--color-border-default)' }} aria-hidden="true" />
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Header: badge + timestamp */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    ...conflictTypeBadgeStyle(entry.type),
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    borderRadius: 'var(--border-radius-sm)',
+                    padding: '1px 5px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {CONFLICT_TYPE_LABELS[entry.type]}
+                </span>
+                <span
+                  style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', cursor: 'default' }}
+                  title={entry.at}
+                >
+                  {formatRelativeTime(entry.at)}
+                </span>
+                {/* LLM indicator */}
+                <span style={{ fontSize: '10px', color: entry.usedLLM ? 'var(--color-staff-attendant)' : 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
+                  {entry.usedLLM ? 'LLM' : 'Deterministic'}
+                </span>
+              </div>
+              {/* Reason */}
+              {entry.reason && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{entry.reason}</span>
+              )}
+              {/* Score comparison */}
+              {entry.existingScore !== undefined && entry.incomingScore !== undefined && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+                  Existing: {entry.existingScore} vs Incoming: {entry.incomingScore}
+                </span>
+              )}
+              {/* Incoming source */}
+              {entry.incomingSource && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
+                  Incoming source: {entry.incomingSource}
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Sub-components                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -166,7 +270,10 @@ function ExpandedRowDetail({
               <span className={styles.expandedValue}>{fact.valueSummary ?? '—'}</span>
             </div>
             <div className={styles.expandedField}>
-              <span className={styles.expandedLabel}>Source</span>
+              {/* AC-3: Source label with provenance clarification */}
+              <span className={styles.expandedLabel} title="Caller-supplied label indicating how this fact was written (e.g. 'mcp', 'git', 'manual')">
+                Source (provenance)
+              </span>
               <span className={styles.expandedValue}>{fact.source}</span>
             </div>
             <div className={styles.expandedField}>
@@ -174,7 +281,8 @@ function ExpandedRowDetail({
               <span className={styles.expandedValue}>{fact.confidence}</span>
             </div>
             <div className={styles.expandedField}>
-              <span className={styles.expandedLabel}>Created by</span>
+              {/* AC-3: createdBy renamed to "Written by" */}
+              <span className={styles.expandedLabel}>Written by</span>
               <span className={styles.expandedValueMono}>{fact.agentId}</span>
             </div>
             <div className={styles.expandedField}>
@@ -185,6 +293,25 @@ function ExpandedRowDetail({
               <span className={styles.expandedLabel}>Valid until</span>
               <span className={styles.expandedValue}>{fact.validUntil ?? '— (currently valid)'}</span>
             </div>
+            {/* AC-4: stability — show if non-null */}
+            {fact.stability != null && (
+              <div className={styles.expandedField}>
+                <span className={styles.expandedLabel}>Stability</span>
+                <span className={styles.expandedValue}>{fact.stability} days</span>
+              </div>
+            )}
+            {/* AC-4: lastAccessedAt — show if non-null */}
+            {fact.lastAccessedAt != null && (
+              <div className={styles.expandedField}>
+                <span className={styles.expandedLabel}>Last accessed</span>
+                <span
+                  className={styles.expandedValue}
+                  title={fact.lastAccessedAt}
+                >
+                  {formatRelativeTime(fact.lastAccessedAt)}
+                </span>
+              </div>
+            )}
           </div>
 
           {showRaw && parsedRaw !== null && (
@@ -195,6 +322,9 @@ function ExpandedRowDetail({
               <pre className={styles.expandedRawPre}>{JSON.stringify(parsedRaw, null, 2)}</pre>
             </div>
           )}
+
+          {/* AC-1: ConflictLog timeline — replaces raw JSON expand for conflictLog */}
+          <ConflictTimeline conflictLog={fact.conflictLog} />
 
           <div className={styles.expandedActions}>
             <button className={styles.expandedActionButton} onClick={() => onViewHistory(fact)}>

@@ -105,8 +105,10 @@ function serializeKBRow(row: Record<string, unknown>): KBFact {
     validUntil: toIso(row.valid_until ?? row.validUntil),
     createdAt: toIso(row.created_at ?? row.createdAt) ?? new Date(0).toISOString(),
     updatedAt: toIso(row.updated_at ?? row.updatedAt),
+    stability: row.stability != null ? Number(row.stability) : null,
+    lastAccessedAt: toIso(row.last_accessed_at ?? row.lastAccessedAt),
     properties: (row.properties as Record<string, unknown> | null) ?? null,
-    conflictLog: (row.conflict_log ?? row.conflictLog) as Record<string, unknown> | null ?? null,
+    conflictLog: (row.conflict_log ?? row.conflictLog) as unknown[] | null ?? null,
   }
 }
 
@@ -131,7 +133,7 @@ function serializeArchiveRow(row: Record<string, unknown>): ArchiveFact {
     resolutionState: (row.resolution_state ?? row.resolutionState) as string | null ?? null,
     resolutionNote: (row.resolution_note ?? row.resolutionNote) as string | null ?? null,
     properties: (row.properties as Record<string, unknown> | null) ?? null,
-    conflictLog: (row.conflict_log ?? row.conflictLog) as Record<string, unknown> | null ?? null,
+    conflictLog: (row.conflict_log ?? row.conflictLog) as unknown[] | null ?? null,
     createdAt: toIso(row.created_at ?? row.createdAt) ?? new Date(0).toISOString(),
   }
 }

@@ -15,8 +15,12 @@ export interface KBFact {
   validUntil: string | null
   createdAt: string
   updatedAt: string | null
+  stability: number | null
+  lastAccessedAt: string | null
   properties: Record<string, unknown> | null
-  conflictLog: Record<string, unknown> | null
+  /** Append-only array of conflict events. Typed as unknown[] because the server
+   * receives this as Prisma's raw Json type. Frontend should cast to ConflictEntry[]. */
+  conflictLog: unknown[] | null
 }
 
 export interface ArchiveFact {
@@ -38,7 +42,9 @@ export interface ArchiveFact {
   resolutionState: string | null
   resolutionNote: string | null
   properties: Record<string, unknown> | null
-  conflictLog: Record<string, unknown> | null
+  /** Append-only array of conflict events. Typed as unknown[] because the server
+   * receives this as Prisma's raw Json type. Frontend should cast to ConflictEntry[]. */
+  conflictLog: unknown[] | null
   createdAt: string
 }
 

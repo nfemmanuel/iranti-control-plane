@@ -13,6 +13,21 @@ export interface PaginatedResponse<T> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  ConflictLog entry (CP-T053)                                        */
+/* ------------------------------------------------------------------ */
+
+export interface ConflictEntry {
+  type: 'CONFLICT_ESCALATED' | 'CONFLICT_REJECTED' | 'CONFLICT_RESOLVED' | 'IDEMPOTENT_SKIP'
+  at: string
+  reason?: string
+  usedLLM?: boolean
+  existingScore?: number
+  incomingScore?: number
+  incomingSource?: string
+  incomingValue?: string
+}
+
+/* ------------------------------------------------------------------ */
 /*  Knowledge Base                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -26,13 +41,19 @@ export interface KBFact {
   valueRawTruncated: boolean
   confidence: number
   source: string
+  /** agentId — the authenticated agent that made the write call (createdBy) */
   agentId: string
   validFrom: string | null
   validUntil: string | null
   createdAt: string
   updatedAt: string | null
   properties: Record<string, unknown> | null
+  /** conflictLog is returned as Record<string, unknown> | null from server; cast to ConflictEntry[] at render */
   conflictLog: Record<string, unknown> | null
+  /** stability — Float, days — may be absent if API does not yet return it */
+  stability?: number | null
+  /** lastAccessedAt — ISO timestamp — may be absent if API does not yet return it */
+  lastAccessedAt?: string | null
 }
 
 export interface KBListResponse extends PaginatedResponse<KBFact> {}
@@ -149,10 +170,39 @@ export interface HealthCheck {
   detail?: Record<string, unknown>
 }
 
+/* CP-T052: Capability Health fields — returned alongside existing checks */
+
+export interface HealthDecay {
+  enabled: boolean
+  stabilityBase: number
+  stabilityIncrement: number
+  stabilityMax: number
+  decayThreshold: number
+}
+
+export interface HealthVectorBackend {
+  type: 'pgvector' | 'qdrant' | 'chroma' | 'unknown'
+  configured: boolean
+  url: string | null
+  status: 'ok' | 'warn' | 'error'
+}
+
+export interface HealthAttendant {
+  status: 'informational'
+  message: string
+  upstreamPRRequired: string
+}
+
 export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checkedAt: string
   checks: HealthCheck[]
+  /** CP-T052: Memory Decay configuration */
+  decay?: HealthDecay
+  /** CP-T052: Vector backend reachability */
+  vectorBackend?: HealthVectorBackend
+  /** CP-T052: Attendant status (informational — no live probe available) */
+  attendant?: HealthAttendant
 }
 
 /* ------------------------------------------------------------------ */
@@ -375,4 +425,33 @@ export interface DoctorResponse {
   instanceId: string
   checks: DoctorCheck[]
   checkedAt: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Agent Registry (CP-T051)                                           */
+/* ------------------------------------------------------------------ */
+
+export interface AgentStats {
+  totalWrites: number
+  totalRejections: number
+  totalEscalations: number
+  avgConfidence: number
+  lastSeen: string | null
+  isActive: boolean
+}
+
+export interface AgentRecord {
+  agentId: string
+  name: string | null
+  description: string | null
+  capabilities: string[]
+  model: string | null
+  properties: Record<string, unknown> | null
+  team: string | null
+  stats: AgentStats
+}
+
+export interface AgentsListResponse {
+  agents: AgentRecord[]
+  total: number
 }
