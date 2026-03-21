@@ -260,6 +260,8 @@ export interface InstanceMetadata {
   integration: IntegrationMeta
   projects: ProjectBinding[]
   discoveredAt: string
+  /** CP-T058 H8 — IRANTI_PROJECT_MODE env var value, null if not set */
+  projectMode: 'isolated' | 'shared' | null
 }
 
 export interface InstanceListResponse {
@@ -310,6 +312,21 @@ export interface EntityDetailResponse {
 }
 
 /* ------------------------------------------------------------------ */
+/*  WhoKnows / Contributors (CP-T057)                                  */
+/* ------------------------------------------------------------------ */
+
+export interface WhoKnowsContributor {
+  agentId: string
+  writeCount: number
+  lastContributedAt: string | null
+}
+
+export interface WhoKnowsResponse {
+  contributors: WhoKnowsContributor[]
+  total: number
+}
+
+/* ------------------------------------------------------------------ */
 /*  Temporal History                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -339,6 +356,16 @@ export interface TemporalHistoryResponse {
   current: HistoryInterval | null
   history: HistoryInterval[]
   hasHistory: boolean
+}
+
+/** CP-T056 — Point-in-time asOf query result */
+export interface AsOfQueryResult {
+  entityType: string
+  entityId: string
+  key: string
+  asOf: string
+  /** The fact active at asOf, or null if none existed at that time */
+  fact: HistoryInterval | null
 }
 
 /* ------------------------------------------------------------------ */

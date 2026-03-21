@@ -11,12 +11,16 @@ import { providersRouter } from './providers.js'
 import { chatRouter } from './chat.js'
 import { archivistRouter } from './archivist.js'
 import { agentsRouter } from './agents.js'
+import { whoknowsRouter } from './whoknows.js'
+import { diagnosticsRouter } from './diagnostics.js'
 
 export const controlPlaneRouter = Router()
 
 // Mount sub-routers
 controlPlaneRouter.use('/', archivistRouter)
 controlPlaneRouter.use('/', kbRouter)
+// WhoKnows proxy: GET /kb/whoknows/:entityType/:entityId → proxies /memory/whoknows/... on Iranti
+controlPlaneRouter.use('/', whoknowsRouter)
 controlPlaneRouter.use('/instances', instancesRouter)
 controlPlaneRouter.use('/instances', setupRouter)
 controlPlaneRouter.use('/instances', repairRouter)
@@ -32,3 +36,5 @@ controlPlaneRouter.use('/instances', providersRouter)
 controlPlaneRouter.use('/', chatRouter)
 // Agent Registry: GET /agents, GET /agents/:agentId
 controlPlaneRouter.use('/', agentsRouter)
+// Diagnostics: POST /diagnostics/run, GET /diagnostics/last
+controlPlaneRouter.use('/diagnostics', diagnosticsRouter)
