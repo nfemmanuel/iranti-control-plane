@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/health',          label: 'Health',          icon: '♥', phase: 1 },
   { to: '/conflicts',       label: 'Conflicts',       icon: '⚖', phase: 1 },
   { to: '/providers',       label: 'Providers',       icon: '◈', phase: 1 },
+  { to: '/agents',          label: 'Agents',          icon: '◉', phase: 1 },
   { to: '/getting-started', label: 'Getting Started', icon: '◎', phase: 1 },
   { to: '/settings',        label: 'Settings',        icon: '⚙', phase: 2 },  // Phase 2 — disabled
 ]
@@ -47,6 +48,7 @@ const SECTION_TITLES: Record<string, string> = {
   '/health':          'Health & Diagnostics',
   '/conflicts':       'Conflict Review',
   '/providers':       'Provider Manager',
+  '/agents':          'Agent Registry',
   '/getting-started': 'Getting Started',
   '/settings':        'Settings',
 }

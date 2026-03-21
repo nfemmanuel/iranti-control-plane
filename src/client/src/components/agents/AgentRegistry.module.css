@@ -1,0 +1,524 @@
+/* Iranti Control Plane — Agent Registry Styles */
+/* Route: /agents */
+/* CP-T051 — Option B: Terminals palette — token-only colors */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Page header
+   ────────────────────────────────────────────────────────────────── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  gap: var(--space-4);
+}
+
+.pageHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pageIcon {
+  font-size: 20px;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.pageTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.pageSubtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 2px 0 0;
+}
+
+.agentCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Content area — table + optional detail panel
+   ────────────────────────────────────────────────────────────────── */
+
+.contentArea {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.contentAreaWithPanel .tableRegion {
+  /* When detail panel is open, table takes 60% */
+  flex: 0 0 60%;
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Table region
+   ────────────────────────────────────────────────────────────────── */
+
+.tableRegion {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+  table-layout: fixed;
+}
+
+/* Column widths */
+.table th:nth-child(1) { width: 24%; }  /* Agent ID */
+.table th:nth-child(2) { width: 16%; }  /* Display Name */
+.table th:nth-child(3) { width: 12%; }  /* Last Seen */
+.table th:nth-child(4) { width: 7%;  }  /* Active */
+.table th:nth-child(5) { width: 9%;  }  /* Writes */
+.table th:nth-child(6) { width: 10%; }  /* Rejections */
+.table th:nth-child(7) { width: 11%; }  /* Escalations */
+.table th:nth-child(8) { width: 11%; }  /* Avg Conf */
+
+.table thead th {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 var(--space-3);
+  height: var(--table-header-height);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.thMono {
+  font-family: var(--font-mono);
+}
+
+.thNumber {
+  text-align: right !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Data rows
+   ────────────────────────────────────────────────────────────────── */
+
+.dataRow {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dataRow:hover {
+  background: var(--color-bg-elevated);
+}
+
+.dataRowSelected {
+  background: var(--color-accent-subtle);
+}
+
+.dataRowSelected:hover {
+  background: var(--color-accent-subtle);
+}
+
+.table td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Agent ID — monospace, copyable */
+
+.cellAgentId {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.copyableId {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.1s;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+.copyableId:hover {
+  color: var(--color-accent-primary);
+}
+
+/* Display name */
+
+.cellName {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.cellNameFallback {
+  color: var(--color-text-tertiary);
+}
+
+/* Last seen */
+
+.cellMeta {
+  font-size: var(--table-meta-font-size);
+  color: var(--color-text-tertiary);
+}
+
+/* Active dot */
+
+.cellActive {
+  text-align: center;
+}
+
+.activeDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+  vertical-align: middle;
+}
+
+.activeDot[data-active="true"] {
+  background: var(--color-status-success);
+  box-shadow: 0 0 4px var(--color-status-success);
+}
+
+/* Numbers */
+
+.cellNumber {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.cellNumber[data-warn="true"] {
+  color: var(--color-status-error);
+  font-weight: 600;
+}
+
+.cellNumber[data-escalation="true"] {
+  color: var(--color-status-warning);
+  font-weight: 600;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty / loading states
+   ────────────────────────────────────────────────────────────────── */
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyStateBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+  margin: 0;
+}
+
+.inlineCode {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-bg-elevated);
+  padding: 1px 4px;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Detail panel
+   ────────────────────────────────────────────────────────────────── */
+
+.detailPanel {
+  flex: 0 0 40%;
+  overflow-y: auto;
+  background: var(--color-bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.detailHeader {
+  padding: var(--space-4) var(--section-padding) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.detailTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.detailTitleMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detailAgentId {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.detailAgentName {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.detailHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.detailCloseBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  padding: 0;
+  line-height: 1;
+}
+
+.detailCloseBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.detailDescription {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Detail sections */
+
+.detailSection {
+  padding: var(--space-3) var(--section-padding);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.detailSection:last-child {
+  border-bottom: none;
+}
+
+.detailSectionTitle {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  margin: 0 0 var(--space-2);
+}
+
+/* Stats grid */
+
+.detailStatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2) var(--space-4);
+}
+
+.detailStatCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailStatLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.detailStatValue {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+}
+
+.detailStatValue[data-warn="true"] {
+  color: var(--color-status-error);
+  font-weight: 600;
+}
+
+.detailStatValue[data-escalation="true"] {
+  color: var(--color-status-warning);
+  font-weight: 600;
+}
+
+/* Model */
+
+.detailModel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-sunken);
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-subtle);
+  display: inline-block;
+}
+
+/* Team */
+
+.detailTeam {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Capabilities */
+
+.capabilityTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.capabilityTag {
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--border-radius-sm);
+  padding: 2px var(--space-2);
+  white-space: nowrap;
+}
+
+/* JSON expand */
+
+.jsonExpand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.jsonExpandToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: color 0.1s;
+  text-align: left;
+}
+
+.jsonExpandToggle:hover {
+  color: var(--color-text-primary);
+}
+
+.jsonExpandChevron {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.jsonExpandPre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.6;
+  margin: 0;
+}

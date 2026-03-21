@@ -10,6 +10,7 @@ import { escalationsRouter } from './escalations.js'
 import { providersRouter } from './providers.js'
 import { chatRouter } from './chat.js'
 import { archivistRouter } from './archivist.js'
+import { agentsRouter } from './agents.js'
 
 export const controlPlaneRouter = Router()
 
@@ -29,3 +30,5 @@ controlPlaneRouter.use('/', providersRouter)
 controlPlaneRouter.use('/instances', providersRouter)
 // Chat endpoint: POST /chat, DELETE /chat/:sessionId
 controlPlaneRouter.use('/', chatRouter)
+// Agent Registry: GET /agents, GET /agents/:agentId
+controlPlaneRouter.use('/', agentsRouter)
