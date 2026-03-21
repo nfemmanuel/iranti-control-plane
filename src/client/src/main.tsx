@@ -16,6 +16,7 @@ import { ConflictReview } from './components/conflicts/ConflictReview'
 import { ProviderManager } from './components/providers/ProviderManager'
 import { AgentRegistry } from './components/agents/AgentRegistry'
 import { MetricsDashboard } from './components/metrics/MetricsDashboard'
+import { OverviewDashboard } from './components/overview/OverviewDashboard'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
 import { LoadingPage } from './components/ui/LoadingPage'
 import './styles/tokens.css'
@@ -66,7 +67,8 @@ createRoot(rootEl).render(
           <BrowserRouter basename="/control-plane">
             <Routes>
               <Route path="/" element={<AppShell />}>
-                <Route index element={<Navigate to="/health" replace />} />
+                <Route index element={<Navigate to="/overview" replace />} />
+                <Route path="overview" element={<OverviewDashboard />} />
                 <Route path="memory" element={<MemoryExplorer />} />
                 <Route path="memory/:entityType/:entityId" element={<EntityDetail />} />
                 <Route path="memory/:entityType/:entityId/:key" element={<TemporalHistory />} />

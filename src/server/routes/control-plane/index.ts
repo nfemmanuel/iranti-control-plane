@@ -14,6 +14,7 @@ import { agentsRouter } from './agents.js'
 import { whoknowsRouter } from './whoknows.js'
 import { diagnosticsRouter } from './diagnostics.js'
 import { metricsRouter } from './metrics.js'
+import { overviewRouter } from './overview.js'
 
 export const controlPlaneRouter = Router()
 
@@ -41,3 +42,5 @@ controlPlaneRouter.use('/', agentsRouter)
 controlPlaneRouter.use('/diagnostics', diagnosticsRouter)
 // Metrics Dashboard: GET /metrics/kb-growth, GET /metrics/agent-activity, GET /metrics/summary
 controlPlaneRouter.use('/metrics', metricsRouter)
+// Overview Dashboard: GET /overview — CP-T068
+controlPlaneRouter.use('/overview', overviewRouter)

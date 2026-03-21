@@ -1,0 +1,530 @@
+/* Iranti Control Plane — Overview Dashboard Styles */
+/* Route: /overview */
+/* CP-T068 — Home Overview Dashboard. Terminals palette. 2-col grid. */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page layout
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-bg-base);
+}
+
+.body {
+  padding: var(--space-6) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Alert banner
+   ────────────────────────────────────────────────────────────────── */
+
+.alertBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--border-radius-md);
+  border: 1px solid;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.alertBanner[data-severity='error'] {
+  background: var(--color-status-error-bg);
+  border-color: var(--color-status-error);
+  color: var(--color-status-error);
+}
+
+.alertBanner[data-severity='warn'] {
+  background: var(--color-status-warning-bg);
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.alertIcon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.alertText {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertLink {
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.alertDismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.alertDismiss:hover {
+  opacity: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Card grid
+   ────────────────────────────────────────────────────────────────── */
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Card base
+   ────────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 140px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.cardLink {
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.cardLink:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+.cardBody {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardFooter {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.cardFooterLink {
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.cardFooterLink:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   System status strip
+   ────────────────────────────────────────────────────────────────── */
+
+.statusStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) 0;
+}
+
+.statusPill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDot[data-status='ok'] {
+  background: var(--color-status-success);
+}
+
+.statusDot[data-status='warn'] {
+  background: var(--color-status-warning);
+}
+
+.statusDot[data-status='error'] {
+  background: var(--color-status-error);
+}
+
+.statusClickable {
+  cursor: pointer;
+  display: block;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+.statusClickable:hover .statusPill {
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   KB summary stats
+   ────────────────────────────────────────────────────────────────── */
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  flex: 1;
+}
+
+.statCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.truncatedNote {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  margin-top: var(--space-1);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Recent activity feed
+   ────────────────────────────────────────────────────────────────── */
+
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.eventRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 12px;
+}
+
+.eventRow:last-child {
+  border-bottom: none;
+}
+
+.componentBadge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.componentBadge[data-component='librarian'],
+.componentBadge[data-component='Librarian'] {
+  background: var(--color-status-warning-bg);
+  color: var(--color-staff-librarian);
+}
+
+.componentBadge[data-component='attendant'],
+.componentBadge[data-component='Attendant'] {
+  background: var(--color-status-info-bg);
+  color: var(--color-staff-attendant);
+}
+
+.componentBadge[data-component='archivist'],
+.componentBadge[data-component='Archivist'] {
+  background: var(--color-status-info-bg);
+  color: var(--color-staff-archivist);
+}
+
+.componentBadge[data-component='resolutionist'],
+.componentBadge[data-component='Resolutionist'] {
+  background: var(--color-status-success-bg);
+  color: var(--color-staff-resolutionist);
+}
+
+.eventAction {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eventAgent {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.eventTime {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Active agents card
+   ────────────────────────────────────────────────────────────────── */
+
+.agentList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 12px;
+}
+
+.agentRow:last-child {
+  border-bottom: none;
+}
+
+.agentDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agentDot[data-active='true'] {
+  background: var(--color-status-success);
+}
+
+.agentDot[data-active='false'] {
+  background: var(--color-text-tertiary);
+}
+
+.agentId {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agentWrites {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.agentLastSeen {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty / loading states
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  padding: var(--space-2) 0;
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeletonRow {
+  height: 20px;
+  background: var(--color-bg-elevated);
+  border-radius: var(--border-radius-sm);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Quick actions row
+   ────────────────────────────────────────────────────────────────── */
+
+.quickActionsSection {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-4);
+}
+
+.quickActionsTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.quickActionsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .quickActionsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .quickActionsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quickActionCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  color: inherit;
+}
+
+.quickActionCard:hover {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-subtle);
+}
+
+.quickActionIcon {
+  font-size: 18px;
+  color: var(--color-accent-primary);
+  line-height: 1;
+}
+
+.quickActionLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.quickActionDesc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+}

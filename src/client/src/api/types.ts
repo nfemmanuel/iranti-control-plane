@@ -606,3 +606,49 @@ export interface EntityTypesResponse {
   entityTypes: EntityTypeSummary[]
   total: number
 }
+
+/* ------------------------------------------------------------------ */
+/*  Overview Dashboard (CP-T068)                                       */
+/* ------------------------------------------------------------------ */
+
+export interface OverviewHealthCheck {
+  name: string
+  status: string
+}
+
+export interface OverviewRecentEvent {
+  id: string
+  staffComponent: string
+  actionType: string
+  agentId: string | null
+  entityType: string | null
+  entityId: string | null
+  key: string | null
+  reason: string | null
+  timestamp: string
+}
+
+export interface OverviewActiveAgent {
+  agentId: string
+  isActive: boolean
+  lastSeen: string | null
+  totalWrites: number
+}
+
+export interface OverviewResponse {
+  health: {
+    overall: string
+    checks: OverviewHealthCheck[]
+    fetchedAt: string
+  }
+  kb: {
+    totalFacts: number
+    factsLast24h: number
+    activeAgentsLast7d: number
+    truncated: boolean
+    fetchedAt: string
+  }
+  recentEvents: OverviewRecentEvent[]
+  activeAgents: OverviewActiveAgent[]
+  fetchedAt: string
+}

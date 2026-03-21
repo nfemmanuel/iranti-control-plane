@@ -3,12 +3,15 @@
 /* Provides: sidebar nav, instance switcher, topbar, activity drawer slot, */
 /*           theme toggle (dark/light), hidden Phase 2 chat panel slot. */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSetupStatus } from '../onboarding/GettingStarted'
 import { CommandPalette, useCommandPalette } from './CommandPalette'
 import { ChatPanel, ChatToggleButton, loadPanelOpen } from '../chat/ChatPanel'
+import { ToastContainer } from '../ui/ToastContainer'
+import { useToasts } from '../../hooks/useToasts'
+import { useViewNavigationShortcuts } from '../../hooks/useViewNavigationShortcuts'
 import styles from './AppShell.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -23,7 +26,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/',                label: 'Overview',        icon: '⬡', phase: 1 },
+  { to: '/overview',        label: 'Home',            icon: '⌂', phase: 1 },
   { to: '/memory',          label: 'Memory',          icon: '▦', phase: 1 },
   { to: '/archive',         label: 'Archive',         icon: '◫', phase: 1 },
   { to: '/activity',        label: 'Activity',        icon: '⚡', phase: 1 },
@@ -41,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
 /* Map routes to section titles for the topbar */
 const SECTION_TITLES: Record<string, string> = {
   '/':                'Overview',
+  '/overview':        'Overview',
   '/memory':          'Memory Explorer',
   '/archive':         'Archive',
   '/activity':        'Staff Activity',
@@ -348,12 +352,74 @@ export function AppShell() {
     }
   }, [firstRunDetected, location.pathname, navigate])
 
-  // Redirect root to /memory (Memory Explorer is the primary Phase 1 surface)
+  // Root redirect handled by <Navigate to="/overview" replace /> in main.tsx (CP-T068)
+
+  // CP-T069: Toast notification system
+  const { toasts, addToast, dismissToast } = useToasts()
+
+  // CP-T069: Health degradation poller (60s interval, fires toasts on state transitions)
+  const prevOverallRef = useRef<string | null>(null)
+  const healthPollerInitializedRef = useRef(false)
   useEffect(() => {
-    if (location.pathname === '/' && !firstRunDetected) {
-      navigate('/memory', { replace: true })
+    async function pollHealth() {
+      try {
+        const res = await fetch('/api/control-plane/health', { method: 'GET' })
+        if (!res.ok) return
+        const data = await res.json() as { overall?: string }
+        const overall = data.overall ?? 'healthy'
+        const prev = prevOverallRef.current
+
+        // Initial check
+        if (!healthPollerInitializedRef.current) {
+          healthPollerInitializedRef.current = true
+          prevOverallRef.current = overall
+          if (overall !== 'healthy') {
+            addToast({
+              severity: overall === 'error' ? 'error' : 'warn',
+              title: overall === 'error' ? 'Iranti health error' : 'Iranti degraded',
+              message: overall === 'error'
+                ? 'A critical health check has failed.'
+                : 'One or more health checks are warning.',
+              action: { label: 'View Health →', href: '/health' },
+            })
+          }
+          return
+        }
+
+        // State transition detection
+        if (prev !== overall) {
+          prevOverallRef.current = overall
+          if (overall !== 'healthy') {
+            addToast({
+              severity: overall === 'error' ? 'error' : 'warn',
+              title: overall === 'error' ? 'Iranti health error' : 'Iranti degraded',
+              message: overall === 'error'
+                ? 'A critical health check has failed.'
+                : 'One or more health checks are warning.',
+              action: { label: 'View Health →', href: '/health' },
+            })
+          } else {
+            // Recovery
+            addToast({
+              severity: 'info',
+              title: 'Iranti healthy',
+              message: 'All health checks are passing.',
+              autoDismissMs: 4000,
+            })
+          }
+        }
+      } catch {
+        // Network failure — silently skip
+      }
     }
-  }, [location.pathname, navigate, firstRunDetected])
+
+    void pollHealth()
+    const id = setInterval(() => { void pollHealth() }, 60_000)
+    return () => clearInterval(id)
+  }, [addToast])
+
+  // CP-T070: Global G+key navigation shortcuts
+  const { goModeActive } = useViewNavigationShortcuts()
 
   return (
     <div className={styles.shell}>
@@ -459,6 +525,16 @@ export function AppShell() {
         isOpen={chatOpen}
         onClose={handleChatClose}
       />
+
+      {/* CP-T069: Toast notifications — fixed bottom-right, z-index 1100 */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* CP-T070: Go mode indicator — shown while G+key navigation is pending */}
+      {goModeActive && (
+        <div className={styles.goModeChip} role="status" aria-live="polite">
+          <span aria-hidden="true">⌨</span> go mode — press a key
+        </div>
+      )}
     </div>
   )
 }

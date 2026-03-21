@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import styles from './CommandPalette.module.css'
+import { VIEW_NAVIGATION_SHORTCUTS } from '../../hooks/useViewNavigationShortcuts'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -495,6 +496,26 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
                   {s.scope && (
                     <span className={styles.shortcutScope}>{s.scope}</span>
                   )}
+                </li>
+              ))}
+            </>
+          )}
+
+          {/* CP-T070: Navigation shortcuts — G + key two-key navigation */}
+          {showShortcuts && (
+            <>
+              <li className={styles.sectionHeader} role="presentation">Navigation shortcuts</li>
+              {VIEW_NAVIGATION_SHORTCUTS.map((s) => (
+                <li
+                  key={s.keys}
+                  className={styles.shortcutRow}
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <span className={styles.shortcutKeys}>
+                    <kbd className={styles.kbdShortcut}>{s.keys}</kbd>
+                  </span>
+                  <span className={styles.shortcutAction}>{s.label}</span>
                 </li>
               ))}
             </>

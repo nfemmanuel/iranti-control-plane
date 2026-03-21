@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Wave 9 complete — all Phase 3 tickets PM-ACCEPTED; v0.3.0 candidate declared — CP-T048 AC-11 clean-machine validation is the sole remaining gate)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060, CP-T061, CP-T062, CP-T063, CP-T064, CP-T065, CP-T066, CP-T067). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate before v0.3.0 final release. Iranti upstream drift confirmed: v0.2.14 (Windows updater fix); v0.2.13 partially fixes B11 attend classifier.
+> **Last updated: 2026-03-21 (Phase 4 / Wave 10 dispatched — v0.4.0 Iranti Desktop in progress)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051–CP-T053, CP-T056–CP-T060, CP-T061–CP-T067). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing pending. **Phase 4 / Wave 10 dispatched 2026-03-21:** CP-T068 (Home Overview Dashboard), CP-T069 (Proactive Health Alerts), CP-T070 (Keyboard Navigation Hotkeys). Product direction: Iranti Desktop — one screen tells you system state, recent activity, agent presence, and quick actions the moment you open the app.
 
 ## Horizon
 
@@ -346,13 +346,57 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 
 ---
 
+---
+
+## Phase 4 — Iranti Desktop
+
+**Status: IN PROGRESS — Wave 10 dispatched 2026-03-21**
+**Target:** v0.4.0
+**Prerequisite:** Phase 3 complete — **MET** 2026-03-21 (v0.3.0 candidate; CP-T048 AC-11 clean-machine test the only remaining gate for final tag)
+**Coordination doc:** `docs/coordination/agent-assignments-phase4.md`
+
+**Goal**: Transform the control plane from a navigation-first inspection tool into a desktop-class operator experience. The defining feature is a Home Overview Dashboard that gives operators a complete at-a-glance picture of their Iranti system the moment they open the app — before clicking anything. Product direction: *Docker Desktop for Iranti*.
+
+User feedback driving this phase: *"you know how the Docker Desktop control panel looks? Why don't we have something like that?"* (2026-03-21, after v0.3.0-rc)
+
+### Phase 4 Success Metrics
+
+- Operator opens the control plane and immediately sees system state, recent activity, active agents, and quick actions — without navigating anywhere
+- Operator is proactively alerted when Iranti health degrades while they are using another view — without visiting `/health`
+- Power users can navigate to any view using keyboard shortcuts without the mouse
+- v0.4.0 tsc clean, no regressions against v0.3.0
+
+### Wave 10 — Iranti Desktop (CP-E015)
+
+**Dispatched:** 2026-03-21
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T068 | Home Overview Dashboard | backend_developer + frontend_developer | P1 | OPEN |
+| CP-T069 | Proactive Health Alert Toasts | frontend_developer | P2 | OPEN — depends on CP-T068 |
+| CP-T070 | Global Keyboard Shortcuts: View Navigation Hotkeys | frontend_developer | P3 | OPEN — depends on CP-T068 |
+
+### Phase 4 Exit Criteria
+
+- [ ] CP-T068: Home Overview Dashboard ships with all 12 ACs — `/overview` is the landing page, 5 cards, alert banner, quick actions — PM-ACCEPTED
+- [ ] CP-T069: Proactive Health Alert Toasts — all 11 ACs, state-transition-only, auto-dismiss by severity, no spam — PM-ACCEPTED
+- [ ] CP-T070: Global keyboard shortcuts — `G + key` navigation from any view, go mode indicator, palette integration — PM-ACCEPTED
+- [ ] tsc --noEmit exits 0 in both `src/server` and `src/client`
+- [ ] No regressions against v0.3.0 surfaces
+- [ ] v0.4.0 release notes written and published
+
+**Primary agents:** backend_developer, frontend_developer
+**Epic:** CP-E015 (Iranti Desktop)
+
+---
+
 ## Dependencies
 
 - Upstream Iranti codebase access is required for Phase 2 native emitter injection (CP-T025) — system_architect must have read access to Librarian, Attendant, Archivist, and Resolutionist source files
 - CP-T025 requires PM approval before any upstream Iranti core package changes are made
 - All Phase 2 tickets are blocked on Phase 1 P0 blocker resolution (CP-T026–T030) and PM acceptance of v0.1.0
 - CP-T023 (CLI setup wizard) requires CP-T005 to be PM-approved (already approved)
-- Phase 3 scope is formally undefined until Phase 2 retrospective
+- Phase 4 depends on Phase 3 complete — MET 2026-03-21
 
 ## Risks
 

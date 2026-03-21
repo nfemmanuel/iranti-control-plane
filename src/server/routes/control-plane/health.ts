@@ -449,7 +449,7 @@ function computeOverall(checks: HealthCheck[]): 'healthy' | 'degraded' | 'error'
   return 'healthy'
 }
 
-async function runAllHealthChecks(): Promise<HealthResponse> {
+export async function runAllHealthChecks(): Promise<HealthResponse> {
   const checkedAt = new Date().toISOString()
 
   const checkFunctions: Array<() => Promise<HealthCheck>> = [
