@@ -36,8 +36,8 @@ CP-T064 issued: 2026-03-21 Wave 8 — Documentation update for CP-T056/T057/T060
 CP-T064 PM-ACCEPTED: 2026-03-21 — asOf picker section, Contributors panel section, Metrics Dashboard row all present and accurate to actual implementation (not spec). Two spec gaps noted (rejectionCount/firstSeen fields don't exist; no Query button — reactive instead). Documented actual behavior, which is correct.
 CP-T065 issued: 2026-03-21 Wave 9 — Entity Alias Panel Rewrite (frontend_developer) — P2, CP-E014
 CP-T065 PM-ACCEPTED: 2026-03-21 — All 6 ACs verified. Types correct (EntityAlias flat token shape, EntityAliasesResponse with canonicalEntity/aliases/total). AliasRow renders alias in <code>, source muted, ConfidenceBar, relative createdAt. CreateAliasForm single-field with canonicalEntity derived from props, correct POST body, clears on success, inline error. Empty state unchanged, count badge from data.total. aliasToken CSS class monospace. tsc --noEmit clean (both server and client, 0 errors). CP-T061 frontend now fully accepted via CP-T065.
-CP-T066 issued: 2026-03-21 Wave 9 — KB Full-Text/Semantic Search Surface (backend_developer + frontend_developer) — P2, CP-E014
-CP-T067 issued: 2026-03-21 Wave 9 — Entity Type Browser (backend_developer + frontend_developer) — P3, CP-E014
+CP-T066 issued: 2026-03-21 Wave 9 — KB Full-Text/Semantic Search Surface (backend_developer + frontend_developer) — P2, CP-E014 — PM-ACCEPTED 2026-03-21
+CP-T067 issued: 2026-03-21 Wave 9 — Entity Type Browser (backend_developer + frontend_developer) — P3, CP-E014 — PM-ACCEPTED 2026-03-21
 
 Iranti upstream drift check (2026-03-21): v0.2.15 now current (unreleased — "Pending release notes"). v0.2.14 Windows updater fix only. v0.2.13 partially fixes B11 attend classifier; hybrid search fallback improved. v0.2.15 alias API shape confirmed real by backend agent: flat string tokens (not entity cross-references). No breaking API changes beyond alias shape (which was always speculative). No other control plane rework required.
 
@@ -1345,7 +1345,7 @@ POST body:
 
 ### Assignment — CP-T066 (KB Full-Text/Semantic Search) — `backend_developer` + `frontend_developer`
 
-**Status:** OPEN
+**Status:** PM-ACCEPTED 2026-03-21
 **Ticket:** `docs/tickets/cp-t066.md`
 **Priority:** P2
 **Phase:** 3, Wave 9
@@ -1396,7 +1396,7 @@ POST body:
 
 ### Assignment — CP-T067 (Entity Type Browser) — `backend_developer` + `frontend_developer`
 
-**Status:** OPEN
+**Status:** PM-ACCEPTED 2026-03-21
 **Ticket:** `docs/tickets/cp-t067.md`
 **Priority:** P3
 **Phase:** 3, Wave 9
