@@ -1,4 +1,11 @@
-name: Release
+name: Release (source archive)
+
+# NOTE: This workflow creates a source .tar.gz archive only.
+# Platform installer packages (.exe, .dmg, .AppImage, .deb) are built and
+# released by .github/workflows/package.yml, which also creates the GitHub
+# Release. This workflow runs separately and does NOT create a GitHub Release
+# to avoid conflicts with package.yml on the same tag.
+# See CP-T048 ISSUE-2 in docs/qa/cp-t048-clean-machine-test-plan.md
 
 on:
   push:
@@ -41,7 +48,12 @@ jobs:
           cp package.json release/package.json
           tar -czf iranti-control-plane-${{ github.ref_name }}.tar.gz release/
 
-      - uses: softprops/action-gh-release@v2
+      # Upload the source archive as an artifact only — do NOT create a GitHub
+      # Release here. The platform installer workflow (package.yml) owns release
+      # creation. Uploading here via upload-artifact makes the archive available
+      # for CI inspection without conflicting with package.yml's release job.
+      - uses: actions/upload-artifact@v4
         with:
-          files: iranti-control-plane-*.tar.gz
-          generate_release_notes: true
+          name: source-archive
+          path: iranti-control-plane-*.tar.gz
+          retention-days: 30

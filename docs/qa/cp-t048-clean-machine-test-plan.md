@@ -4,7 +4,7 @@
 **AC scope:** AC-11 (clean-machine validation), AC-12 (port conflict), AC-7 (version display), AC-6 (browser auto-open), AC-1/AC-2 (Windows), AC-3 (macOS), AC-4/AC-5 (Linux)
 **Prepared by:** qa_engineer
 **Date:** 2026-03-20
-**Status:** STATIC ANALYSIS COMPLETE — awaiting installer artifacts from CI for manual execution
+**Status:** STATIC ANALYSIS COMPLETE — ISSUE-1 and ISSUE-5 RESOLVED (commit 4664d49) — awaiting installer artifacts from CI for manual execution
 
 ---
 
@@ -31,9 +31,9 @@ The following checks were performed by reading source files directly. No running
 
 ## Static Issues Found
 
-### ISSUE-1 — macOS `.app` bundle: static asset path mismatch (MANUAL verification required)
+### ISSUE-1 — macOS `.app` bundle: static asset path mismatch ✅ RESOLVED (commit 4664d49)
 
-**Severity:** High — would cause the macOS packaged binary to fail to serve the frontend UI
+**Severity:** High — would have caused the macOS packaged binary to fail to serve the frontend UI
 
 **Description:**
 
@@ -113,24 +113,15 @@ The `build-macos-arm64` and `build-macos-x86` jobs in `package.yml` use `actions
 
 ---
 
-### ISSUE-5 — Linux `.deb` asset path mismatch with server SEA resolution
+### ISSUE-5 — Linux `.deb` asset path mismatch with server SEA resolution ✅ RESOLVED (commit 4664d49)
 
-**Severity:** Medium — would cause the Linux `.deb` binary to fail to serve the frontend UI
+**Severity:** Medium — would have caused the Linux `.deb` binary and AppImage to fail to serve the frontend UI
 
-**Description:**
-
-The `.deb` installs the binary to `/usr/local/bin/iranti-control-plane`. Inside the SEA binary, `process.execPath` resolves to `/usr/local/bin/iranti-control-plane`, so `dirname(process.execPath)` is `/usr/local/bin/`.
-
-The server therefore looks for assets at `/usr/local/bin/public/control-plane/`, but `build-linux.mjs` installs them to `/usr/share/iranti-control-plane/public/control-plane/`.
-
-These are different paths. The `.deb` binary will fail to serve the frontend UI.
-
-**Note for AppImage:** The AppImage uses an `AppRun` shell script that sets `IRANTI_CP_ASSETS_DIR="$HERE/usr/share/iranti-control-plane"`. However, `src/server/index.ts` does not read `IRANTI_CP_ASSETS_DIR` — it uses only `process.execPath`-based resolution. So the `AppRun` environment variable is set but never consumed. The AppImage binary has the same path mismatch issue.
-
-**Mitigation candidates:**
-- Add `IRANTI_CP_ASSETS_DIR` env var support to `src/server/index.ts` so a wrapper can override the resolved path
-- Install assets to `/usr/local/share/iranti-control-plane/` and symlink from the binary directory (non-standard)
-- For AppImage: set the path via `process.env.IRANTI_CP_ASSETS_DIR` in `AppRun` and honor it in `index.ts`
+**Resolution (commit 4664d49):**
+- `src/server/index.ts` now reads `IRANTI_CP_ASSETS_DIR` env var first, falling back to `process.execPath`-based resolution.
+- `.deb` build: The SEA binary is now placed at `/usr/share/iranti-control-plane/bin/iranti-cp`. A shell launcher wrapper at `/usr/local/bin/iranti-control-plane` sets `IRANTI_CP_ASSETS_DIR=/usr/share/iranti-control-plane/public/control-plane` and exec-replaces with the SEA binary.
+- AppImage: `AppRun` path corrected from `$HERE/usr/share/iranti-control-plane` to `$HERE/usr/share/iranti-control-plane/public/control-plane` (the correct full path to assets).
+- `package.json` for `.deb` version detection now placed alongside the SEA binary at `/usr/share/iranti-control-plane/bin/package.json`.
 
 ---
 
