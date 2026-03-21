@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { EntityDetailResponse, KBFact, ArchiveFact } from '../../api/types'
+import type { EntityDetailResponse, KBFact, ArchiveFact, WhoKnowsResponse, AgentsListResponse } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import { RelationshipGraphView } from './RelationshipGraphView'
 import styles from './EntityDetail.module.css'
@@ -199,6 +199,140 @@ function ArchivedFactsTable({ facts }: { facts: ArchiveFact[] }) {
 /* RelationshipsList removed — replaced by RelationshipGraphView (CP-T032) */
 
 /* ------------------------------------------------------------------ */
+/*  Contributors Panel (CP-T057)                                        */
+/* ------------------------------------------------------------------ */
+
+function ContributorsPanel({
+  entityType,
+  entityId,
+}: {
+  entityType: string
+  entityId: string
+}) {
+  // Fetch WhoKnows data for this entity
+  const {
+    data: whoKnows,
+    isLoading: wkLoading,
+    error: wkError,
+  } = useQuery<WhoKnowsResponse, Error>({
+    queryKey: ['whoknows', entityType, entityId],
+    queryFn: () =>
+      apiFetch<WhoKnowsResponse>(
+        `/kb/whoknows/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`
+      ),
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  // Fetch Agent Registry for linking contributor IDs — best-effort only
+  const { data: agentsData } = useQuery<AgentsListResponse, Error>({
+    queryKey: ['agents'],
+    queryFn: () => apiFetch<AgentsListResponse>('/agents'),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  const registeredAgentIds = new Set(
+    (agentsData?.agents ?? []).map((a) => a.agentId)
+  )
+
+  // Sort contributors by writeCount descending
+  const contributors = [...(whoKnows?.contributors ?? [])].sort(
+    (a, b) => b.writeCount - a.writeCount
+  )
+
+  // Detect 503-class error (scope / unavailable)
+  const is503 =
+    wkError !== null &&
+    (wkError.message.includes('503') ||
+      wkError.message.includes('WHOKNOWS_UNAVAILABLE') ||
+      wkError.message.includes('memory:read'))
+
+  return (
+    <div className={styles.contributorsPanel}>
+      <div className={styles.contributorsHeader}>
+        <span className={styles.contributorsPanelTitle}>Contributors</span>
+        {whoKnows && (
+          <span className={styles.contributorCount}>
+            {whoKnows.total} agent{whoKnows.total !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Loading skeleton */}
+      {wkLoading && (
+        <div className={styles.contributorsSkeleton} aria-busy="true" aria-label="Loading contributors">
+          <div className={styles.skeletonCard} />
+          <div className={styles.skeletonCard} />
+          <div className={styles.skeletonCard} />
+        </div>
+      )}
+
+      {/* 503 / scope error */}
+      {!wkLoading && is503 && (
+        <p className={styles.contributorsUnavailable}>
+          Contributor data unavailable. Check that your Iranti API key has{' '}
+          <code className={styles.contributorsInlineCode}>memory:read</code> scope.
+        </p>
+      )}
+
+      {/* Other errors (non-scope) treated the same way */}
+      {!wkLoading && wkError && !is503 && (
+        <p className={styles.contributorsUnavailable}>
+          Contributor data unavailable. Check that your Iranti API key has{' '}
+          <code className={styles.contributorsInlineCode}>memory:read</code> scope.
+        </p>
+      )}
+
+      {/* Empty state */}
+      {!wkLoading && !wkError && contributors.length === 0 && (
+        <p className={styles.contributorsEmpty}>
+          No attributed contributors for this entity.
+        </p>
+      )}
+
+      {/* Contributor cards */}
+      {!wkLoading && !wkError && contributors.length > 0 && (
+        <div className={styles.contributorList} role="list">
+          {contributors.map((c) => {
+            const isRegistered = registeredAgentIds.has(c.agentId)
+            return (
+              <div key={c.agentId} className={styles.contributorCard} role="listitem">
+                <div className={styles.contributorIdCell}>
+                  {isRegistered ? (
+                    <Link
+                      to={`/agents/${encodeURIComponent(c.agentId)}`}
+                      className={styles.contributorIdLink}
+                      title={`View ${c.agentId} in Agent Registry`}
+                    >
+                      {c.agentId}
+                    </Link>
+                  ) : (
+                    <span className={styles.contributorIdPlain}>{c.agentId}</span>
+                  )}
+                </div>
+                <div className={styles.contributorWriteCount}>
+                  <span className={styles.contributorWriteValue}>{c.writeCount}</span>
+                  <span className={styles.contributorWriteLabel}>write{c.writeCount !== 1 ? 's' : ''}</span>
+                </div>
+                <div className={styles.contributorLastSeen}>
+                  <span
+                    title={c.lastContributedAt ? new Date(c.lastContributedAt).toLocaleString() : undefined}
+                    className={styles.contributorRelativeTime}
+                  >
+                    {c.lastContributedAt ? formatRelativeTime(c.lastContributedAt) : '—'}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Tab types                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -368,6 +502,9 @@ export function EntityDetail() {
           />
         )}
       </div>
+
+      {/* CP-T057: Contributors panel — always visible below tab content */}
+      <ContributorsPanel entityType={decodedType} entityId={decodedId} />
     </div>
   )
 }
