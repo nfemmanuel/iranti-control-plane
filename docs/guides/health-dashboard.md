@@ -146,3 +146,67 @@ The Attendant card is informational. It does not perform a live health probe —
 This bypasses the classifier and always injects the working memory brief before the turn. This is the recommended approach until the upstream fix (CP-T025) ships.
 
 The card surfaces this limitation so operators know the status, not as a warning requiring action — the system is operational with the workaround in place.
+
+---
+
+## Interactive Diagnostics Panel
+
+The Interactive Diagnostics Panel is a "Run Diagnostics" surface at the bottom of the Health Dashboard (`/health`). Unlike the passive health checks above — which reflect what the control plane already knows — the diagnostics panel actively probes Iranti and its subsystems in real time and surfaces actionable fix suggestions.
+
+This is the control plane equivalent of `iranti doctor`, but with richer output, live feedback, and operator guidance.
+
+### Running diagnostics
+
+Click **Run Diagnostics** in the Health Dashboard. The button shows a spinner and "Running diagnostics…" while the checks execute (typically under 10 seconds). Results appear immediately when complete.
+
+The panel can also be triggered from the command palette (`Cmd+K` / `Ctrl+K`) — search for "Run Diagnostics".
+
+### The 7 diagnostic checks
+
+| Check | Display name | What it tests |
+|-------|-------------|---------------|
+| `iranti_connectivity` | Iranti Connectivity | HTTP GET to Iranti `/health` — confirms Iranti is running and reachable at the configured URL |
+| `iranti_auth` | API Key Auth | Authenticated request to Iranti's KB search endpoint — confirms your API key is present and has the required scopes |
+| `db_connectivity` | Database | `SELECT 1` against the control plane's database — confirms the database connection is live |
+| `vector_backend` | Vector Backend | Probes the configured vector backend URL (qdrant, chroma) or confirms pgvector connectivity via the primary database |
+| `ingest_roundtrip` | Memory Round-Trip | Writes a test fact to Iranti and reads it back — confirms the full write/read path is functional end-to-end |
+| `attend_check` | Attendant | Calls `iranti_attend` with a minimal payload and checks that the classifier returns a parseable result |
+| `vector_search_check` | Vector Search | Calls `GET /kb/search` and checks whether results have a `vectorScore > 0` — confirms semantic similarity search is active |
+
+### Status badges
+
+| Badge | Color | Meaning |
+|-------|-------|---------|
+| Pass | Emerald | The check succeeded with no issues. |
+| Warn | Amber | The check completed but something is degraded. The system is functional but at reduced capability. |
+| Fail | Red | The check failed. Action is required. |
+
+### Summary banner
+
+The banner at the top of the results panel reflects the overall outcome:
+
+- **All checks passed** (emerald) — every check returned Pass
+- **N warning(s) — system functional but degraded** (amber) — at least one Warn, no Fail
+- **N failure(s) detected — action required** (red) — at least one Fail
+
+### Fix hints
+
+When a check returns Warn or Fail, a fix hint appears below the check message. Any `iranti ...` commands in the hint are rendered in inline monospace for easy copy-paste. Examples:
+
+- **Iranti Connectivity fail:** `iranti run --instance <name>` — Iranti may not be running
+- **API Key Auth fail:** check `IRANTI_API_KEY` in your `.env.iranti` file
+- **Vector Search warn:** `IRANTI_QDRANT_URL` or `IRANTI_CHROMA_URL` unreachable — vector search using in-process fallback
+
+### Last-run behavior
+
+On page load, the control plane fetches the result of the most recent diagnostic run (if any). If a previous result exists, it appears in a collapsed summary below the Run Diagnostics button showing the overall status badge and total duration. Click "Expand" to see the full results table.
+
+If no diagnostic run has been performed yet in this server session, no previous result is shown.
+
+### The `__diagnostics__` probe entity
+
+The Memory Round-Trip check (`ingest_roundtrip`) writes a temporary test fact with `entityType: '__diagnostics__'` and `entityId: '__probe__'`. This entity is intentional — it is a known sentinel used to validate the write/read path. The control plane attempts to delete it immediately after the check completes.
+
+In the rare case the cleanup fails (e.g., a network interruption), the `__diagnostics__` entity may persist in Iranti temporarily. The Memory Explorer hides `__diagnostics__` entities by default — they will not appear in the normal browse view. If you need to inspect probe entities for debugging purposes, type `__diagnostics__` in the Entity Type filter in Memory Explorer to see them explicitly.
+
+See also: [Attendant Status Card](#attendant-status-card) — the `attend_check` diagnostic provides a live probe of the Attendant classifier, whereas the Attendant Status Card is a static informational note about the known classification limitation.

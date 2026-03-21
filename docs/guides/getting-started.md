@@ -10,7 +10,7 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ## What's Available Now
 
-The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 1/2):
+The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 1–6):
 
 | View | What it does |
 |---|---|
@@ -19,7 +19,7 @@ The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 
 | **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — a table of all current KB facts for the entity (key, value summary, confidence, source, agent, validFrom), a collapsible table of archived facts, a flat relationships list, and a breadcrumb back to Memory Explorer. (Phase 2 — CP-T036) |
 | **Temporal History** | Per-key fact history at `/memory/:entityType/:entityId/:key` — every interval that key has held, with confidence, validFrom/validUntil, and archivedReason. Click any interval to expand and read the full raw JSON value. The live fact carries a "current" badge. Empty state: "No history — this fact has not been superseded or archived." (Phase 2 — CP-T036) |
 | **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
-| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. (Wave 4 — CP-T052, PM-accepted 2026-03-21) |
+| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. Includes the **Interactive Diagnostics Panel** (Wave 6 — CP-T059): click "Run Diagnostics" to actively probe Iranti connectivity, API key auth, DB, vector backend, and memory round-trip with actionable fix suggestions. Also reachable from the command palette. (Wave 4/6 — CP-T052, CP-T059, PM-accepted 2026-03-21) |
 | **Agent Registry** | Read-only view of all registered agents at `/agents` — last seen, active status, write volume, rejection rate, escalation history, and per-agent detail panel. (Wave 4 — CP-T051, PM-accepted 2026-03-21) |
 | **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
 | **Getting Started / Onboarding** | Guided setup checklist at `/getting-started` — 4 steps covering database connection, provider configuration, project binding, and Claude/Codex integration. Auto-shown on first load when setup has never been completed. The sidebar nav item displays a persistent badge with the count of incomplete steps until all steps are resolved. A dismissible setup banner also appears in the page header until setup is complete. (Phase 2 — CP-T035) |

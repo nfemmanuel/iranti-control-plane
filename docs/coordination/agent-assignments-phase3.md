@@ -10,8 +10,8 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 5 + Wave 6 (dispatched 2026-03-21) — Wave 7 stub ready
-Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058
+Current wave: Wave 7 dispatched 2026-03-21 (Wave 5/6 complete — Wave 6 PM-ACCEPTED)
+Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058 → CP-T059 → CP-T060
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
@@ -23,6 +23,8 @@ CP-T056 issued: 2026-03-21 Wave 5 — Temporal History asOf query (frontend_deve
 CP-T057 issued: 2026-03-21 Wave 5 — WhoKnows Contributor Panel (backend_developer + frontend_developer)
 CP-T058 issued: 2026-03-21 Wave 5 — UX Guidance Labels M4/M5/H8 (frontend_developer only)
 CP-T059 issued: 2026-03-21 Wave 6 — Interactive Diagnostics Panel (backend_developer + frontend_developer) — P2, new CP-E012 epic
+CP-T059 PM-ACCEPTED: 2026-03-21 — All 5 frontend ACs pass, tsc clean, AC-9 __diagnostics__ filter confirmed
+CP-T060 issued: 2026-03-21 Wave 7 — Metrics Dashboard (backend_developer + frontend_developer) — P2, CP-E013 epic
 
 Iranti upstream drift check (2026-03-21): v0.2.14 current (was v0.2.12 at last audit). v0.2.13 partially fixes B11 attend classifier; hybrid search now falls back to in-process scoring when pgvector unavailable. v0.2.14 is Windows updater fix only. No breaking API changes. No control plane rework required.
 
@@ -954,4 +956,153 @@ In `src/client/src/components/health/HealthDashboard.tsx`:
 - Whether the `__diagnostics__` probe entity decision (filter from Memory Explorer or leave visible) was made — and which direction
 - Any fixHint wording changes and rationale (must get PM approval before deviating from ticket wording)
 - AC-7 (command palette) confirmed working
+- CI status
+
+**CP-T059 outcome:** PM-ACCEPTED 2026-03-21 (backend + frontend). TypeScript clean. All 5 frontend ACs verified. AC-9 `__diagnostics__` filter implemented as client-side exclusion in MemoryExplorer.tsx. Double-trigger guard confirmed. rAF deferred command palette event confirmed.
+
+---
+
+## Wave 7 — Issued 2026-03-21 (Metrics Epic — CP-E013)
+
+**Wave 7 rationale:** With Wave 5/6 complete, the control plane provides a complete real-time operator surface. The natural next step is the time-dimension view: trends and historical activity shape, not just current state. CP-T060 (Metrics Dashboard) uses only data that already exists in `staff_events`, introduces no new data collection infrastructure, and gives operators a genuinely new capability — spotting trends and anomalies across sessions.
+
+**PM decisions locked at dispatch:**
+- SVG-native charts only (no Recharts, Chart.js, or any other charting dependency)
+- 7d and 30d period toggles at MVP (90d deferred)
+- `totalFacts` derived from `staff_events` accumulation, not unbounded `/kb/query`
+- DB index on `(timestamp, agent_id, action_type)` recommended to backend
+
+---
+
+### Assignment — CP-T060 (Metrics Dashboard) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — dispatched 2026-03-21 (Wave 7, CP-E013)
+**Ticket:** `docs/tickets/cp-t060.md`
+**Priority:** P2
+**Phase:** 3, Wave 7
+
+**Why now:** The Staff Logs view (CP-T050) proved the `staff_events` table is populated and query-ready. Wave 5/6 completed the operator insight surface. Metrics is the final piece of the "understand Iranti over time" capability gap — operators currently cannot answer "how fast is the KB growing?" or "which agents have been most active this week?" This view answers those questions with no new data collection infrastructure.
+
+**backend_developer scope:**
+
+Create `src/server/routes/control-plane/metrics.ts` implementing three endpoints:
+
+1. **`GET /api/control-plane/metrics/kb-growth?period=30d`**
+
+   Return daily KB fact counts for the last N days (7 or 30 — no other values at MVP). Query structure:
+   - `newFacts`: count `staff_events` WHERE `action_type = 'WRITE_ACCEPTED'` grouped by DATE(timestamp)
+   - `archivedFacts`: count `staff_events` WHERE `action_type IN ('ARCHIVED', 'WRITE_REJECTED_CONFIDENCE', ...)` grouped by DATE(timestamp) — include all archival action types
+   - `totalFacts`: running accumulation from day 0 of available `staff_events` data (sum of `WRITE_ACCEPTED` minus `ARCHIVED` to date)
+   - If `staff_events` has fewer than 2 days of data: return `truncated: true` with whatever is available
+
+   Response shape:
+   ```json
+   {
+     "period": "30d",
+     "truncated": false,
+     "data": [
+       { "date": "2026-03-20", "totalFacts": 1240, "newFacts": 14, "archivedFacts": 2 }
+     ]
+   }
+   ```
+
+2. **`GET /api/control-plane/metrics/agent-activity?period=30d`**
+
+   Return per-agent write volume grouped by day. Cap to top 10 agents by total write count if more than 10 are active in the period.
+
+   Response shape:
+   ```json
+   {
+     "period": "30d",
+     "agents": [
+       {
+         "agentId": "backend_developer",
+         "data": [
+           { "date": "2026-03-20", "writes": 8, "rejections": 1, "escalations": 0 }
+         ]
+       }
+     ]
+   }
+   ```
+
+3. **`GET /api/control-plane/metrics/summary`**
+
+   Lightweight summary for the top of the view. Use SQL aggregates — do not load all events into memory.
+
+   Response shape:
+   ```json
+   {
+     "totalFacts": 1240,
+     "factsLast24h": 14,
+     "factsLast7d": 89,
+     "activeAgentsLast7d": 3,
+     "rejectionRateLast7d": 0.04,
+     "archiveRateLast7d": 0.02
+   }
+   ```
+
+4. **DB index recommendation:** Before writing the endpoint, check whether a compound index exists on `staff_events (timestamp, agent_id, action_type)`. If not, add a migration that creates it. GROUP BY queries on this table will need it as volume grows.
+
+5. **Register in `index.ts`**: `controlPlaneRouter.use('/metrics', metricsRouter)`
+
+**Files to read before starting:**
+- `docs/tickets/cp-t060.md` — full ticket, all ACs, PM decisions
+- `src/server/routes/control-plane/events.ts` — existing `staff_events` query patterns, table-existence cache, serialization — your metrics queries follow the same patterns
+- `src/server/routes/control-plane/index.ts` — route registration
+- `src/server/migrations/` — examine for existing index patterns; add index migration here
+
+**Acceptance criteria (backend):**
+- AC-1: `GET /metrics/kb-growth?period=30d` returns data array with `date`, `totalFacts`, `newFacts`, `archivedFacts`; `truncated: true` when `< 2 days` of data
+- AC-2: `GET /metrics/agent-activity?period=30d` returns per-agent data array
+- AC-3: `GET /metrics/summary` returns all 6 summary fields
+- AC-4: TypeScript clean, no `any`. `tsc --noEmit` passes.
+- Graceful degradation: if `staff_events` table doesn't exist (e.g., before migration), return empty data with `truncated: true` — not a 500
+- No unbounded memory loads: use SQL aggregates (`COUNT`, `GROUP BY`, `DATE_TRUNC` or `strftime`)
+
+**frontend_developer scope:**
+
+Create `src/client/src/components/metrics/MetricsDashboard.tsx` and add the `/metrics` route:
+
+1. **Sidebar nav entry:** Add "Metrics" between "Health" and "Conflicts" in the sidebar nav list. Icon: use a chart-like symbol from existing palette (e.g., `▦` or `⊡` — confirm with visual tokens).
+
+2. **Summary stat cards at top (AC-8):** 4 cards in a 2×2 or 4-column row:
+   - "Total KB Facts" — `summary.totalFacts`
+   - "Written in last 24h" — `summary.factsLast24h`
+   - "Active agents (7d)" — `summary.activeAgentsLast7d`
+   - "Rejection rate (7d)" — `summary.rejectionRateLast7d` as a percentage (e.g., "4.0%")
+   - Use the same card style as Health Dashboard cards
+
+3. **KB Growth chart (AC-6):** SVG-native line chart. X-axis: dates (last 7 or 30 days). Y-axis: fact count. Two lines: `newFacts` (emerald) and `archivedFacts` (amber). Period toggle: 7d / 30d buttons (default 30d). No chart library — draw SVG paths from the data array. Axis labels: abbreviated date (e.g., "Mar 20"). Legend below the chart. The Entity Relationship Graph (CP-T032) is an existing SVG precedent in the codebase.
+
+4. **Agent Activity chart (AC-7):** SVG-native bar chart. X-axis: dates. Y-axis: write count. Bars grouped or stacked by agent. Show top 5 agents by total write count; group the rest as "Other" (neutral gray). Agent color assignments: use the same color seed function as the Agent Registry (CP-T051) if one exists — otherwise derive colors from a fixed palette of 5 Terminals palette accents. Legend showing agent IDs and their color.
+
+5. **Empty state (AC-9):** If `kb-growth` returns `truncated: true` and has fewer than 2 data points: show "Not enough history yet. Metrics will appear after at least 48 hours of activity." with a note about when the `staff_events` table was created (use `summary` data or the oldest event timestamp if available).
+
+6. **Period toggle state:** Changing the 7d/30d toggle re-fetches both `kb-growth` and `agent-activity` with the new period. Summary cards do not change (summary uses its own fixed windows).
+
+**Files to read before starting:**
+- `docs/tickets/cp-t060.md` — full ticket
+- `src/client/src/components/memory/EntityDetail.tsx` (or wherever CP-T032 SVG graph lives) — SVG rendering precedent
+- `src/client/src/components/agents/AgentRegistry.tsx` (or equivalent) — agent color assignment to reuse
+- `src/client/src/components/health/HealthDashboard.tsx` — card style to match
+- `docs/specs/visual-tokens.md` — Terminals palette; emerald for new facts, amber for archived, use accent colors for agent bars
+
+**Acceptance criteria (frontend):**
+- AC-5: `/metrics` route in sidebar, renders dashboard
+- AC-6: KB Growth SVG line chart with 7d/30d toggle, emerald/amber lines, period toggle re-fetches
+- AC-7: Agent Activity SVG bar chart, top 5 agents, "Other" grouping, legend
+- AC-8: 4 summary stat cards visible at top of view
+- AC-9: Empty state shown when fewer than 2 days of data
+- AC-10: TypeScript clean, no `any`. `tsc --noEmit` passes.
+- Light mode and dark mode both visually reviewed
+
+**Commit as:**
+- `feat(backend): add metrics endpoints — kb-growth, agent-activity, summary (CP-T060)`
+- `feat(frontend): add Metrics Dashboard with SVG charts and summary cards (CP-T060)`
+
+**Report back to PM with:**
+- Whether the `staff_events` index was added (and migration confirmed)
+- Confirmation that SVG chart rendering works with real data (or empty/truncated state if no data yet)
+- Which ACs passed
+- Whether any agent color reuse from CP-T051 was implemented
 - CI status
