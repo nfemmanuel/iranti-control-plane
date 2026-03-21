@@ -1,29 +1,29 @@
 #!/usr/bin/env node
 /**
- * scripts/package/bundle.js
+ * scripts/package/bundle.mjs
  *
- * Bundles the ESM TypeScript server into a single CJS file suitable for
+ * Bundles the TypeScript server into a single ESM file suitable for
  * Node.js Single Executable Applications (SEA).
  *
- * Node SEA requires a CommonJS entry point — it does not support ESM input.
+ * Node SEA supports ESM as of Node 21.7.1+. We target Node 22+ and use
+ * ESM format to preserve top-level await (which is not supported in CJS).
+ *
  * This script uses esbuild to:
  *   - Transpile TypeScript to JS
  *   - Bundle all dependencies inline (except pg-native — optional native addon)
- *   - Emit CommonJS (format=cjs) targeting Node 22
- *   - Inject an import.meta.url polyfill so that CJS code reconstructed
- *     from __filename behaves correctly
+ *   - Emit ESM (format=esm) targeting Node 22
  *
  * Prerequisites:
  *   esbuild must be available. It is a devDependency of src/server.
  *   Run: npm install --prefix src/server
  *
- * Output: dist/server/bundle.cjs
+ * Output: dist/server/bundle.mjs
  *
  * Usage:
- *   node scripts/package/bundle.js
+ *   node scripts/package/bundle.mjs
  */
 
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { mkdirSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -32,8 +32,15 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const ROOT = resolve(__dirname, '../../')
 const ENTRY = resolve(ROOT, 'src/server/index.ts')
-const OUTFILE = resolve(ROOT, 'dist/server/bundle.cjs')
-const ESBUILD = resolve(ROOT, 'src/server/node_modules/.bin/esbuild')
+const OUTFILE = resolve(ROOT, 'dist/server/bundle.mjs')
+
+// On Windows, .bin/esbuild is a .cmd shim — use the native exe directly
+// to avoid shell quoting issues with execFileSync.
+const ESBUILD_CMD = resolve(ROOT, 'src/server/node_modules/.bin/esbuild.cmd')
+const ESBUILD_EXE = resolve(ROOT, 'src/server/node_modules/@esbuild/win32-x64/esbuild.exe')
+const ESBUILD = process.platform === 'win32'
+  ? (existsSync(ESBUILD_EXE) ? ESBUILD_EXE : ESBUILD_CMD)
+  : resolve(ROOT, 'src/server/node_modules/.bin/esbuild')
 
 // Ensure esbuild is installed
 if (!existsSync(ESBUILD)) {
@@ -45,24 +52,14 @@ if (!existsSync(ESBUILD)) {
 // Ensure output directory exists
 mkdirSync(resolve(ROOT, 'dist/server'), { recursive: true })
 
-// The import.meta.url polyfill injects a CJS-compatible __importmeta_url
-// variable so that any import.meta.url references in the transpiled code
-// resolve to the correct file:// URL for __filename.
-const banner = `
-const __importmeta_url = require('url').pathToFileURL(__filename).href;
-`.trim()
-
-const cmd = [
-  ESBUILD,
+// Use execFileSync with an args array to avoid Windows shell quoting issues.
+const args = [
   ENTRY,
   '--bundle',
   '--platform=node',
-  '--format=cjs',
+  '--format=esm',
   '--target=node22',
-  '--outfile=' + OUTFILE,
-  // import.meta.url polyfill
-  `--banner:js=${banner}`,
-  '--define:import.meta.url=__importmeta_url',
+  `--outfile=${OUTFILE}`,
   // pg-native is an optional peer dependency that requires libpq native
   // headers. It is not installed in this project. Mark as external so
   // esbuild skips it cleanly rather than erroring.
@@ -76,15 +73,15 @@ const cmd = [
   '--external:@rollup/rollup-darwin-x64',
   '--external:@rollup/rollup-darwin-arm64',
   '--log-level=info',
-].join(' ')
+]
 
-console.log('[bundle] Running esbuild...')
+console.log('[bundle] Running esbuild (ESM format)...')
 console.log('[bundle] Entry:', ENTRY)
 console.log('[bundle] Output:', OUTFILE)
 
 try {
-  execSync(cmd, { stdio: 'inherit', cwd: ROOT })
-  console.log('[bundle] Done. CJS bundle written to:', OUTFILE)
+  execFileSync(ESBUILD, args, { stdio: 'inherit', cwd: ROOT })
+  console.log('[bundle] Done. ESM bundle written to:', OUTFILE)
 } catch (err) {
   console.error('[bundle] esbuild failed:', err.message)
   process.exit(1)
