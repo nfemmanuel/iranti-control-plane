@@ -1,5 +1,5 @@
 /**
- * KB / Archive / Entity / Relationships routes
+ * KB / Archive / Entity / Relationships / Alias routes
  *
  * Covers:
  *   GET /kb              — paginated knowledge_base browse
@@ -7,6 +7,8 @@
  *   GET /entities/:entityType/:entityId           — entity detail
  *   GET /entities/:entityType/:entityId/history/:key — temporal history (UNION)
  *   GET /relationships   — entity_relationships browse
+ *   GET /kb/entity/:entityType/:entityId/aliases  — list aliases (CP-T061, proxy to Iranti)
+ *   POST /kb/alias                                — create alias  (CP-T061, proxy to Iranti)
  *
  * PHASE 1 NOTE: The `entities` table does not exist in the current Iranti DB schema.
  * EntityRecord will always be null until a canonical entities table is added upstream.
@@ -14,7 +16,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
-import { query } from '../../db.js'
+import { query, env } from '../../db.js'
 import {
   KBFact,
   ArchiveFact,
@@ -1020,6 +1022,303 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
     next(err)
   }
 })
+
+// ---------------------------------------------------------------------------
+// CP-T061 — Entity Alias proxy routes
+//
+// These two routes proxy Iranti's alias API to the control plane.
+// They sit here in kb.ts because aliases are a KB-layer concept and the
+// existing KB proxy pattern (buildHeaders, env resolution) is already established
+// in whoknows.ts — we replicate the same lightweight helper approach here.
+//
+// Iranti API shapes (confirmed against v0.2.15):
+//
+//   GET /kb/entity/:entityType/:entityId/aliases
+//     Response: {
+//       canonicalEntity: string,
+//       aliases: Array<{ alias: string, aliasNorm: string, source: string,
+//                        confidence: number, createdAt: string }>
+//     }
+//
+//   POST /kb/alias
+//     Body:    { canonicalEntity: string, alias: string, source?: string,
+//                confidence?: number, force?: boolean }
+//     Success: 200 { ok: true, canonicalEntity: string, aliasNormalized: string, created: boolean }
+//     Error:   400 { error: string }  (bad entity, validation failure, etc.)
+// ---------------------------------------------------------------------------
+
+function getIrantiBaseUrl(): string {
+  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+}
+
+function getIrantiApiKey(): string {
+  return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+}
+
+function buildIrantiHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const incomingKey = req.headers['x-iranti-key']
+  const apiKey = typeof incomingKey === 'string' && incomingKey.trim()
+    ? incomingKey
+    : getIrantiApiKey()
+  if (apiKey) headers['X-Iranti-Key'] = apiKey
+  return headers
+}
+
+// ---------------------------------------------------------------------------
+// Alias types
+// ---------------------------------------------------------------------------
+
+interface IrantiAliasEntry {
+  alias: string
+  aliasNorm: string
+  source: string
+  confidence: number
+  createdAt: string
+}
+
+interface AliasListResponse {
+  canonicalEntity: string
+  aliases: IrantiAliasEntry[]
+  total: number
+}
+
+interface AliasCreateRequest {
+  canonicalEntity: string
+  alias: string
+  source?: string
+  confidence?: number
+  force?: boolean
+}
+
+interface AliasCreateResponse {
+  ok: boolean
+  canonicalEntity: string
+  aliasNormalized: string
+  created: boolean
+}
+
+// ---------------------------------------------------------------------------
+// GET /kb/entity/:entityType/:entityId/aliases  (CP-T061 AC-1)
+//
+// Note: must be registered before any route with the same prefix that could
+// match — in practice the existing KB routes mount on /entities/..., not
+// /kb/entity/..., so there is no conflict.
+// ---------------------------------------------------------------------------
+
+kbRouter.get(
+  '/kb/entity/:entityType/:entityId/aliases',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { entityType, entityId } = req.params
+      const baseUrl = getIrantiBaseUrl()
+      const upstreamUrl = `${baseUrl}/kb/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/aliases`
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      let irantiRes: globalThis.Response
+      try {
+        irantiRes = await fetch(upstreamUrl, {
+          method: 'GET',
+          headers: buildIrantiHeaders(req),
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+
+      if (irantiRes.status === 401 || irantiRes.status === 403) {
+        res.status(503).json({
+          error: 'Iranti kb:read scope required to list aliases',
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+
+      if (irantiRes.status === 404) {
+        // Entity has no aliases — return empty list (not an error)
+        const response: AliasListResponse = {
+          canonicalEntity: `${entityType}/${entityId}`,
+          aliases: [],
+          total: 0,
+        }
+        res.json(response)
+        return
+      }
+
+      if (!irantiRes.ok) {
+        res.status(503).json({
+          error: `Iranti alias endpoint returned unexpected status ${irantiRes.status}`,
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+
+      const body = await irantiRes.json() as unknown
+
+      // Normalize: Iranti returns { canonicalEntity, aliases: [...] }
+      let canonicalEntity = `${entityType}/${entityId}`
+      let aliases: IrantiAliasEntry[] = []
+
+      if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+        const raw = body as Record<string, unknown>
+        if (typeof raw['canonicalEntity'] === 'string') {
+          canonicalEntity = raw['canonicalEntity']
+        }
+        if (Array.isArray(raw['aliases'])) {
+          aliases = (raw['aliases'] as unknown[]).map((item): IrantiAliasEntry => {
+            const a = item as Record<string, unknown>
+            return {
+              alias: String(a['alias'] ?? ''),
+              aliasNorm: String(a['aliasNorm'] ?? a['alias'] ?? ''),
+              source: String(a['source'] ?? ''),
+              confidence: Number(a['confidence'] ?? 0),
+              createdAt: String(a['createdAt'] ?? ''),
+            }
+          })
+        }
+      } else if (Array.isArray(body)) {
+        // Defensive: if Iranti returns a bare array, wrap it
+        aliases = (body as unknown[]).map((item): IrantiAliasEntry => {
+          const a = (item ?? {}) as Record<string, unknown>
+          return {
+            alias: String(a['alias'] ?? ''),
+            aliasNorm: String(a['aliasNorm'] ?? a['alias'] ?? ''),
+            source: String(a['source'] ?? ''),
+            confidence: Number(a['confidence'] ?? 0),
+            createdAt: String(a['createdAt'] ?? ''),
+          }
+        })
+      }
+
+      const response: AliasListResponse = { canonicalEntity, aliases, total: aliases.length }
+      res.json(response)
+    } catch (err: unknown) {
+      const name = (err as Error)?.name
+      if (name === 'AbortError' || name === 'TypeError') {
+        res.status(503).json({
+          error: 'Iranti instance unreachable for alias lookup',
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// POST /kb/alias  (CP-T061 AC-2)
+//
+// Proxies POST /kb/alias on Iranti.
+//
+// Request body:
+//   { canonicalEntity: string, alias: string, source?: string,
+//     confidence?: number, force?: boolean }
+//
+// Success: 201 { ok, canonicalEntity, aliasNormalized, created }
+// 400: bad entity / validation failure (passthrough from Iranti)
+// 503: Iranti unreachable or auth failure
+// ---------------------------------------------------------------------------
+
+kbRouter.post(
+  '/kb/alias',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { canonicalEntity, alias, source, confidence, force } = req.body as Partial<AliasCreateRequest>
+
+      if (!canonicalEntity || typeof canonicalEntity !== 'string' || !canonicalEntity.trim()) {
+        res.status(400).json({
+          error: 'canonicalEntity is required and must be a non-empty string (e.g. "user/alice")',
+          code: 'INVALID_REQUEST',
+        })
+        return
+      }
+
+      if (!alias || typeof alias !== 'string' || !alias.trim()) {
+        res.status(400).json({
+          error: 'alias is required and must be a non-empty string',
+          code: 'INVALID_REQUEST',
+        })
+        return
+      }
+
+      const upstreamBody: AliasCreateRequest = {
+        canonicalEntity: canonicalEntity.trim(),
+        alias: alias.trim(),
+      }
+      if (typeof source === 'string' && source.trim()) upstreamBody.source = source.trim()
+      if (typeof confidence === 'number') upstreamBody.confidence = confidence
+      if (typeof force === 'boolean') upstreamBody.force = force
+
+      const baseUrl = getIrantiBaseUrl()
+      const upstreamUrl = `${baseUrl}/kb/alias`
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      let irantiRes: globalThis.Response
+      try {
+        irantiRes = await fetch(upstreamUrl, {
+          method: 'POST',
+          headers: buildIrantiHeaders(req),
+          body: JSON.stringify(upstreamBody),
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+
+      // Iranti 400 → passthrough with 400 (bad entity, validation error)
+      if (irantiRes.status === 400) {
+        const errBody = await irantiRes.json() as Record<string, unknown>
+        res.status(400).json({
+          error: typeof errBody['error'] === 'string' ? errBody['error'] : 'Invalid alias request',
+          code: 'ALIAS_CREATE_INVALID',
+        })
+        return
+      }
+
+      // Auth failures
+      if (irantiRes.status === 401 || irantiRes.status === 403) {
+        res.status(503).json({
+          error: 'Iranti kb:write scope required to create aliases',
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+
+      if (!irantiRes.ok) {
+        res.status(503).json({
+          error: `Iranti alias create endpoint returned unexpected status ${irantiRes.status}`,
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+
+      const body = await irantiRes.json() as Record<string, unknown>
+      const response: AliasCreateResponse = {
+        ok: Boolean(body['ok'] ?? true),
+        canonicalEntity: String(body['canonicalEntity'] ?? canonicalEntity),
+        aliasNormalized: String(body['aliasNormalized'] ?? alias),
+        created: Boolean(body['created'] ?? true),
+      }
+
+      res.status(201).json(response)
+    } catch (err: unknown) {
+      const name = (err as Error)?.name
+      if (name === 'AbortError' || name === 'TypeError') {
+        res.status(503).json({
+          error: 'Iranti instance unreachable for alias creation',
+          code: 'ALIASES_UNAVAILABLE',
+        })
+        return
+      }
+      next(err)
+    }
+  }
+)
 
 // Error handler must be last
 kbRouter.use(errorHandler)
