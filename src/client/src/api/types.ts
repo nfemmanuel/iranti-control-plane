@@ -484,6 +484,49 @@ export interface AgentsListResponse {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Metrics (CP-T060)                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface KbGrowthDataPoint {
+  date: string
+  totalFacts: number
+  newFacts: number
+  archivedFacts: number
+}
+
+export interface KbGrowthResponse {
+  period: '7d' | '30d'
+  truncated: boolean
+  data: KbGrowthDataPoint[]
+}
+
+export interface AgentActivityDataPoint {
+  date: string
+  writes: number
+  rejections: number
+  escalations: number
+}
+
+export interface AgentActivitySeries {
+  agentId: string
+  data: AgentActivityDataPoint[]
+}
+
+export interface AgentActivityResponse {
+  period: '7d' | '30d'
+  agents: AgentActivitySeries[]
+}
+
+export interface MetricsSummaryResponse {
+  totalFacts: number
+  factsLast24h: number
+  factsLast7d: number
+  activeAgentsLast7d: number
+  rejectionRateLast7d: number
+  archiveRateLast7d: number
+}
+
+/* ------------------------------------------------------------------ */
 /*  Diagnostics (CP-T059)                                              */
 /* ------------------------------------------------------------------ */
 

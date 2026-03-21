@@ -11,7 +11,11 @@ export async function run(): Promise<void> {
   // without closing the shared server pool imported from db.ts.
   const migrationPool = new Pool({ connectionString: env.DATABASE_URL })
 
-  const migrations = ['001_create_staff_events.sql']
+  const migrations = [
+    '001_create_staff_events.sql',
+    '002_create_archive_flags.sql',
+    '003_staff_events_metrics_index.sql',
+  ]
 
   try {
     for (const file of migrations) {

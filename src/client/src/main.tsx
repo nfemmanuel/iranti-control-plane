@@ -15,6 +15,7 @@ import { GettingStarted } from './components/onboarding/GettingStarted'
 import { ConflictReview } from './components/conflicts/ConflictReview'
 import { ProviderManager } from './components/providers/ProviderManager'
 import { AgentRegistry } from './components/agents/AgentRegistry'
+import { MetricsDashboard } from './components/metrics/MetricsDashboard'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
 import { LoadingPage } from './components/ui/LoadingPage'
 import './styles/tokens.css'
@@ -75,6 +76,7 @@ createRoot(rootEl).render(
                 <Route path="instances" element={<InstanceManager />} />
                 <Route path="instances/:id" element={<InstanceManager />} />
                 <Route path="health" element={<HealthDashboard />} />
+                <Route path="metrics" element={<MetricsDashboard />} />
                 <Route path="getting-started" element={<GettingStarted />} />
                 <Route path="conflicts" element={<ConflictReview />} />
                 <Route path="providers" element={<ProviderManager />} />

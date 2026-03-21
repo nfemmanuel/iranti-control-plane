@@ -13,6 +13,7 @@ import { archivistRouter } from './archivist.js'
 import { agentsRouter } from './agents.js'
 import { whoknowsRouter } from './whoknows.js'
 import { diagnosticsRouter } from './diagnostics.js'
+import { metricsRouter } from './metrics.js'
 
 export const controlPlaneRouter = Router()
 
@@ -38,3 +39,5 @@ controlPlaneRouter.use('/', chatRouter)
 controlPlaneRouter.use('/', agentsRouter)
 // Diagnostics: POST /diagnostics/run, GET /diagnostics/last
 controlPlaneRouter.use('/diagnostics', diagnosticsRouter)
+// Metrics Dashboard: GET /metrics/kb-growth, GET /metrics/agent-activity, GET /metrics/summary
+controlPlaneRouter.use('/metrics', metricsRouter)
