@@ -140,10 +140,23 @@ Tasks will be assigned per story during sprint planning within each phase.
 
 Phase: 3
 Owner: backend_developer, frontend_developer, devops_engineer
-Status: **IN PROGRESS** — CP-T050 COMPLETE, CP-T049 COMPLETE, CP-T048 implementation complete (AC-11 pending)
+Status: **IN PROGRESS** — Wave 1–4 complete; Wave 5 in progress
 Tier: Should Have
-Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), and platform-native installer packages for zero-Node.js installation on Windows, macOS, and Linux (CP-T048).
-Linked tickets: CP-T050, CP-T049, CP-T048
+Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), platform-native installer packages (CP-T048), Agent Registry View (CP-T051), Health extensions (CP-T052), Memory Explorer field label improvements (CP-T053), temporal asOf query (CP-T056), WhoKnows contributor panel (CP-T057), and operator guidance UX labels (CP-T058).
+Linked tickets: CP-T050, CP-T049, CP-T048, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058
+
+---
+
+---
+
+### CP-E012 — Diagnostics (Phase 3)
+
+Phase: 3
+Owner: backend_developer, frontend_developer
+Status: **OPEN** — scoped 2026-03-21; first ticket CP-T059 issued for Wave 6
+Tier: Should Have
+Description: An active diagnostic surface within the control plane, beyond the passive Health Dashboard. Operators can trigger live connectivity checks, Staff round-trip tests (ingest write/read, attend probe, vector search quality), and receive actionable fix suggestions from within the UI — equivalent to `iranti doctor` but with richer output and operator guidance. Powers a key operator workflow: "something's wrong, diagnose it from the control plane."
+Linked tickets: CP-T059
 
 ---
 
@@ -154,5 +167,8 @@ Linked tickets: CP-T050, CP-T049, CP-T048
 - [x] Phase 0: All 5 specs/memos PM-approved before Phase 1 tickets are cut
 - [x] Phase 1: CP-E002 through CP-E006 features decomposed and delivered — all PM-accepted 2026-03-20
 - [x] Phase 2: CP-E007 through CP-E010 features decomposed and delivered — all PM-accepted 2026-03-20
-- [x] Phase 3: Scope defined after Phase 2 retrospective — CP-E011 defined, 3 tickets in flight
+- [x] Phase 3: Scope defined after Phase 2 retrospective — CP-E011 defined, tickets in flight
+- [x] Phase 3 Wave 4: CP-T051, CP-T052, CP-T053 — PM-ACCEPTED 2026-03-21
 - [ ] Phase 3: CP-T048 clean-machine testing (AC-11) — blocked on CI artifact availability
+- [ ] Phase 3 Wave 5: CP-T056, CP-T057, CP-T058 — open, issued 2026-03-21
+- [ ] Phase 3 Wave 6: CP-T059 (Interactive Diagnostics Panel, CP-E012) — open, issued 2026-03-21

@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — CP-T050 and CP-T049 both PM-ACCEPTED 2026-03-20. CP-T048 Wave 3 implementation complete 2026-03-21; AC-11 clean-machine testing is the only remaining gate.
+> **Last updated: 2026-03-21 (Wave 5 kickoff)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–4 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 5 issued 2026-03-21: CP-T056, CP-T057, CP-T058. Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
 
 ## Horizon
 
@@ -258,11 +258,22 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - Rationale: packaging infrastructure benefits from a stable, feature-complete control plane; Node SEA ESM spike is the first task and must be validated before any CI pipeline work
 - Assigned: `devops_engineer` (Wave 3 kickoff by PM after CP-T049 acceptance)
 
-**Wave 4 (issued 2026-03-21 from cross-repo audit):** CP-T051, CP-T052, CP-T053 — audit-driven alignment tickets
+**Wave 4 (issued 2026-03-21 from cross-repo audit):** CP-T051, CP-T052, CP-T053 — audit-driven alignment tickets — **ALL PM-ACCEPTED 2026-03-21**
 - Rationale: cross-repo audit of Iranti v0.2.12 (vs v0.2.9 at last audit) surfaced agent registry API, decay config, vector backend, ConflictLog structure, createdBy/source distinction, and stability/lastAccessedAt fields — all visible data that the control plane does not surface
-- CP-T051 (Agent Registry View): `backend_developer` (proxy endpoints) + `frontend_developer` (/agents route, list + detail)
-- CP-T052 (Health: Decay + Vector + Attend): `backend_developer` (health endpoint extensions) + `frontend_developer` (new cards)
-- CP-T053 (Memory Explorer: ConflictLog + Field Labels): `frontend_developer` (pure frontend — API already returns conflictLog)
+- CP-T051 (Agent Registry View): `backend_developer` (proxy endpoints) + `frontend_developer` (/agents route, list + detail) — **PM-ACCEPTED**
+- CP-T052 (Health: Decay + Vector + Attend): `backend_developer` (health endpoint extensions) + `frontend_developer` (new cards) — **PM-ACCEPTED**
+- CP-T053 (Memory Explorer: ConflictLog + Field Labels): `frontend_developer` (pure frontend — API already returns conflictLog) — **PM-ACCEPTED**
+
+**Wave 5 (issued 2026-03-21 — post-Wave 4 acceptance):** CP-T056, CP-T057, CP-T058 — operator insight and UX polish
+- Rationale: With Wave 4 complete, the control plane now surfaces agents, health extensions, and conflict history. Wave 5 adds temporal point-in-time query, entity contributor visibility (WhoKnows), and operator guidance labels — all low-risk, operator-facing improvements.
+- CP-T056 (Temporal History asOf Query): `frontend_developer` (pure frontend — date/time picker, asOf query, interval highlight)
+- CP-T057 (WhoKnows Contributor Panel): `backend_developer` (proxy endpoint) + `frontend_developer` (Contributors panel in Entity Detail)
+
+**Wave 6 (issued 2026-03-21 — concurrent with Wave 5):** CP-T059 — Interactive Diagnostics Panel (new CP-E012 Diagnostics epic)
+- Rationale: The Health Dashboard is passive. Operators with problems must drop to the CLI. An active diagnostics surface — "Run Diagnostics" button triggering 7 live checks (Iranti connectivity, auth, DB, vector backend, ingest round-trip, attend check, vector search quality) with actionable fix hints — makes the control plane the primary operator diagnostic tool, not a supplement to `iranti doctor`. This is P2, not P3, because it directly reduces operator time-to-resolution.
+- CP-T059 (Interactive Diagnostics Panel): `backend_developer` (POST /diagnostics/run, GET /diagnostics/last, 7 checks, fixHint messages) + `frontend_developer` (Health Dashboard "Run Diagnostics" button, results panel, command palette registration)
+- CP-T058 (Operator Guidance Labels — M4/M5/H8): `frontend_developer` (pure frontend — 3 small UX label additions)
+- Upstream drift check: Iranti now at v0.2.14. v0.2.13 partially fixes B11 (attend classifier). No breaking API changes. v0.2.14 is Windows updater fix only — no control plane impact.
 
 ### Tickets
 
@@ -271,10 +282,13 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T050 | Staff Logs View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
 | CP-T049 | Archivist Transparency and Operator Review | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
 | CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | **IN PROGRESS** — implementation complete (2026-03-21); AC-11 clean-machine testing pending |
-| CP-T051 | Agent Registry View | backend_developer + frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
-| CP-T052 | Health View: Decay Config + Vector Backend + Attend Status | backend_developer + frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
-| CP-T053 | Memory Explorer: ConflictLog Timeline + Field Label Fixes | frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
-| CP-T056 | Temporal History: Point-in-Time `asOf` Query | frontend_developer | P3 | **OPEN** — issued 2026-03-21 (Wave 4+, pure frontend) |
+| CP-T051 | Agent Registry View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T052 | Health View: Decay Config + Vector Backend + Attend Status | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T053 | Memory Explorer: ConflictLog Timeline + Field Label Fixes | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T056 | Temporal History: Point-in-Time `asOf` Query | frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
+| CP-T057 | Entity Detail: WhoKnows Contributor Panel | backend_developer + frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
+| CP-T058 | UX Polish: Operator Guidance Labels (M4/M5/H8) | frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
+| CP-T059 | Interactive Diagnostics Panel | backend_developer + frontend_developer | P2 | **OPEN** — Wave 6, issued 2026-03-21 |
 
 ### Exit Criteria
 
@@ -287,6 +301,10 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [ ] CP-T051: Agent Registry View — backend proxy + frontend /agents view (Wave 4)
 - [ ] CP-T052: Health view extended with decay config, vector backend, Attendant status (Wave 4)
 - [ ] CP-T053: ConflictLog timeline and createdBy/source label distinction in Memory + Archive Explorers (Wave 4)
+- [ ] CP-T056: Temporal History asOf point-in-time query (Wave 5)
+- [ ] CP-T057: WhoKnows Contributor Panel in Entity Detail (Wave 5)
+- [ ] CP-T058: Operator guidance labels — Provider Manager write-path hint, unreachable instance command, IRANTI_PROJECT_MODE (Wave 5)
+- [ ] CP-T059: Interactive Diagnostics Panel — 7 live checks, fixHint messages, "Run Diagnostics" button in Health Dashboard (Wave 6, CP-E012)
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 

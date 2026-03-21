@@ -10,15 +10,21 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 3 + Wave 4 issued
-Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053
+Current wave: Wave 5 (issued 2026-03-21)
+Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
 CP-T048 Wave 3: implementation complete 2026-03-21 — Node SEA, all platform build scripts, CI pipeline, QA test plan written. AC-11 clean-machine validation pending.
-CP-T051 issued: 2026-03-21 from cross-repo audit H5 — Agent Registry View (backend + frontend)
-CP-T052 issued: 2026-03-21 from cross-repo audit H2/H3/C1/C2 — Health View: Decay + Vector + Attend (backend + frontend)
-CP-T053 issued: 2026-03-21 from cross-repo audit H4/M7/H1 — Memory Explorer ConflictLog + Field Labels (frontend only)
+CP-T051 PM-ACCEPTED: 2026-03-21 — Backend proxy AC-1–4 correct, frontend AC-5–9 complete (AC-10 stretch not implemented, acceptable)
+CP-T052 PM-ACCEPTED: 2026-03-21 — Health endpoint extended with decay/vector/attendant; three new Health Dashboard cards
+CP-T053 PM-ACCEPTED: 2026-03-21 — ConflictLog timeline, createdBy/source labels, stability/lastAccessedAt fields
+CP-T056 issued: 2026-03-21 Wave 5 — Temporal History asOf query (frontend_developer only)
+CP-T057 issued: 2026-03-21 Wave 5 — WhoKnows Contributor Panel (backend_developer + frontend_developer)
+CP-T058 issued: 2026-03-21 Wave 5 — UX Guidance Labels M4/M5/H8 (frontend_developer only)
+CP-T059 issued: 2026-03-21 Wave 6 — Interactive Diagnostics Panel (backend_developer + frontend_developer) — P2, new CP-E012 epic
+
+Iranti upstream drift check (2026-03-21): v0.2.14 current (was v0.2.12 at last audit). v0.2.13 partially fixes B11 attend classifier; hybrid search now falls back to in-process scoring when pgvector unavailable. v0.2.14 is Windows updater fix only. No breaking API changes. No control plane rework required.
 
 ---
 
@@ -627,3 +633,325 @@ AC-11 requires validation on a clean machine — a VM or fresh OS image with no 
 - Add `stability` (N days) and `lastAccessedAt` (relative time) to expanded fact detail — omit if null
 - Remove raw JSON `conflictLog` expand once timeline renders; keep `properties` and `metadata` raw expand unchanged
 - The server serializes `conflictLog` as `Record<string, unknown> | null` — cast to `ConflictEntry[]` in the frontend
+
+---
+
+## Wave 5 — Issued 2026-03-21 (Post-Wave-4 acceptance)
+
+**Wave 4 status at handoff:** CP-T051, CP-T052, CP-T053 all PM-ACCEPTED 2026-03-21. 196 unit tests passing. TypeScript clean.
+
+**Upstream drift note (v0.2.12 → v0.2.14):**
+- v0.2.13: `attend()` classifier partially fixed (less aggressive `memory_not_needed` default); hybrid search now falls back to in-process semantic scoring when pgvector unavailable; `entityHints` defaulted from `IRANTI_MEMORY_ENTITY` env var. No breaking API changes for the control plane.
+- v0.2.14: Windows self-updater race fix only. Zero control plane impact.
+
+**Wave 5 scope rationale:** With Wave 4 complete, the control plane now surfaces agent registry, health extensions (decay/vector/attendant), and conflict history. Wave 5 completes the remaining operator insight gaps: temporal point-in-time query (CP-T056), entity contributor visibility (CP-T057), and three UX guidance labels (CP-T058). All three are low-risk. CP-T056 and CP-T058 are pure frontend. CP-T057 is a small backend proxy + frontend display.
+
+---
+
+### Assignment — CP-T056 (Temporal History asOf Query) — `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21 (Wave 5)
+**Ticket:** `docs/tickets/cp-t056.md`
+**Priority:** P3
+**Phase:** 3, Wave 5
+**Scope:** Pure frontend. No backend changes required.
+
+**Why now:** CP-T036 (Temporal History view) is complete and showing full interval timelines. The Iranti API already supports `?asOf=ISO` on `GET /kb/query/:entityType/:entityId/:key` — this parameter passes through the control plane's existing proxy without any backend change. Surfacing it gives operators the ability to answer "what did Iranti believe about this fact on date X?" — a common debugging question.
+
+**What to build:** Read `docs/tickets/cp-t056.md` fully before starting — all 4 ACs are specified there. Summary:
+1. Add a "Point in Time" date+time picker in the Temporal History view header
+2. When a date/time is selected: call `GET /kb/query/:entityType/:entityId/:key?asOf=<ISO>&includeExpired=true`
+3. Highlight the matching interval (elevated border/background); show fact value callout with `valueRaw`, `confidence`, `source`, `createdBy`, `validFrom/validUntil`
+4. If no fact at that time: "No fact existed at this time"
+5. Clearing the picker returns to normal full-history view with no highlight
+6. All new UI uses Terminals palette tokens — no hardcoded colors
+
+**Files to read before starting:**
+- `docs/tickets/cp-t056.md` — full ticket with all ACs
+- `src/client/src/components/memory/MemoryExplorer.tsx` — Temporal History section (or dedicated TemporalHistory.tsx if it was extracted)
+- `docs/specs/visual-tokens.md` — Terminals palette; highlight style must use emerald accent
+
+**Acceptance criteria to verify:**
+- All 4 ACs from `cp-t056.md` checked explicitly
+- Date picker appears in Temporal History view header
+- Selecting a date triggers the asOf query and highlights the correct interval
+- Clearing the date returns to normal view
+- "No fact existed at this time" shown when query returns empty
+- TypeScript compiles clean (`tsc --noEmit` zero errors), no `any` in new code
+- Light mode and dark mode both visually reviewed
+- `vitest run` passes (no regressions)
+
+**Commit as:** `feat(frontend): add asOf point-in-time picker to Temporal History view (CP-T056)`
+
+**Report back to PM with:**
+- Which ACs passed
+- Description of the highlight style chosen (border, background color, etc.)
+- Whether `asOf` query params are forwarded correctly through the existing proxy (confirm with a real Iranti instance if available, or document that the proxy pass-through is confirmed in `kb.ts`)
+- CI status
+
+---
+
+### Assignment — CP-T057 (Entity Detail: WhoKnows Contributor Panel) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21 (Wave 5)
+**Ticket:** `docs/tickets/cp-t057.md`
+**Priority:** P3
+**Phase:** 3, Wave 5
+
+**Why now:** Entity Detail shows what Iranti believes but not who contributed it. `GET /memory/whoknows/:entityType/:entityId` exists and has existed since the initial Iranti API. Adding a Contributors panel closes a visible gap — "which agents shaped this entity?" — that operators hit when debugging conflicted or unexpected facts.
+
+**backend_developer scope:**
+
+Add `GET /api/control-plane/kb/whoknows/:entityType/:entityId` in `src/server/routes/control-plane/kb.ts` (or a new `whoknows.ts` in the same directory):
+
+1. Forward the request to `GET /memory/whoknows/:entityType/:entityId` on the Iranti instance
+2. Forward `X-Iranti-Key` with `memory:read` scope (same pattern as all other proxied endpoints — see `providers.ts`)
+3. Normalize response to `{ contributors: [{ agentId, writeCount, lastContributedAt }], total: N }`
+4. If Iranti returns 401, 404, or is unreachable: return HTTP 503 with `{ error: "...", code: "WHOKNOWS_UNAVAILABLE" }`
+5. Empty contributors list is a valid response — return `{ contributors: [], total: 0 }` with HTTP 200
+
+**Important:** Note that this proxies to `/memory/whoknows/...` on Iranti (the `/memory/` route group), not `/kb/`. Check that the control plane's Iranti proxy routing in `index.ts` covers the `/memory/` path, or add a new forwarding entry if needed.
+
+**Files to read before starting:**
+- `docs/tickets/cp-t057.md` — full ticket with all ACs
+- `src/server/routes/control-plane/providers.ts` — proxy pattern to follow exactly
+- `src/server/routes/control-plane/index.ts` — route registration; register the new endpoint here
+- `src/server/routes/control-plane/kb.ts` — existing kb route file; the whoknows endpoint can live here or in a new file
+
+**Acceptance criteria (backend):**
+- AC-1: `GET /api/control-plane/kb/whoknows/:entityType/:entityId` returns `{ contributors, total }`
+- AC-2: Endpoint registered in `index.ts`
+- AC-3: TypeScript clean, no `any`
+- Graceful degradation: 503 with `WHOKNOWS_UNAVAILABLE` on upstream failure
+- Empty list: HTTP 200 with `{ contributors: [], total: 0 }`
+
+**frontend_developer scope:**
+
+In the Entity Detail view (`/memory/:entityType/:entityId`), add a "Contributors" panel below the entity facts section:
+1. On mount, call `GET /api/control-plane/kb/whoknows/:entityType/:entityId`
+2. Render as a compact list (sorted by `writeCount` descending):
+   - Agent ID (bold, monospace or using the existing badge pattern)
+   - Write count (integer)
+   - Last contributed (relative time, absolute on hover — same pattern as ActivityStream timestamps)
+3. If an agent from the list matches one available in the Agent Registry (CP-T051 route at `/agents/:agentId`), link the agent ID text to `/agents/:agentId`. If Agent Registry is unavailable or agent not registered, show plain text — no broken link.
+4. Empty state: "No attributed contributors for this entity."
+5. 503 state: "Contributor data unavailable. Check that your Iranti API key has `memory:read` scope."
+6. Loading state: skeleton row consistent with existing fact row loading
+
+**Files to read before starting:**
+- `docs/tickets/cp-t057.md` — full ticket
+- `src/client/src/components/memory/MemoryExplorer.tsx` — Entity Detail view; find where to insert the Contributors panel
+- `src/client/src/components/stream/ActivityStream.tsx` — relative timestamp pattern to reuse
+- `docs/specs/visual-tokens.md` — Terminals palette
+
+**Acceptance criteria (frontend):**
+- AC-4: Contributors panel renders in Entity Detail with write count and relative lastContributedAt
+- AC-5: Empty state and 503 state render correctly
+- AC-6: Panel uses Terminals palette tokens — no hardcoded colors
+- AC-7: TypeScript clean
+- Agent ID link to `/agents/:agentId` is best-effort (degrade gracefully)
+- Light mode and dark mode both visually reviewed
+
+**Commit as:**
+- `feat(backend): add WhoKnows proxy endpoint for entity contributor panel (CP-T057)`
+- `feat(frontend): add Contributors panel to Entity Detail view (CP-T057)`
+
+**Report back to PM with:**
+- Whether the `/memory/whoknows/` route on Iranti was reachable with the `memory:read` scope API key
+- Which ACs passed
+- Whether the Agent Registry link was implemented or deferred (and why)
+- CI status
+
+---
+
+### Assignment — CP-T058 (UX Polish: Operator Guidance Labels — M4/M5/H8) — `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21 (Wave 5)
+**Ticket:** `docs/tickets/cp-t058.md`
+**Priority:** P3
+**Phase:** 3, Wave 5
+**Scope:** Primarily pure frontend. One item (H8 — IRANTI_PROJECT_MODE) may require a small backend addition if the field is not already returned by the health/instance endpoint — check first, document in report.
+
+**Why now:** Three UX gaps were identified in the cross-repo audit where the control plane shows read-only data but leaves operators stranded with no action guidance. All three are small, low-risk, and high-operator-value. Bundling them as a single polish pass keeps the commit footprint small.
+
+**The three changes:**
+
+**M4 — Provider Manager write-path guidance:**
+- In `src/client/src/components/providers/ProviderManager.tsx`, add a static informational note in the view header or below the active provider display
+- Text: "Provider and model configuration is read-only. To change providers or models, run `iranti setup` in your project directory."
+- Style: Informational severity (blue-tinted or neutral) from the CP-T028 taxonomy — not a warning/error
+- `iranti setup` must render in monospace/code style
+- Must not be dismissible; must be visible in both light mode and dark mode
+
+**M5 — Instance unreachable command hint:**
+- In the Instance Manager, when an instance status is `Unreachable`:
+- Add helper text below the status badge: "To start this instance, run `iranti run --instance <name>` in your terminal."
+- Substitute the actual instance name from the instance record; if null, show `iranti run` without `--instance`
+- Small, muted helper text — not a full alert panel
+
+**H8 — IRANTI_PROJECT_MODE in Instance Manager:**
+- Add `IRANTI_PROJECT_MODE` as a displayed field in the instance metadata panel, alongside existing env-derived fields
+- Label: "Project Mode"; value: env var value (`isolated`, `shared`) or `—` if not set
+- If `isolated`: tooltip "Each project gets its own isolated memory context."
+- If `shared`: tooltip "All projects share a single memory context."
+- **Check first:** Does the backend health endpoint or instance serializer already return `IRANTI_PROJECT_MODE`? If yes, pure frontend change. If no, add it to the relevant serializer in `health.ts` or the instance endpoint.
+
+**Files to read before starting:**
+- `docs/tickets/cp-t058.md` — full ticket with all ACs
+- `src/client/src/components/providers/ProviderManager.tsx` — M4 target
+- `src/client/src/components/instances/` (or equivalent) — M5 and H8 targets
+- `src/server/routes/control-plane/health.ts` — check if `IRANTI_PROJECT_MODE` is already returned
+- `docs/specs/visual-tokens.md` — Terminals palette
+
+**Acceptance criteria:**
+- AC-1 (M4): Informational note visible in Provider Manager, `iranti setup` in code style, non-dismissible
+- AC-2 (M5): `iranti run --instance <name>` helper text under Unreachable status badge
+- AC-3 (H8): Project Mode field displayed in instance metadata; `isolated`/`shared` tooltips present
+- AC-4: TypeScript clean, no `any`
+- AC-5: Light mode and dark mode both visually reviewed
+
+**Commit as:** `feat(frontend): add operator guidance labels — Provider Manager hint, instance unreachable cmd, project mode (CP-T058)`
+
+**Report back to PM with:**
+- Whether H8 required a backend change (and if so, what was added)
+- All 5 ACs verified
+- CI status
+
+---
+
+## Wave 6 — Issued 2026-03-21 (Diagnostics Epic — CP-E012)
+
+**Wave 6 rationale:** The Health Dashboard is a passive read-only view. Operators encountering problems must drop to the CLI and run `iranti doctor`. Wave 6 adds the first active operator surface: a "Run Diagnostics" button that triggers live checks (connectivity, auth, DB, vector backend, ingest round-trip, attend probe, vector search quality) and surfaces actionable fix suggestions from within the UI. This is a new product epic (CP-E012 Diagnostics) at P2 priority — higher than the Wave 5 items — because it directly reduces mean-time-to-resolution for operators.
+
+Wave 6 can run concurrently with Wave 5 (different ticket owners). The backend_developer can start CP-T059 backend while the frontend_developer works through CP-T056 + CP-T058.
+
+---
+
+### Assignment — CP-T059 (Interactive Diagnostics Panel) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21 (Wave 6, CP-E012)
+**Ticket:** `docs/tickets/cp-t059.md`
+**Priority:** P2
+**Phase:** 3, Wave 6
+
+**Why now:** Passive health views are table stakes. An active "Run Diagnostics" surface that probes Iranti, the auth layer, the vector backend, and the Staff round-trip is what makes the control plane genuinely useful when something is wrong — which is exactly when operators need it most. `iranti doctor` is a CLI tool; the control plane should be better.
+
+**backend_developer scope:**
+
+Create `src/server/routes/control-plane/diagnostics.ts` implementing:
+
+1. **`POST /api/control-plane/diagnostics/run`** — Trigger a full diagnostic run. Runs 7 checks sequentially or concurrently (see below), returns a structured result object. Hard timeout per check: 5 seconds. Total run timeout: 30 seconds.
+
+   The 7 checks:
+   - `iranti_connectivity`: GET `${IRANTI_URL}/health` — expect 200 with `{ status: "ok" }`
+   - `iranti_auth`: GET `/kb/search?query=test&limit=1` with `X-Iranti-Key` forwarded — expect 200
+   - `db_connectivity`: `SELECT 1` against the control plane's own database connection
+   - `vector_backend`: probe configured `IRANTI_VECTOR_BACKEND` URL (if qdrant/chroma: HTTP GET to root URL; if pgvector/none: mark as `pass` with note "Uses primary database connection")
+   - `ingest_roundtrip`: POST `/kb/write` with `entityType: '__diagnostics__'`, `entityId: '__probe__'`, `key: 'probe_timestamp'`, `valueJson: JSON.stringify(Date.now())`, then GET `/kb/query/__diagnostics__/__probe__/probe_timestamp` — expect round-trip to match
+   - `attend_check`: POST `/memory/attend` with `{ agent: 'control_plane_operator', currentContext: 'diagnostic probe' }` — expect 200 without `classification_parse_failed_default_false`
+   - `vector_search_check`: GET `/kb/search?query=diagnostic+probe&limit=1` — if result has `vectorScore > 0`, pass; if `vectorScore === 0` for all results, warn (not fail) with message about in-process fallback
+
+   Each check returns:
+   ```ts
+   {
+     check: string     // internal key
+     status: 'pass' | 'warn' | 'fail'
+     message: string   // human-readable result
+     fixHint: string | null  // actionable next step, or null if passing
+     durationMs: number
+   }
+   ```
+
+   Fix hint examples are in the ticket (`docs/tickets/cp-t059.md`). Use the ticket wording exactly — these are operator-facing copy.
+
+   Full response:
+   ```ts
+   {
+     runAt: string   // ISO timestamp
+     overallStatus: 'pass' | 'warn' | 'fail'
+     checks: CheckResult[]
+     totalDurationMs: number
+   }
+   ```
+
+   Cache the result in a module-level variable. Never persist to disk.
+
+2. **`GET /api/control-plane/diagnostics/last`** — Return the cached last run result. Return 404 with `{ error: "No diagnostic run performed yet" }` if no run has been triggered.
+
+3. **Graceful degradation**: If any check throws, catch and mark it as `fail` with the exception message. Never let diagnostics.run itself 500.
+
+4. **Register in `index.ts`**: `controlPlaneRouter.use('/diagnostics', diagnosticsRouter)`
+
+**Files to read before starting:**
+- `docs/tickets/cp-t059.md` — full ticket, all 8 ACs, fixHint wording
+- `src/server/routes/control-plane/providers.ts` — Iranti proxy pattern (forwarding `X-Iranti-Key`)
+- `src/server/routes/control-plane/health.ts` — environment variable patterns already in use
+- `src/server/routes/control-plane/index.ts` — route registration
+
+**Note on the ingest roundtrip probe entity:** The `__diagnostics__` entity and `__probe__` entity ID are intentional sentinel values. Consider whether the control plane should filter these from normal Memory Explorer results. Mention your decision in the report.
+
+**Acceptance criteria (backend):**
+- AC-1: POST /diagnostics/run returns the 7-check result object
+- AC-2: GET /diagnostics/last returns last result or 404
+- AC-3: Any check that throws returns `fail` with exception message (not 500)
+- AC-4: TypeScript clean, no `any`
+- Checks 5–7 (ingest, attend, vector search) require live Iranti — mark as `warn` with "Iranti unavailable" if upstream is unreachable rather than fail
+- `vitest run` passes — no regressions
+
+**frontend_developer scope:**
+
+In `src/client/src/components/health/HealthDashboard.tsx`:
+
+1. **"Run Diagnostics" button** — In the Health Dashboard header. On click:
+   - Show "Running diagnostics…" with a spinner/pulse animation (use the existing ActivityStream pulse pattern or a simple spinner)
+   - POST `/api/control-plane/diagnostics/run`
+   - On success: render results panel (see below)
+   - On error: "Diagnostics unavailable. Check that the control plane server is running."
+
+2. **On page load**: GET `/api/control-plane/diagnostics/last`. If result exists, show it in a collapsed "Last Run" section (with timestamp). If 404, show nothing.
+
+3. **Results panel**:
+   - Summary banner at top: "All checks passed" (emerald) / "N warning(s) — system functional but degraded" (amber) / "N failure(s) detected — action required" (red) — consistent with CP-T028 four-tier severity taxonomy
+   - Table of check results: Check Name | Status (badge) | Message | Duration
+   - Status badges: Pass=emerald, Warn=amber, Fail=red — use existing Health Dashboard badge styles
+   - If `fixHint` is non-null: show below the message as small helper text; `iranti ...` commands in inline monospace
+   - Panel is collapsible. Default: expanded after a run; collapsed on page load (last-run state)
+
+4. **Command palette**: Register "Run Diagnostics" as a command in the Cmd+K palette (CP-T024). Triggering it should fire the same run flow as the button click.
+
+5. **Check name display mapping** (human-friendly labels):
+
+   | Internal key | Display label |
+   |-------------|---------------|
+   | `iranti_connectivity` | Iranti Connectivity |
+   | `iranti_auth` | API Key Auth |
+   | `db_connectivity` | Database Connection |
+   | `vector_backend` | Vector Backend |
+   | `ingest_roundtrip` | Memory Ingest Round-Trip |
+   | `attend_check` | Attendant Classifier |
+   | `vector_search_check` | Vector Search Quality |
+
+**Files to read before starting:**
+- `docs/tickets/cp-t059.md` — full ticket
+- `src/client/src/components/health/HealthDashboard.tsx` — extend this component
+- `src/client/src/components/stream/ActivityStream.tsx` — pulse/spinner animation pattern
+- `src/client/src/components/common/CommandPalette.tsx` (or wherever the palette command registry is) — how to add a new command
+
+**Acceptance criteria (frontend):**
+- AC-5: "Run Diagnostics" button visible in Health Dashboard header
+- AC-6: Results panel renders with pass/warn/fail badges, fix hints in monospace, duration per check
+- AC-7: Command palette "Run Diagnostics" entry triggers the run
+- AC-8: TypeScript clean, no `any`
+- Light mode and dark mode both visually reviewed
+- Page load with last-run result shows collapsed "Last Run" section with timestamp
+
+**Commit as:**
+- `feat(backend): implement diagnostics run endpoint with 7 live checks and fix hints (CP-T059)`
+- `feat(frontend): add Run Diagnostics panel to Health Dashboard with command palette integration (CP-T059)`
+
+**Report back to PM with:**
+- Which of the 7 checks ran successfully against a live Iranti instance
+- Whether the `__diagnostics__` probe entity decision (filter from Memory Explorer or leave visible) was made — and which direction
+- Any fixHint wording changes and rationale (must get PM approval before deviating from ticket wording)
+- AC-7 (command palette) confirmed working
+- CI status
