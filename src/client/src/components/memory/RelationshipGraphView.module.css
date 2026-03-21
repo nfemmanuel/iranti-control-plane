@@ -441,3 +441,37 @@
   height: 100%;
   min-height: 200px;
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T062 — B9 semantic note
+   ────────────────────────────────────────────────────────────────── */
+
+.semanticNote {
+  flex-shrink: 0;
+  margin: 0;
+  padding: var(--space-2) var(--section-padding);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  line-height: 1.6;
+}
+
+.semanticNoteCode {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--color-bg-elevated);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+  color: var(--color-text-tertiary);
+}
+
+.semanticNoteLink {
+  color: var(--color-text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.1s;
+}
+
+.semanticNoteLink:hover {
+  color: var(--color-text-secondary);
+}
