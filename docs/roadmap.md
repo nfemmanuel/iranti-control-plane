@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-20** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — kicked off 2026-03-20. Wave 1: CP-T050 (Staff Logs View) assigned to backend_developer + frontend_developer. Sequence: T050 → T049 → T048.
+> **Last updated: 2026-03-21** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — CP-T050 and CP-T049 both PM-ACCEPTED 2026-03-20. CP-T048 Wave 3 implementation complete 2026-03-21; AC-11 clean-machine testing is the only remaining gate.
 
 ## Horizon
 
@@ -212,8 +212,10 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 ## Phase 3 — Advanced Operator Features
 
 **Status: IN PROGRESS — kicked off 2026-03-20**
-**Wave 1 assigned:** CP-T050 (Staff Logs View) → `backend_developer` + `frontend_developer`
-**Ticket sequence:** CP-T050 → CP-T049 → CP-T048
+**Wave 1 COMPLETE:** CP-T050 (Staff Logs View) — PM-ACCEPTED 2026-03-20
+**Wave 2 COMPLETE:** CP-T049 (Archivist Transparency) — PM-ACCEPTED 2026-03-20
+**Wave 3 IN PROGRESS:** CP-T048 (Platform Installer Packages) — implementation complete; AC-11 clean-machine testing pending
+**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress)
 **Coordination doc:** `docs/coordination/agent-assignments-phase3.md`
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
@@ -259,18 +261,18 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
-| CP-T050 | Staff Logs View | backend_developer + frontend_developer | P2 | **IN PROGRESS — Wave 1 assigned 2026-03-20** |
-| CP-T049 | Archivist Transparency and Operator Review | backend_developer + frontend_developer | P2 | Open — Wave 2, scope defined in ticket and coordination doc |
-| CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | Open — Wave 3, pending CP-T049 acceptance |
+| CP-T050 | Staff Logs View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
+| CP-T049 | Archivist Transparency and Operator Review | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
+| CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | **IN PROGRESS** — implementation complete (2026-03-21); AC-11 clean-machine testing pending |
 
 ### Exit Criteria
 
 - [x] Phase 3 success metrics defined — 2026-03-20 (above)
 - [x] Scope confirmed by PM before Phase 3 tickets are picked up — 2026-03-20
 - [x] Ticket sequence established: CP-T050 → CP-T049 → CP-T048 — 2026-03-20
-- [ ] CP-T050: Staff Logs View passes all 13 ACs — backend_developer + frontend_developer
-- [ ] CP-T049: Archivist Transparency passes all 9 ACs — backend_developer + frontend_developer
-- [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux — devops_engineer
+- [x] CP-T050: Staff Logs View passes all 13 ACs — PM-ACCEPTED 2026-03-20
+- [x] CP-T049: Archivist Transparency passes all 9 ACs — PM-ACCEPTED 2026-03-20
+- [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux — implementation complete 2026-03-21; AC-11 clean-machine testing pending
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 
