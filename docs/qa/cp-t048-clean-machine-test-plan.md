@@ -4,7 +4,7 @@
 **AC scope:** AC-11 (clean-machine validation), AC-12 (port conflict), AC-7 (version display), AC-6 (browser auto-open), AC-1/AC-2 (Windows), AC-3 (macOS), AC-4/AC-5 (Linux)
 **Prepared by:** qa_engineer
 **Date:** 2026-03-20
-**Status:** STATIC ANALYSIS COMPLETE — ISSUE-1 and ISSUE-5 RESOLVED (commit 4664d49) — awaiting installer artifacts from CI for manual execution
+**Status:** STATIC ANALYSIS COMPLETE — ISSUE-1, ISSUE-2, ISSUE-3, ISSUE-5, ISSUE-6 RESOLVED — awaiting installer artifacts from CI for manual execution (AC-11)
 
 ---
 
@@ -91,13 +91,15 @@ On a tagged release push, both workflows will run. The `release.yml` will create
 
 ---
 
-### ISSUE-3 — `package.yml` macOS arch jobs do not cache npm dependencies
+### ISSUE-3 — `package.yml` macOS arch jobs do not cache npm dependencies ✅ RESOLVED (commit 38abcfd)
 
 **Severity:** Low — CI performance only, not a correctness issue
 
 **Description:**
 
 The `build-macos-arm64` and `build-macos-x86` jobs in `package.yml` use `actions/setup-node@v4` but do not include `cache: 'npm'` or `cache-dependency-path`. The `build-macos-universal`, `build-windows`, and `build-linux` jobs do include caching. This makes the two macOS binary jobs slower than necessary on repeated runs.
+
+**Resolution (commit 38abcfd):** Added `cache: 'npm'` and `cache-dependency-path: package.json\nsrc/server/package.json` to both `build-macos-arm64` and `build-macos-x86` jobs.
 
 ---
 
@@ -110,6 +112,29 @@ The `build-macos-arm64` and `build-macos-x86` jobs in `package.yml` use `actions
 `build-sea.mjs` uses `--macho-segment-name __MACOS` for macOS. The Node.js SEA documentation specifies `__MACOS` as the correct segment name for macOS Mach-O binaries. This appears correct, but it should be validated at runtime since the `postject` documentation also mentions `__NODE_SEA` as a possible variant in older versions. If the injected blob is not found at runtime, the binary will silently fall back to non-SEA behavior.
 
 **Test:** Run the binary on macOS and confirm `process.isSea()` returns `true` (visible in server startup behavior — the SEA path is used for static assets).
+
+---
+
+### ISSUE-6 — `package.yml` macOS universal CI job missing shell launcher wrapper ✅ RESOLVED (commit 38abcfd)
+
+**Severity:** High — CI-produced macOS DMGs would have failed to load the frontend UI
+
+**Description:**
+
+The `build-macos-universal` inline shell script in `package.yml` was not updated when `build-macos.mjs` received the ISSUE-1 shell launcher fix. Specifically:
+
+- The CI script set `CFBundleExecutable=iranti-cp` (direct SEA binary) instead of `iranti-control-plane` (the launcher wrapper)
+- No shell launcher script was written to `Contents/MacOS/iranti-control-plane`
+- `package.json` was copied to `Contents/Resources/` instead of `Contents/MacOS/` (wrong location for `dirname(process.execPath)` resolution)
+- `IRANTI_CP_ASSETS_DIR` was never set, so the server resolved assets from `Contents/MacOS/public/control-plane/` (which does not exist)
+
+The local `build-macos.mjs` was correctly fixed by ISSUE-1 resolution, but the CI inline script was left diverged, meaning CI-built DMGs would have the same asset path failure even though local builds were correct.
+
+**Resolution (commit 38abcfd):**
+- Added `iranti-control-plane` shell launcher script to `Contents/MacOS/` in the CI script
+- Updated `CFBundleExecutable` to `iranti-control-plane` in the inline `Info.plist`
+- Moved `package.json` copy to `Contents/MacOS/`
+- Launcher sets `IRANTI_CP_ASSETS_DIR="$BUNDLE_DIR/Resources/public/control-plane"` before exec-replacing with `iranti-cp`
 
 ---
 
