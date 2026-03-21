@@ -1,0 +1,57 @@
+--- a/src/sdk/index.ts
++++ b/src/sdk/index.ts
+@@ -1,7 +1,15 @@
+ import { librarianWrite } from '../librarian';
+ import { runArchivist } from '../archivist';
+ import { resolveInteractive } from '../resolutionist';
+ import { AttendantRegistry } from '../attendant/registry';
++import {
++  IStaffEventEmitter,
++  NoopEventEmitter,
++  StaffEventInput,
++  StaffEvent,
++  buildStaffEvent,
++} from '../lib/staffEventEmitter';
++import { setStaffEventEmitter } from '../lib/staffEventRegistry';
+ import type { EntryInput, WriteResult } from '../types';
+
+ // ─── IrantiConfig ─────────────────────────────────────────────────────────────
+@@ -12,6 +20,11 @@ export interface IrantiConfig {
+   archivistIntervalMs?: number;
+   escalationsDir?: string;
+   maxContextCallsBeforeReconvene?: number;
++  /**
++   * Optional event emitter for observability integrations (e.g., the Iranti
++   * Control Plane). Defaults to a no-op emitter if not provided.
++   * The emitter MUST NOT throw — all errors must be caught internally.
++   */
++  staffEventEmitter?: IStaffEventEmitter;
+ }
+
+ // ─── Iranti SDK ───────────────────────────────────────────────────────────────
+@@ -24,6 +37,9 @@ export class Iranti {
+   constructor(config: IrantiConfig = {}) {
+     this.config = config;
+     this.attendantRegistry = new AttendantRegistry(config);
++    // Register the emitter once at construction time. All Staff components
++    // read from the module-level registry — no threading required.
++    setStaffEventEmitter(config.staffEventEmitter ?? new NoopEventEmitter());
+   }
+
+   async write(input: EntryInput): Promise<WriteResult> {
+@@ -66,3 +82,15 @@ export class Iranti {
+     return resolveInteractive(this.config.escalationsDir ?? '.iranti/escalations');
+   }
+ }
++
++// ─── Public re-exports for observability consumers ────────────────────────────
++// Consumers who build their own emitter (e.g., a DbStaffEventEmitter) need
++// the interface, the noop default, and the registry setter.
++
++export type { IStaffEventEmitter, StaffEventInput, StaffEvent };
++export { NoopEventEmitter, buildStaffEvent };
++export {
++  setStaffEventEmitter,
++  getStaffEventEmitter,
++  resetStaffEventEmitter,
++} from '../lib/staffEventRegistry';

@@ -8,6 +8,8 @@
 **Ticket**: CP-T025 — Native Staff Emitter Injection
 **Output document path**: `docs/specs/cp-t025-emitter-design.md`
 
+**Diff artifacts:** See `docs/specs/cp-t025-diffs/` — produced 2026-03-21
+
 ---
 
 ## 0. Research Findings — Upstream Access Assessment

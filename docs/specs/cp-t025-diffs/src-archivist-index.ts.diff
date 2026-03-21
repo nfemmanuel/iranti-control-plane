@@ -1,0 +1,121 @@
+--- a/src/archivist/index.ts
++++ b/src/archivist/index.ts
+@@ -1,6 +1,7 @@
+ import { db } from '../lib/db';
+ import { readFile, readdir } from 'fs/promises';
+ import path from 'path';
++import { getStaffEventEmitter } from '../lib/staffEventRegistry';
+ import type { ArchivistReport, ArchiveEntry } from '../types';
+
+ // ─── archiveExpired ───────────────────────────────────────────────────────────
+@@ -38,6 +39,17 @@ async function archiveExpired(report: ArchivistReport): Promise<void> {
+     for (const entry of expiredEntries) {
+       await archiveEntry(db, entry, 'expired');
++      getStaffEventEmitter().emit({
++        staffComponent: 'Archivist',
++        actionType: 'entry_archived',
++        agentId: 'archivist',
++        source: 'internal',
++        entityType: entry.entityType,
++        entityId: entry.entityId,
++        key: entry.key,
++        reason: 'Entry expired (validUntil in past)',
++        level: 'audit',
++        metadata: {
++          archivedReason: 'expired',
++          archivedFactId: String(entry.id),
++        },
++      });
+       report.expiredArchived++;
+     }
+   } catch (err) {
+@@ -72,6 +84,18 @@ async function applyMemoryDecay(report: ArchivistReport): Promise<void> {
+     for (const entry of lowConfidenceEntries) {
+       const newConfidence = computeDecayedConfidence(entry);
+       await archiveEntry(db, entry, 'decay');
++      getStaffEventEmitter().emit({
++        staffComponent: 'Archivist',
++        actionType: 'entry_decayed',
++        agentId: 'archivist',
++        source: 'internal',
++        entityType: entry.entityType,
++        entityId: entry.entityId,
++        key: entry.key,
++        reason: `Confidence decayed to ${newConfidence} — below threshold.`,
++        level: 'audit',
++        metadata: {
++          archivedReason: 'decay',
++          archivedFactId: String(entry.id),
++          decayPolicy: 'confidence_threshold',
++        },
++      });
+       report.lowConfidenceArchived++;
+     }
+   } catch (err) {
+@@ -110,6 +134,29 @@ async function processEscalationFile(
+   const resolution = parseResolution(content);
+   if (!resolution) return;
+
++  getStaffEventEmitter().emit({
++    staffComponent: 'Archivist',
++    actionType: 'escalation_processed',
++    agentId: 'archivist',
++    source: 'internal',
++    entityType: resolution.entityType ?? null,
++    entityId: resolution.entityId ?? null,
++    key: resolution.key ?? null,
++    reason: 'Archivist consumed a Resolutionist resolution from escalation file.',
++    level: 'audit',
++    metadata: {
++      escalationId: path.basename(filePath),
++      winnerSource: resolution.winnerSource ?? null,
++    },
++  });
+
+   // Apply resolution to knowledge base
+   await db.archive.update({
+     where: { id: archiveEntry.id },
+     data: { resolutionState: 'resolved', resolvedAt: new Date() },
+   });
++
++  getStaffEventEmitter().emit({
++    staffComponent: 'Archivist',
++    actionType: 'resolution_consumed',
++    agentId: 'archivist',
++    source: 'internal',
++    entityType: resolution.entityType ?? null,
++    entityId: resolution.entityId ?? null,
++    key: resolution.key ?? null,
++    reason: 'Archive row resolutionState set to resolved.',
++    level: 'audit',
++    metadata: {
++      escalationId: path.basename(filePath),
++      archiveEntryId: String(archiveEntry.id),
++    },
++  });
+
+   report.escalationsProcessed++;
+ }
+@@ -162,6 +209,18 @@ export async function runArchivist(): Promise<ArchivistReport> {
+   await archiveExpired(report);
+   await applyMemoryDecay(report);
+   await processEscalations(report);
++
++  getStaffEventEmitter().emit({
++    staffComponent: 'Archivist',
++    actionType: 'archive_scan_completed',
++    agentId: 'archivist',
++    source: 'internal',
++    reason: null,
++    level: 'debug',
++    metadata: {
++      expiredArchived: report.expiredArchived,
++      lowConfidenceArchived: report.lowConfidenceArchived,
++      escalationsProcessed: report.escalationsProcessed,
++      errors: report.errors.length,
++      entriesScanned: report.expiredArchived + report.lowConfidenceArchived,
++    },
++  });
+
+   return report;
+ }

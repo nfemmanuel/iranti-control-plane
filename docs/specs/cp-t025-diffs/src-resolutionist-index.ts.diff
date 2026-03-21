@@ -1,0 +1,54 @@
+--- a/src/resolutionist/index.ts
++++ b/src/resolutionist/index.ts
+@@ -1,6 +1,7 @@
+ import { readdir, readFile, writeFile } from 'fs/promises';
+ import path from 'path';
+ import readline from 'readline';
++import { getStaffEventEmitter } from '../lib/staffEventRegistry';
+ import type { EscalationFile, ResolutionResult } from '../types';
+
+ // ─── resolveInteractive ───────────────────────────────────────────────────────
+@@ -82,6 +83,16 @@ export async function resolveInteractive(escalationsDir: string): Promise<Resolu
+
+       if (answer === 's' || answer === 'skip') {
+         skipped++;
++        getStaffEventEmitter().emit({
++          staffComponent: 'Resolutionist',
++          actionType: 'escalation_deferred',
++          agentId: 'operator',
++          source: 'cli',
++          entityType: escalation.entityType,
++          entityId: escalation.entityId,
++          key: escalation.key,
++          reason: 'Operator skipped this escalation.',
++          level: 'audit',
++          metadata: {
++            escalationId: escalation.filename,
++            deferralReason: 'operator_skip',
++          },
++        });
+         continue;
+       }
+
+@@ -112,6 +123,18 @@ export async function resolveInteractive(escalationsDir: string): Promise<Resolu
+       const resolvedContent = buildResolvedMarkdown(escalation, chosenValue, summary);
+       await writeFile(filePath, resolvedContent);
++      getStaffEventEmitter().emit({
++        staffComponent: 'Resolutionist',
++        actionType: 'resolution_filed',
++        agentId: 'operator',
++        source: 'cli',
++        entityType: escalation.entityType,
++        entityId: escalation.entityId,
++        key: escalation.key,
++        reason: `Resolution filed: ${buildSummary(escalation, chosenValue)}`,
++        level: 'audit',
++        metadata: {
++          escalationId: escalation.filename,
++          winnerSource: originalRetained ? 'existing' : 'challenger',
++          resolutionNote: summary,
++        },
++      });
+       resolved++;
+     }
+   } finally {

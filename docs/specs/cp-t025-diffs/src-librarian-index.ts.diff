@@ -1,0 +1,145 @@
+--- a/src/librarian/index.ts
++++ b/src/librarian/index.ts
+@@ -1,6 +1,7 @@
+ import { db } from '../lib/db';
+ import { withIdentityLock } from '../lib/lock';
+ import { randomUUID } from 'crypto';
++import { getStaffEventEmitter } from '../lib/staffEventRegistry';
+ import type { EntryInput, WriteResult, WriteAction } from '../types';
+
+ // ─── librarianWrite ───────────────────────────────────────────────────────────
+@@ -48,6 +49,14 @@ async function librarianWrite(input: EntryInput): Promise<WriteResult> {
+
+     // Idempotent replay — requestId already processed
+     if (receipt) {
++      getStaffEventEmitter().emit({
++        staffComponent: 'Librarian',
++        actionType: 'write_deduplicated',
++        agentId: input.createdBy,
++        source: input.source,
++        entityType: input.entityType,
++        entityId: input.entityId,
++        key: input.key,
++        reason: 'Idempotent replay — requestId already processed.',
++        level: 'debug',
++        metadata: { requestId: input.requestId },
++      });
+       return { action: 'deduplicated', receiptId: receipt.id };
+     }
+
+@@ -72,6 +83,15 @@ async function librarianWrite(input: EntryInput): Promise<WriteResult> {
+       // No existing entry — create new
+       const created = await createEntry(tx, input);
++      getStaffEventEmitter().emit({
++        staffComponent: 'Librarian',
++        actionType: 'write_created',
++        agentId: input.createdBy,
++        source: input.source,
++        entityType: input.entityType,
++        entityId: input.entityId,
++        key: input.key,
++        reason: 'No existing entry found. Created.',
++        level: 'audit',
++        metadata: {
++          confidence: input.confidence,
++          valuePreview: JSON.stringify(input.valueRaw).slice(0, 200),
++        },
++      });
+       return { action: 'created', entry: created };
+     }
+
+@@ -86,6 +106,16 @@ async function librarianWrite(input: EntryInput): Promise<WriteResult> {
+     // Existing entry found — conflict resolution required
++    getStaffEventEmitter().emit({
++      staffComponent: 'Librarian',
++      actionType: 'conflict_detected',
++      agentId: input.createdBy,
++      source: input.source,
++      entityType: input.entityType,
++      entityId: input.entityId,
++      key: input.key,
++      reason: 'Existing entry found. Beginning conflict resolution.',
++      level: 'debug',
++      metadata: { existingConfidence: existing.confidence, incomingConfidence: input.confidence },
++    });
+     return resolveConflict(tx, existing, input);
+   });
+ }
+@@ -120,6 +150,16 @@ async function resolveConflict(
+   // High-confidence challenger supersedes existing entry
+   const updated = await replaceEntry(tx, existing, incoming);
++  getStaffEventEmitter().emit({
++    staffComponent: 'Librarian',
++    actionType: 'write_replaced',
++    agentId: incoming.createdBy,
++    source: incoming.source,
++    entityType: incoming.entityType,
++    entityId: incoming.entityId,
++    key: incoming.key,
++    reason: result.reason,
++    level: 'audit',
++    metadata: {
++      confidence: incoming.confidence,
++      priorConfidence: existing.confidence,
++      valuePreview: JSON.stringify(incoming.valueRaw).slice(0, 200),
++    },
++  });
+   return { action: 'updated', entry: updated };
+ }
+
+@@ -148,6 +188,17 @@ async function resolveConflict(
+   // Reject: incoming confidence insufficient to supersede and not equal enough to escalate
+   const rejectionReason = buildRejectionReason(existing, incoming);
++  getStaffEventEmitter().emit({
++    staffComponent: 'Librarian',
++    actionType: 'write_rejected',
++    agentId: incoming.createdBy,
++    source: incoming.source,
++    entityType: incoming.entityType,
++    entityId: incoming.entityId,
++    key: incoming.key,
++    reason: rejectionReason,
++    level: 'audit',
++    metadata: { rejectionReason },
++  });
+   return { action: 'rejected', reason: rejectionReason };
+ }
+
+@@ -174,6 +224,17 @@ async function escalateConflict(
+   const filePath = path.join(escalationsDir, filename);
+   await writeFile(filePath, buildEscalationMarkdown(existing, incoming));
++  getStaffEventEmitter().emit({
++    staffComponent: 'Librarian',
++    actionType: 'write_escalated',
++    agentId: incoming.createdBy,
++    source: incoming.source,
++    entityType: incoming.entityType,
++    entityId: incoming.entityId,
++    key: incoming.key,
++    reason: `Conflict escalated to ${filePath}.`,
++    level: 'audit',
++    metadata: {
++      escalationId: filename,
++      conflictReason: 'confidence_conflict',
++    },
++  });
+   return { action: 'escalated', filePath };
+ }
+
+@@ -196,6 +247,17 @@ async function resolveConflict(
+   // Reject: protected entry — incoming write cannot override
+   const rejectionReason = 'protected_entry';
++  getStaffEventEmitter().emit({
++    staffComponent: 'Librarian',
++    actionType: 'write_rejected',
++    agentId: incoming.createdBy,
++    source: incoming.source,
++    entityType: incoming.entityType,
++    entityId: incoming.entityId,
++    key: incoming.key,
++    reason: rejectionReason,
++    level: 'audit',
++    metadata: { rejectionReason },
++  });
+   return { action: 'rejected', reason: rejectionReason };
+ }
