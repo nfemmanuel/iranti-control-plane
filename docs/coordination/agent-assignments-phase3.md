@@ -429,6 +429,113 @@ This assignment covers the full Phase 2 implementation of CP-T048: build scripts
 - SmartScreen / Gatekeeper bypass instructions — confirm location in release notes and Getting Started screen
 - Any risks or follow-on items (auto-update, Homebrew Cask, Windows `.msi`)
 
+### Assignment 7 — CP-T048 AC-6 (Browser Auto-Open Fix) — `devops_engineer`
+
+**Status:** Assigned — 2026-03-20
+**Ticket:** `docs/tickets/cp-t048.md` — AC-6
+**Priority:** P2
+**Phase:** 3, Wave 3 (follow-on to Assignment 6)
+**Depends on:** Assignment 6 merged
+
+**PM Decision (Iranti `ticket/cp_t048` key `ac6_decision`):**
+AC-6 browser auto-open is implemented via the `open` npm package. Add `open` to `src/server/package.json` dependencies (not devDependencies — it must be available in the bundle). In `src/server/index.ts`, after the server begins listening on its resolved port, add a call to `open('http://localhost:PORT')` guarded by `process.isSea?.() === true`. This means the browser opens automatically only when running as a packaged SEA binary, not in dev mode (`npm run dev`). This is cross-platform (Windows, macOS, Linux), three lines of code, and requires no OS-specific logic.
+
+**What to implement:**
+
+1. **Add `open` to server dependencies:**
+   ```
+   npm install open --save
+   ```
+   in `src/server/`. Confirm `open` v9+ (ESM-first) is compatible with the esbuild CJS bundling step — if there are ESM/CJS compatibility issues with `open` v9+, use `open` v8 (CJS-compatible) instead. Document the version choice in the commit message.
+
+2. **Update `src/server/index.ts`:**
+   After the `server.listen(PORT, ...)` callback fires (i.e., once the server is confirmed listening), add:
+   ```ts
+   if (process.isSea?.()) {
+     const { default: open } = await import('open')
+     open(`http://localhost:${PORT}`)
+   }
+   ```
+   If dynamic import is problematic with the esbuild CJS bundle, use a top-level `import open from 'open'` and guard the call with the `process.isSea?.()` check. Do not open the browser in dev mode — the guard is required.
+
+3. **Verify the esbuild bundle step handles `open`:**
+   Run `scripts/package/bundle.sh` (or the equivalent bundling script) after adding `open` and confirm the bundle produces no errors. `open` is a pure-JS package with no native binaries, so it should bundle cleanly.
+
+4. **Test manually:**
+   - Run `npm run dev` — confirm the browser does NOT auto-open (guard is working).
+   - Build the SEA binary locally on one platform — confirm the browser DOES open automatically after the binary starts.
+   - If a full SEA build is not practical locally, add a temporary `FORCE_OPEN=true` environment variable override for testing and remove it before committing.
+
+**Acceptance criteria to verify:**
+- AC-6 from `docs/tickets/cp-t048.md`: "Launching the packaged binary opens the default browser to the control plane URL automatically."
+- Dev mode (`npm run dev`) does not trigger browser auto-open.
+- TypeScript compiles clean (`tsc --noEmit` zero errors).
+- esbuild bundle step completes without errors after adding `open`.
+
+**Commit as:** `feat(server): implement AC-6 browser auto-open via open package for packaged binary (CP-T048)`
+
+**Report back to PM with:**
+- `open` version chosen (v8 CJS or v9 ESM) and rationale
+- Confirmation that dev mode does not trigger auto-open
+- Confirmation that bundle step is clean
+- Whether a full end-to-end test was performed on a SEA binary or if a proxy test was used
+
+---
+
+### Assignment 8 — CP-T048 AC-11 (Clean-Machine QA Validation) — `qa_engineer`
+
+**Status:** Assigned — 2026-03-20
+**Ticket:** `docs/tickets/cp-t048.md` — AC-11
+**Priority:** P2
+**Phase:** 3, Wave 3 (parallel with or following Assignment 7)
+**Depends on:** Assignment 6 artifacts available (all platform installers built by CI on a test tag)
+
+**What to validate:**
+
+AC-11 requires validation on a clean machine — a VM or fresh OS image with no Node.js, no npm, no existing Iranti Control Plane installation, and no pre-existing `node_modules`. The purpose is to confirm that the packaged binary is genuinely self-contained and that a non-developer user can install and run the control plane without any development environment prerequisites.
+
+**Platforms to test (one clean VM per platform):**
+
+1. **Windows** — Windows 10 or Windows 11, fresh user account, no Node.js installed. Run the NSIS `.exe` installer. Validate:
+   - Installer completes without errors.
+   - Start menu entry is created.
+   - Launching from Start menu starts the server on an available port (3000–3010).
+   - Browser opens automatically to the control plane UI (AC-6).
+   - UI loads and the health/status view is reachable.
+   - SmartScreen warning appears (expected for unsigned binary) — document the bypass steps and confirm they match the release note instructions.
+   - Uninstaller works cleanly (Add/Remove Programs entry present and removes the install).
+
+2. **macOS** — macOS 13 (Ventura) or macOS 14 (Sonoma), no Node.js installed. Mount the `.dmg`, drag to Applications, launch from Applications. Validate:
+   - Gatekeeper warning appears on first launch (expected for ad-hoc signed binary) — document the bypass steps ("Right-click → Open") and confirm they match the release note instructions.
+   - App launches without crashing.
+   - Browser opens automatically to the control plane UI.
+   - UI loads and the health/status view is reachable.
+   - App can be quit and relaunched without issues.
+
+3. **Linux (Ubuntu)** — Ubuntu 22.04 LTS, no Node.js installed. Test both the `.deb` and `.AppImage`. Validate:
+   - `.deb`: `sudo dpkg -i iranti-control-plane.deb` installs without errors. Binary is at `/usr/local/bin/iranti-control-plane`. Running it starts the server. Browser opens (if a desktop environment is present) or the URL is printed to stdout for manual navigation.
+   - `.AppImage`: `chmod +x` + direct execution works without any additional dependencies. Same startup and UI validation as above.
+   - Uninstall: `sudo dpkg -r iranti-control-plane` removes cleanly.
+
+**Port conflict test (AC-12):** On at least one platform (Windows preferred for ease), start a process occupying port 3000 before launching the installer binary. Confirm the binary auto-increments to the next available port in the 3000–3010 range and logs the resolved port clearly.
+
+**Version display test (AC-7):** Confirm the version string displayed in the control plane health/status view or About screen matches the installer version.
+
+**Acceptance criteria to check:**
+- AC-11 from `docs/tickets/cp-t048.md`: installer works on a clean machine with no Node.js prerequisite.
+- AC-12: port conflict detection and auto-increment confirmed.
+- AC-7: version display matches installer version.
+- AC-6: browser auto-opens on all three platforms (or URL is printed on headless Linux).
+
+**Report back to PM with:**
+- Per-platform pass/fail table: Windows, macOS, Linux .deb, Linux .AppImage
+- SmartScreen bypass steps tested and documented (confirm match with release notes)
+- Gatekeeper bypass steps tested and documented (confirm match with release notes)
+- Port conflict test result
+- Version display confirmed
+- Any failures with reproduction steps and the exact error output
+- VM environment details (OS version, clean-machine confirmation)
+
 ---
 
 ## Carryover from Phase 2 (tracked separately, not Phase 3 tickets)
