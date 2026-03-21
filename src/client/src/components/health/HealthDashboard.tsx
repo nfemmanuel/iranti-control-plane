@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
-import type { HealthResponse, HealthCheck, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
+import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { ProviderStatusSection } from './ProviderStatus'
@@ -430,6 +430,266 @@ function HealthCard({ check }: { check: HealthCheck }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T052: Capability Health — severity mapping for vectorBackend    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Map the vectorBackend API status string to the four-tier Severity enum.
+ * vectorBackend.status is independent of the overall health field and
+ * must not affect the page-level OverallBadge.
+ *
+ *   ok    → HEALTHY (green)
+ *   warn  → WARNING (amber) — backend type set but URL not configured
+ *   error → CRITICAL (red)  — external service unreachable
+ */
+function mapVectorBackendSeverity(status: 'ok' | 'warn' | 'error'): Severity {
+  switch (status) {
+    case 'ok':    return 'HEALTHY'
+    case 'warn':  return 'WARNING'
+    case 'error': return 'CRITICAL'
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Memory Decay card                                         */
+/* ------------------------------------------------------------------ */
+
+function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
+  const { enabled, stabilityBase, stabilityMax, decayThreshold } = decay
+
+  // Amber = enabled (intentional — decay active is a notable operator state)
+  // Green = disabled
+  const iconClass = enabled ? styles.iconWarn : styles.iconOk
+  const icon      = enabled ? '~' : '✓'
+  const dotLabel  = enabled ? 'Enabled' : 'Disabled'
+  const cardClass = enabled ? styles.cardWarn : styles.cardOk
+  const badge     = enabled ? <SeverityBadge severity="WARNING" /> : <SeverityBadge severity="HEALTHY" />
+
+  return (
+    <div
+      className={`${styles.card} ${cardClass}`}
+      aria-label={`Memory Decay: ${dotLabel}`}
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClass}`} aria-hidden="true">
+          {icon}
+        </span>
+        <span className={styles.cardName}>Memory Decay</span>
+        {badge}
+      </div>
+
+      {/* Color direction note — operators must not mistake amber for a warning */}
+      <p className={styles.cardMessage}>
+        {enabled
+          ? 'Decay is active — facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
+          : 'Memory decay is disabled. Facts are archived only by expiry, low confidence (< 30), or Resolutionist resolution.'}
+      </p>
+
+      {enabled && (
+        <dl className={styles.cardDetail}>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>stability base</dt>
+            <dd className={styles.cardDetailVal}>{stabilityBase} days until first decay cycle</dd>
+          </div>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>stability range</dt>
+            <dd className={styles.cardDetailVal}>{stabilityBase}–{stabilityMax} days</dd>
+          </div>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>decay threshold</dt>
+            <dd className={styles.cardDetailVal}>Archived below confidence {decayThreshold}</dd>
+          </div>
+        </dl>
+      )}
+
+      {/* Always-visible note clarifying amber color direction */}
+      <div className={styles.normalization}>
+        <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+        <p className={styles.normalizationText}>
+          {enabled
+            ? 'Amber here means decay is on — this is an operator-visible state, not an error.'
+            : 'Green means decay is off. No automatic archival by time/access pattern. Explicit actions (expiry, confidence threshold, Resolutionist) still apply.'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Vector Backend card                                       */
+/* ------------------------------------------------------------------ */
+
+function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBackend }) {
+  const { type, url, status } = vectorBackend
+  const severity = mapVectorBackendSeverity(status)
+
+  const iconMap: Record<Severity, string> = {
+    CRITICAL: '✗',
+    WARNING:  '⚠',
+    INFO:     'ℹ',
+    HEALTHY:  '✓',
+  }
+  const iconClassMap: Record<Severity, string> = {
+    CRITICAL: styles.iconCritical,
+    WARNING:  styles.iconWarn,
+    INFO:     styles.iconInfo,
+    HEALTHY:  styles.iconOk,
+  }
+  const cardClassMap: Record<Severity, string> = {
+    CRITICAL: styles.cardCritical,
+    WARNING:  styles.cardWarn,
+    INFO:     styles.cardInfo,
+    HEALTHY:  styles.cardOk,
+  }
+
+  const typeLabel =
+    type === 'unknown'
+      ? 'unknown (defaulting to pgvector)'
+      : type
+
+  // Actionable hint when vector search may be inactive
+  const showActionableHint = status === 'warn' || status === 'error'
+  const actionableHint =
+    type === 'pgvector'
+      ? 'Check DB Reachability and pgvector extension. Run: SELECT * FROM pg_extension WHERE extname = \'vector\';'
+      : `Confirm the ${type} service is running at: ${url ?? '[URL not configured]'}. Check DB Reachability if using a local service.`
+
+  // pgvector hybrid fallback note (v0.2.13+)
+  const showHybridFallback = (type === 'pgvector' || type === 'unknown') && status === 'ok'
+
+  return (
+    <div
+      className={`${styles.card} ${cardClassMap[severity]}`}
+      aria-label={`Vector Backend: ${typeLabel} — ${severity.toLowerCase()}`}
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
+          {iconMap[severity]}
+        </span>
+        <span className={styles.cardName}>Vector Backend</span>
+        <SeverityBadge severity={severity} />
+      </div>
+
+      <dl className={styles.cardDetail}>
+        <div className={styles.cardDetailRow}>
+          <dt className={styles.cardDetailKey}>backend</dt>
+          <dd className={styles.cardDetailVal}>{typeLabel}</dd>
+        </div>
+        {url && (
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>url</dt>
+            <dd className={styles.cardDetailVal}>{url}</dd>
+          </div>
+        )}
+        {(type === 'pgvector' || type === 'unknown') && (
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>connection</dt>
+            <dd className={styles.cardDetailVal}>Uses primary database connection — see DB Reachability check</dd>
+          </div>
+        )}
+      </dl>
+
+      {/* Hybrid fallback note — informational, not a warning */}
+      {showHybridFallback && (
+        <div className={styles.normalization}>
+          <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+          <p className={styles.normalizationText}>
+            Iranti v0.2.13+ falls back to in-process semantic scoring if pgvector is unavailable. Search quality may be reduced in fallback mode.
+          </p>
+        </div>
+      )}
+
+      {/* Actionable hint for warn/error states */}
+      {showActionableHint && (
+        <div className={styles.remediation}>
+          <span className={styles.remediationLabel}>
+            {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
+          </span>
+          <p className={styles.remediationText}>{actionableHint}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Attendant Status card                                     */
+/* ------------------------------------------------------------------ */
+
+function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
+  return (
+    <div
+      className={`${styles.card} ${styles.cardInfo}`}
+      aria-label="Attendant Status: Informational"
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${styles.iconInfo}`} aria-hidden="true">
+          ℹ
+        </span>
+        <span className={styles.cardName}>Attendant Status</span>
+        <SeverityBadge severity="INFO" />
+      </div>
+
+      <p className={styles.cardMessage}>{attendant.message}</p>
+
+      <dl className={styles.cardDetail}>
+        <div className={styles.cardDetailRow}>
+          <dt className={styles.cardDetailKey}>upstream PR</dt>
+          <dd className={styles.cardDetailVal}>{attendant.upstreamPRRequired}</dd>
+        </div>
+      </dl>
+
+      {/* Workaround callout — always shown; operators need this regardless of Attendant state */}
+      <div className={styles.normalization}>
+        <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+        <p className={styles.normalizationText}>
+          Workaround: call <code className={styles.capabilityInlineCode}>iranti_attend</code> with{' '}
+          <code className={styles.capabilityInlineCode}>forceInject: true</code> to bypass the classifier and always inject working memory.
+        </p>
+      </div>
+      <pre className={styles.capabilityCodeBlock}>{`{
+  "agent": "<your_agent_id>",
+  "currentContext": "...",
+  "forceInject": true
+}`}</pre>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Capability Health section wrapper                        */
+/* ------------------------------------------------------------------ */
+
+function CapabilityHealthSection({
+  decay,
+  vectorBackend,
+  attendant,
+}: {
+  decay?: HealthDecay
+  vectorBackend?: HealthVectorBackend
+  attendant?: HealthAttendant
+}) {
+  const hasAny = decay !== undefined || vectorBackend !== undefined || attendant !== undefined
+  if (!hasAny) return null
+
+  return (
+    <section className={styles.capabilitySection} aria-labelledby="capability-health-heading">
+      <div className={styles.capabilitySectionHeader}>
+        <h2 id="capability-health-heading" className={styles.capabilitySectionTitle}>
+          Capability Health
+        </h2>
+        <span className={styles.capabilitySectionMeta}>Decay · Vector · Attendant</span>
+      </div>
+      <div className={styles.grid}>
+        {decay       !== undefined && <MemoryDecayCard   decay={decay} />}
+        {vectorBackend !== undefined && <VectorBackendCard vectorBackend={vectorBackend} />}
+        {attendant   !== undefined && <AttendantStatusCard attendant={attendant} />}
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -589,6 +849,15 @@ export function HealthDashboard() {
             <HealthCard key={check.name} check={check} />
           ))}
         </div>
+      )}
+
+      {/* CP-T052: Capability Health section — Decay, Vector Backend, Attendant */}
+      {!isLoading && data && (
+        <CapabilityHealthSection
+          decay={data.decay}
+          vectorBackend={data.vectorBackend}
+          attendant={data.attendant}
+        />
       )}
 
       {/* CP-T034: Provider status section — key presence, reachability, models */}

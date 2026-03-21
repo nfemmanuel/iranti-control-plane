@@ -611,6 +611,69 @@
   background: var(--color-accent-subtle);
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   CP-T052: Capability Health section
+   Visually consistent with ProviderStatusSection pattern.
+   ────────────────────────────────────────────────────────────────── */
+
+.capabilitySection {
+  flex-shrink: 0;
+  padding: 0 var(--section-padding) var(--space-4);
+}
+
+.capabilitySectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-3);
+}
+
+.capabilitySectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.capabilitySectionMeta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* Inline code spans inside card normalization text — e.g. forceInject: true */
+.capabilityInlineCode {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  background: var(--color-accent-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: 0 3px;
+}
+
+/* Code block for Attendant workaround JSON snippet */
+.capabilityCodeBlock {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0 0;
+  overflow-x: auto;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T046: Link inside the unreachable-provider banner
+   ────────────────────────────────────────────────────────────────── */
+
 /* CP-T046: Link inside the unreachable-provider banner */
 .providerBannerLink {
   color: var(--color-status-warning);

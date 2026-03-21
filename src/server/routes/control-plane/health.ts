@@ -315,6 +315,131 @@ async function checkStaffEventsTable(): Promise<HealthCheck> {
 }
 
 // ---------------------------------------------------------------------------
+// CP-T052: Decay config builder
+// ---------------------------------------------------------------------------
+
+interface DecayConfig {
+  enabled: boolean
+  stabilityBase: number
+  stabilityIncrement: number
+  stabilityMax: number
+  decayThreshold: number
+}
+
+function buildDecayConfig(): DecayConfig {
+  const getVal = (key: string): string =>
+    process.env[key] ?? env[key] ?? ''
+
+  const enabled = (getVal('IRANTI_DECAY_ENABLED') || 'false').toLowerCase() === 'true'
+  const stabilityBase = parseInt(getVal('IRANTI_DECAY_STABILITY_BASE') || '30', 10)
+  const stabilityIncrement = parseInt(getVal('IRANTI_DECAY_STABILITY_INCREMENT') || '5', 10)
+  const stabilityMax = parseInt(getVal('IRANTI_DECAY_STABILITY_MAX') || '365', 10)
+  const decayThreshold = parseInt(getVal('IRANTI_DECAY_THRESHOLD') || '10', 10)
+
+  return {
+    enabled,
+    stabilityBase: isNaN(stabilityBase) ? 30 : stabilityBase,
+    stabilityIncrement: isNaN(stabilityIncrement) ? 5 : stabilityIncrement,
+    stabilityMax: isNaN(stabilityMax) ? 365 : stabilityMax,
+    decayThreshold: isNaN(decayThreshold) ? 10 : decayThreshold,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CP-T052: Vector backend builder
+// ---------------------------------------------------------------------------
+
+type VectorBackendType = 'pgvector' | 'qdrant' | 'chroma' | 'unknown'
+type VectorBackendStatus = 'ok' | 'warn' | 'error'
+
+interface VectorBackendInfo {
+  type: VectorBackendType
+  configured: boolean
+  url: string | null
+  status: VectorBackendStatus
+}
+
+async function buildVectorBackendInfo(): Promise<VectorBackendInfo> {
+  const getVal = (key: string): string =>
+    process.env[key] ?? env[key] ?? ''
+
+  const raw = getVal('IRANTI_VECTOR_BACKEND').trim().toLowerCase()
+
+  let type: VectorBackendType
+  if (raw === 'qdrant') type = 'qdrant'
+  else if (raw === 'chroma') type = 'chroma'
+  else if (raw === 'pgvector' || raw === '') type = 'pgvector'
+  else type = 'unknown'
+
+  if (type === 'pgvector' || type === 'unknown') {
+    // pgvector reachability is covered by the existing db_reachability check.
+    // unknown defaults to pgvector behaviour.
+    return {
+      type,
+      configured: type === 'pgvector',
+      url: null,
+      status: 'ok',
+    }
+  }
+
+  // qdrant or chroma — probe the configured URL
+  const urlKey = type === 'qdrant' ? 'IRANTI_QDRANT_URL' : 'IRANTI_CHROMA_URL'
+  const url = getVal(urlKey).trim()
+
+  if (!url) {
+    return {
+      type,
+      configured: false,
+      url: null,
+      status: 'warn',
+    }
+  }
+
+  let status: VectorBackendStatus = 'error'
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    try {
+      const probe = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+      })
+      status = probe.status < 500 ? 'ok' : 'warn'
+    } finally {
+      clearTimeout(timeout)
+    }
+  } catch {
+    status = 'error'
+  }
+
+  return {
+    type,
+    configured: true,
+    url,
+    status,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CP-T052: Attendant status builder
+// ---------------------------------------------------------------------------
+
+interface AttendantStatus {
+  status: 'informational'
+  message: string
+  upstreamPRRequired: string
+}
+
+function buildAttendantStatus(): AttendantStatus {
+  return {
+    status: 'informational',
+    message:
+      'Attendant automatic injection has known reliability limitations without native emitter injection (CP-T025). Iranti v0.2.13 improved classification accuracy. If injection appears unreliable, provide explicit entityHints to iranti_observe.',
+    upstreamPRRequired: 'CP-T025',
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Aggregator
 // ---------------------------------------------------------------------------
 
@@ -362,9 +487,24 @@ async function runAllHealthChecks(): Promise<HealthResponse> {
 
 healthRouter.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await runAllHealthChecks()
-    // Always 200 — HTTP status reflects whether the endpoint itself worked
-    res.status(200).json(result)
+    const [result, vectorBackend] = await Promise.all([
+      runAllHealthChecks(),
+      buildVectorBackendInfo(),
+    ])
+    // Always 200 — HTTP status reflects whether the endpoint itself worked.
+    //
+    // Note: `decay`, `vectorBackend`, and `attendant` are returned as top-level
+    // fields alongside `checks`, not inside `checks`. This means a vectorBackend
+    // probe failure does NOT affect the `overall` field, which is computed only
+    // from the `checks` array. This is intentional — the operator capability fields
+    // are additive context, not system-health gates. The UI must surface vectorBackend
+    // status independently from the overall status indicator.
+    res.status(200).json({
+      ...result,
+      decay: buildDecayConfig(),
+      vectorBackend,
+      attendant: buildAttendantStatus(),
+    })
   } catch (err) {
     next(err)
   }
