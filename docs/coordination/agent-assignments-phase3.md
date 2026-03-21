@@ -352,6 +352,83 @@ Once the spike is confirmed, implement the full ticket per `docs/tickets/cp-t048
 - SmartScreen / Gatekeeper bypass documentation location confirmed
 - Any risks or follow-on items (signing roadmap, Homebrew Cask, auto-update)
 
+### Assignment 6 — CP-T048 (Platform Installer Pipeline — Full Implementation) — `devops_engineer`
+
+**Status:** Assigned — 2026-03-20
+**Ticket:** `docs/tickets/cp-t048.md`
+**Priority:** P2
+**Phase:** 3, Wave 3
+**Depends on:** Assignment 5 spike phase complete (ESM + Node SEA compatibility confirmed by PM). All four spike blockers resolved — see PM Implementation Decisions section in `docs/tickets/cp-t048.md` and Iranti `ticket/cp_t048` key `pm_implementation_decisions`.
+
+This assignment covers the full Phase 2 implementation of CP-T048: build scripts, GitHub Actions pipeline, and all platform installer artifacts. The spike phase (Assignment 5) established that Node SEA with an esbuild CJS pre-bundle is the confirmed toolchain. The devops_engineer is unblocked to build the full pipeline.
+
+**Files to read before starting:**
+- `docs/tickets/cp-t048.md` — full ticket including all 12 ACs, all resolved OQs, Implementation Notes, and the new PM Implementation Decisions section (2026-03-20) which contains the four binding decisions
+- `src/server/index.ts` — contains the `__dirname`-based static asset path on line 31 that must be updated to use `process.isSea?.()` detection (see Decision 2 in the PM Implementation Decisions section for the exact code change)
+- `src/server/package.json` — confirms `"type": "module"` (ESM) and the server entry point; the esbuild CJS pre-bundle step converts this to CJS before feeding to Node SEA
+- `src/client/vite.config.ts` — confirms Vite build output path (`public/control-plane/`); the sidecar static assets directory must match this path in the installer layout
+- `.github/workflows/` — any existing CI patterns to follow for matrix job structure, secret handling, and artifact upload conventions
+- Iranti memory `ticket/cp_t048` key `pm_implementation_decisions` — all four PM decisions documented with full rationale; read this before writing a single line of pipeline code
+
+**What to build:**
+
+1. **esbuild CJS pre-bundle step** — Before invoking the Node SEA toolchain, run `esbuild src/server/index.ts --bundle --platform=node --format=cjs --outfile=dist/server/bundle.cjs`. This resolves the ESM/SEA compatibility issue from the spike: the SEA `main` field points to `bundle.cjs`, not the raw TypeScript or ESM output. Include all server dependencies in the bundle (except Prisma client native modules — mark `@prisma/client` as external and handle separately, or verify Prisma bundling works in the spike environment). Place the esbuild step in `scripts/package/bundle.sh` (or `.js`).
+
+2. **`scripts/package/` directory** — Create a `scripts/package/` directory with per-platform build scripts:
+   - `bundle.sh` — esbuild CJS pre-bundle (shared by all platforms)
+   - `build-windows.sh` — Node SEA binary build (Windows `x64`) + NSIS installer invocation
+   - `build-macos-arm64.sh` — Node SEA binary build for `arm64`
+   - `build-macos-x86_64.sh` — Node SEA binary build for `x86_64`
+   - `build-macos-universal.sh` — `lipo` merge + `.app` bundle + `create-dmg` invocation
+   - `build-linux.sh` — Node SEA binary build + AppImage tooling + `fpm` for `.deb`
+   - Scripts may be `.js` / `.ts` if that is more natural given the repo conventions
+
+3. **`src/server/index.ts` path fix** — Apply the `process.isSea?.()` static asset path fix documented in PM Decision 2. This is a required code change — the installer will produce a broken control plane if this change is not applied before packaging.
+
+4. **GitHub Actions workflow: `.github/workflows/release.yml`** — Matrix CI pipeline triggered on `push: tags: ['v*']`. Jobs:
+   - `build-windows` on `windows-latest`: esbuild bundle → Node SEA binary → NSIS `.exe`. Upload artifact.
+   - `build-macos-arm64` on `macos-14`: esbuild bundle → Node SEA binary (arm64). Upload artifact.
+   - `build-macos-x86_64` on `macos-13`: esbuild bundle → Node SEA binary (x86_64). Upload artifact.
+   - `package-macos-universal` on `macos-14`: download both macOS artifacts → `lipo` merge → `.app` bundle → `create-dmg` → `.dmg`. Upload artifact.
+   - `build-linux` on `ubuntu-latest`: esbuild bundle → Node SEA binary → AppImage → `.deb`. Upload artifact.
+   - `create-release` (final job, depends on all platform jobs): download all artifacts → create GitHub Release with all artifacts attached.
+   - All jobs: `actions/setup-node@v4` with `node-version: '22'` (pinned per PM Decision 3).
+
+5. **Windows NSIS installer** — NSIS `.exe` installer that: installs binary to `%ProgramFiles%\Iranti Control Plane\`, places `public\control-plane\` sidecar directory alongside the binary, creates Start menu entry, registers Add/Remove Programs uninstaller, offers optional "Start with Windows" checkbox. Template the NSIS script in `scripts/package/installer.nsi`.
+
+6. **macOS `.dmg`** — Drag-to-Applications disk image containing `Iranti Control Plane.app`. The `.app` bundle must contain: `Contents/MacOS/iranti-control-plane` (the universal SEA binary) and `Contents/Resources/public/control-plane/` (the sidecar assets — the server resolves them via `process.isSea()` relative to `process.execPath`). Ad-hoc sign the `.app` with `codesign --sign - --force --deep`. Use `create-dmg` or `appdmg` for the final `.dmg`.
+
+7. **Linux `.AppImage` and `.deb`** — AppImage via `appimagetool`: bundle binary + assets into the AppImage directory structure, `chmod +x`, run `appimagetool`. For `.deb`: use `fpm` to produce a `.deb` that installs binary to `/usr/local/bin/iranti-control-plane` and assets to `/usr/share/iranti-control-plane/public/control-plane/`. Include a `.desktop` file for application menu integration.
+
+8. **Port conflict detection** — Implement port auto-increment (3000–3010) in the server startup path before packaging. This is AC-12 — the packaged binary must not silently fail if port 3000 is in use.
+
+9. **Version display** — Ensure the packaged binary reads and exposes the version from `package.json` so it matches the installer version in the About/Health view (AC-7).
+
+**Acceptance criteria to verify before reporting back:**
+- AC-1 through AC-12 from `docs/tickets/cp-t048.md` — all 12
+- AC-10 specifically: each compressed installer artifact is < 80 MB; measure and document uncompressed binary size in your report
+- TypeScript compiles clean after the `index.ts` path fix (`tsc --noEmit` with zero errors)
+- CI pipeline green on a tagged release commit (create a `v0.3.0-test` tag in a branch to validate before tagging `v0.3.0`)
+- AC-11 QA sign-off: coordinate with `qa_engineer` for clean-machine validation on each platform. Pass QA the installer artifacts and ask them to validate on a VM with no Node.js pre-installed.
+- esbuild bundle step works and Prisma client (if used) is handled — document the Prisma decision in your report
+
+**Commit structure (suggested):**
+- `feat(devops): add esbuild CJS pre-bundle step for Node SEA compatibility (CP-T048)`
+- `fix(server): resolve static asset path using process.isSea() for packaged binary (CP-T048)`
+- `feat(devops): add Windows NSIS installer build script and workflow job (CP-T048)`
+- `feat(devops): add macOS universal binary build with lipo and DMG packaging (CP-T048)`
+- `feat(devops): add Linux AppImage and deb packaging (CP-T048)`
+- `feat(devops): add GitHub Actions release pipeline for all platform installers (CP-T048)`
+
+**Report back to PM with:**
+- Toolchain confirmation (Node SEA + esbuild confirmed, or any deviation and rationale)
+- Artifact sizes: compressed download size for each platform (must be < 80 MB per AC-10), uncompressed binary size (documented)
+- Prisma client decision (bundled or external; document approach)
+- Which ACs passed; any that required assumptions or deferred to QA
+- CI pipeline URL (GitHub Actions run on a test tag)
+- SmartScreen / Gatekeeper bypass instructions — confirm location in release notes and Getting Started screen
+- Any risks or follow-on items (auto-update, Homebrew Cask, Windows `.msi`)
+
 ---
 
 ## Carryover from Phase 2 (tracked separately, not Phase 3 tickets)
