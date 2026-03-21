@@ -76,7 +76,10 @@ function testPort(port: number): Promise<boolean> {
     srv.once('listening', () => {
       srv.close(() => resolve(true))
     })
-    srv.listen(port, '127.0.0.1')
+    // Listen without a host so we probe all interfaces (IPv4 + IPv6),
+    // matching what app.listen() does. Probing only 127.0.0.1 misses
+    // processes bound to :: (e.g. Iranti on :::3001).
+    srv.listen(port)
   })
 }
 
