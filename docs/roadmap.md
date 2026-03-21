@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Wave 5/6 dispatch + Wave 7 stub)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–4 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Waves 5/6 dispatched 2026-03-21: CP-T056, CP-T057, CP-T058, CP-T059 — agents briefed and running. Wave 7 stub ready: CP-T060 (Metrics Dashboard). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
+> **Last updated: 2026-03-21 (Wave 7 PM-ACCEPTED + Wave 8 dispatched)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–7 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 8 dispatched 2026-03-21: CP-T061 (Entity Alias Management UI), CP-T062 (Relationship Graph B9 note), CP-T063 (API Key Scope Audit View), CP-T064 (documentation update for CP-T056/T057/T060). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
 
 ## Horizon
 
@@ -215,8 +215,12 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 **Wave 1 COMPLETE:** CP-T050 (Staff Logs View) — PM-ACCEPTED 2026-03-20
 **Wave 2 COMPLETE:** CP-T049 (Archivist Transparency) — PM-ACCEPTED 2026-03-20
 **Wave 3 IN PROGRESS:** CP-T048 (Platform Installer Packages) — implementation complete; AC-11 clean-machine testing pending
-**Wave 4 ISSUED 2026-03-21:** CP-T051 (Agent Registry View), CP-T052 (Health: Decay + Vector + Attend), CP-T053 (ConflictLog Timeline + Field Labels) — from cross-repo audit
-**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress) → CP-T051, CP-T052, CP-T053 (open)
+**Wave 4 COMPLETE:** CP-T051 (Agent Registry View), CP-T052 (Health: Decay + Vector + Attend), CP-T053 (ConflictLog Timeline + Field Labels) — all PM-ACCEPTED 2026-03-21
+**Wave 5 COMPLETE:** CP-T056 (Temporal History asOf), CP-T057 (WhoKnows Contributor Panel), CP-T058 (UX Guidance Labels) — PM-ACCEPTED 2026-03-21
+**Wave 6 COMPLETE:** CP-T059 (Interactive Diagnostics Panel) — PM-ACCEPTED 2026-03-21
+**Wave 7 COMPLETE:** CP-T060 (Metrics Dashboard) — PM-ACCEPTED 2026-03-21
+**Wave 8 DISPATCHED 2026-03-21:** CP-T061, CP-T062, CP-T063, CP-T064
+**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress) → CP-T051/T052/T053 ✓ → CP-T056/T057/T058 ✓ → CP-T059 ✓ → CP-T060 ✓ → CP-T061/T062/T063/T064 (open)
 **Coordination doc:** `docs/coordination/agent-assignments-phase3.md`
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
@@ -271,12 +275,14 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 
 **Wave 6 (issued 2026-03-21 — concurrent with Wave 5):** CP-T059 — Interactive Diagnostics Panel (new CP-E012 Diagnostics epic)
 
-**Wave 7 (stub ready 2026-03-21 — dispatch after Wave 5/6 acceptance):** CP-T060 — Metrics Dashboard (new CP-E013 Metrics epic)
-- Rationale: Completes the passive→interactive→historical operator surface progression. Wave 5/6 gives operators real-time query and diagnostics. Wave 7 adds the time-dimension view: KB growth trends, per-agent write volume, rejection rate trends — all derived from the existing `staff_events` table with no new data collection infrastructure. Highest-value Wave 7 candidate because: (a) data already exists, (b) closes a major capability gap, (c) chart implementation uses native SVG (precedent from CP-T032).
-- CP-T060 (Metrics Dashboard): `backend_developer` (metrics endpoints — kb-growth, agent-activity, summary; SQL aggregates over staff_events) + `frontend_developer` (/metrics route, line/bar charts, summary cards)
-- Rationale: The Health Dashboard is passive. Operators with problems must drop to the CLI. An active diagnostics surface — "Run Diagnostics" button triggering 7 live checks (Iranti connectivity, auth, DB, vector backend, ingest round-trip, attend check, vector search quality) with actionable fix hints — makes the control plane the primary operator diagnostic tool, not a supplement to `iranti doctor`. This is P2, not P3, because it directly reduces operator time-to-resolution.
-- CP-T059 (Interactive Diagnostics Panel): `backend_developer` (POST /diagnostics/run, GET /diagnostics/last, 7 checks, fixHint messages) + `frontend_developer` (Health Dashboard "Run Diagnostics" button, results panel, command palette registration)
-- CP-T058 (Operator Guidance Labels — M4/M5/H8): `frontend_developer` (pure frontend — 3 small UX label additions)
+**Wave 7 (PM-ACCEPTED 2026-03-21):** CP-T060 — Metrics Dashboard (CP-E013 Metrics epic)
+- CP-T060 (Metrics Dashboard): `backend_developer` + `frontend_developer` — **PM-ACCEPTED 2026-03-21**. Three endpoints (kb-growth, agent-activity, summary), compound DB index migration 003, SVG-native line and bar charts, 4 summary stat cards, period toggle, empty state. Action type strings confirmed as real lowercase values (`write_created`, `write_replaced`, `entry_archived`, `entry_decayed`, `write_rejected`, `write_escalated`). Both TypeScript checks pass clean.
+
+**Wave 8 (dispatched 2026-03-21):** CP-T061, CP-T062, CP-T063, CP-T064 — KB management, product clarity, provider auditability, documentation
+- CP-T061 (Entity Alias Management UI): `backend_developer` + `frontend_developer` — alias proxy endpoints + Aliases panel in Entity Detail. P2. Deferred since Phase 1 (CP-T006 spike); now ready because the Entity Detail view is stable and write-surface patterns are established.
+- CP-T062 (Relationship Graph B9 Note): `frontend_developer` — informational note in Entity Detail graph section explaining that `GET /kb/related` (semantic similarity) is not surfaced due to B9 (no MCP read tool). P3. Pure frontend, one file.
+- CP-T063 (API Key Scope Audit View): `backend_developer` + `frontend_developer` — add `scope` and `scopeType` fields to provider endpoint; show scope in Provider Manager list and detail panel. P2. Namespace-aware scopes (v0.2.1) are invisible in the control plane.
+- CP-T064 (Documentation Update): `technical_writer` — update `docs/guides/memory-explorer.md` for CP-T056 (asOf picker) and CP-T057 (Contributors panel); add Metrics Dashboard row to `docs/guides/getting-started.md` for CP-T060. P3.
 - Upstream drift check: Iranti now at v0.2.14. v0.2.13 partially fixes B11 (attend classifier). No breaking API changes. v0.2.14 is Windows updater fix only — no control plane impact.
 
 ### Tickets
@@ -289,11 +295,15 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T051 | Agent Registry View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
 | CP-T052 | Health View: Decay Config + Vector Backend + Attend Status | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
 | CP-T053 | Memory Explorer: ConflictLog Timeline + Field Label Fixes | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
-| CP-T056 | Temporal History: Point-in-Time `asOf` Query | frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
-| CP-T057 | Entity Detail: WhoKnows Contributor Panel | backend_developer + frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
-| CP-T058 | UX Polish: Operator Guidance Labels (M4/M5/H8) | frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
-| CP-T059 | Interactive Diagnostics Panel | backend_developer + frontend_developer | P2 | **OPEN** — Wave 6, issued 2026-03-21 |
-| CP-T060 | Metrics Dashboard: KB Growth + Agent Write Volume | backend_developer + frontend_developer | P2 | **STUB** — Wave 7, drafted 2026-03-21, dispatch after Wave 5/6 acceptance |
+| CP-T056 | Temporal History: Point-in-Time `asOf` Query | frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
+| CP-T057 | Entity Detail: WhoKnows Contributor Panel | backend_developer + frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
+| CP-T058 | UX Polish: Operator Guidance Labels (M4/M5/H8) | frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
+| CP-T059 | Interactive Diagnostics Panel | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T060 | Metrics Dashboard: KB Growth + Agent Write Volume | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T061 | Entity Alias Management UI | backend_developer + frontend_developer | P2 | **OPEN** — Wave 8, issued 2026-03-21 |
+| CP-T062 | Relationship Graph: B9 Blocker Note | frontend_developer | P3 | **OPEN** — Wave 8, issued 2026-03-21 |
+| CP-T063 | API Key Scope Audit View | backend_developer + frontend_developer | P2 | **OPEN** — Wave 8, issued 2026-03-21 |
+| CP-T064 | Documentation: asOf + Contributors + Metrics guide updates | technical_writer | P3 | **OPEN** — Wave 8, issued 2026-03-21 |
 
 ### Exit Criteria
 
@@ -303,14 +313,18 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [x] CP-T050: Staff Logs View passes all 13 ACs — PM-ACCEPTED 2026-03-20
 - [x] CP-T049: Archivist Transparency passes all 9 ACs — PM-ACCEPTED 2026-03-20
 - [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux — implementation complete 2026-03-21; AC-11 clean-machine testing pending
-- [ ] CP-T051: Agent Registry View — backend proxy + frontend /agents view (Wave 4)
-- [ ] CP-T052: Health view extended with decay config, vector backend, Attendant status (Wave 4)
-- [ ] CP-T053: ConflictLog timeline and createdBy/source label distinction in Memory + Archive Explorers (Wave 4)
-- [ ] CP-T056: Temporal History asOf point-in-time query (Wave 5)
-- [ ] CP-T057: WhoKnows Contributor Panel in Entity Detail (Wave 5)
-- [ ] CP-T058: Operator guidance labels — Provider Manager write-path hint, unreachable instance command, IRANTI_PROJECT_MODE (Wave 5)
-- [ ] CP-T059: Interactive Diagnostics Panel — 7 live checks, fixHint messages, "Run Diagnostics" button in Health Dashboard (Wave 6, CP-E012)
-- [ ] CP-T060: Metrics Dashboard — KB growth trend, per-agent write volume chart, summary stat cards (Wave 7, CP-E013)
+- [x] CP-T051: Agent Registry View — backend proxy + frontend /agents view (Wave 4) — PM-ACCEPTED 2026-03-21
+- [x] CP-T052: Health view extended with decay config, vector backend, Attendant status (Wave 4) — PM-ACCEPTED 2026-03-21
+- [x] CP-T053: ConflictLog timeline and createdBy/source label distinction in Memory + Archive Explorers (Wave 4) — PM-ACCEPTED 2026-03-21
+- [x] CP-T056: Temporal History asOf point-in-time query (Wave 5) — PM-ACCEPTED 2026-03-21
+- [x] CP-T057: WhoKnows Contributor Panel in Entity Detail (Wave 5) — PM-ACCEPTED 2026-03-21
+- [x] CP-T058: Operator guidance labels — Provider Manager write-path hint, unreachable instance command, IRANTI_PROJECT_MODE (Wave 5) — PM-ACCEPTED 2026-03-21
+- [x] CP-T059: Interactive Diagnostics Panel — 7 live checks, fixHint messages, "Run Diagnostics" button in Health Dashboard (Wave 6, CP-E012) — PM-ACCEPTED 2026-03-21
+- [x] CP-T060: Metrics Dashboard — KB growth trend, per-agent write volume chart, summary stat cards (Wave 7, CP-E013) — PM-ACCEPTED 2026-03-21
+- [ ] CP-T061: Entity Alias Management UI — alias panel in Entity Detail, POST/GET proxy endpoints (Wave 8)
+- [ ] CP-T062: Relationship Graph B9 note — informational annotation for semantic relationship gap (Wave 8)
+- [ ] CP-T063: API Key Scope Audit View — scope field in provider endpoint and Provider Manager UI (Wave 8)
+- [ ] CP-T064: Documentation — update guides for asOf picker, Contributors panel, Metrics Dashboard (Wave 8)
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 

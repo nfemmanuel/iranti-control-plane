@@ -31,6 +31,7 @@ The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 
 | **Command Palette** | Global Cmd+K / Ctrl+K palette for navigation and inline shortcuts help (Phase 2 — CP-T024/CP-T042) |
 | **Staff Logs** | Persistent, queryable Staff event history at `/logs` — filter by component, date range, severity, agent, and event type; expand rows for full payload; export as JSONL or CSV (Phase 3 — CP-T050) |
 | **Archivist History** | Per-fact Archivist event timeline in the Archive Explorer expanded row — every Archivist action on a fact with timestamp, reason, and agent. Flag facts for operator review and restore superseded values. Queue of flagged facts at `/archive?flagged=true` (Phase 3 — CP-T049) |
+| **Metrics** | Historical KB growth, per-agent write volume, and activity summary statistics at `/metrics` — SVG-native line and bar charts over 7d/30d periods, 4 summary stat cards (total facts, facts last 24h, active agents last 7d, rejection rate). All data derived from `staff_events` table, no new infrastructure needed. (Wave 7 — CP-T060, PM-accepted 2026-03-21) |
 
 ---
 

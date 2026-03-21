@@ -10,8 +10,8 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 7 dispatched 2026-03-21 (Wave 5/6 complete — Wave 6 PM-ACCEPTED)
-Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058 → CP-T059 → CP-T060
+Current wave: Wave 8 dispatched 2026-03-21 (Wave 7 PM-ACCEPTED)
+Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058 → CP-T059 → CP-T060 → CP-T061 / CP-T062 / CP-T063 / CP-T064
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
@@ -25,6 +25,11 @@ CP-T058 issued: 2026-03-21 Wave 5 — UX Guidance Labels M4/M5/H8 (frontend_deve
 CP-T059 issued: 2026-03-21 Wave 6 — Interactive Diagnostics Panel (backend_developer + frontend_developer) — P2, new CP-E012 epic
 CP-T059 PM-ACCEPTED: 2026-03-21 — All 5 frontend ACs pass, tsc clean, AC-9 __diagnostics__ filter confirmed
 CP-T060 issued: 2026-03-21 Wave 7 — Metrics Dashboard (backend_developer + frontend_developer) — P2, CP-E013 epic
+CP-T060 PM-ACCEPTED: 2026-03-21 — Backend: action_type strings verified correct (lowercase real values), totalFacts cumulative from all-time window, graceful degradation confirmed, tsc clean. Frontend: SVG line + bar charts, 4 summary cards, period toggle with re-fetch, empty state at < 2 data points or truncated, tsc clean. Both halves accepted.
+CP-T061 issued: 2026-03-21 Wave 8 — Entity Alias Management UI (backend_developer + frontend_developer) — P2, CP-E014
+CP-T062 issued: 2026-03-21 Wave 8 — Relationship Graph B9 note (frontend_developer) — P3
+CP-T063 issued: 2026-03-21 Wave 8 — API Key Scope Audit View (backend_developer + frontend_developer) — P2
+CP-T064 issued: 2026-03-21 Wave 8 — Documentation update for CP-T056/T057/T060 (technical_writer) — P3
 
 Iranti upstream drift check (2026-03-21): v0.2.14 current (was v0.2.12 at last audit). v0.2.13 partially fixes B11 attend classifier; hybrid search now falls back to in-process scoring when pgvector unavailable. v0.2.14 is Windows updater fix only. No breaking API changes. No control plane rework required.
 
@@ -1106,3 +1111,168 @@ Create `src/client/src/components/metrics/MetricsDashboard.tsx` and add the `/me
 - Which ACs passed
 - Whether any agent color reuse from CP-T051 was implemented
 - CI status
+
+---
+
+## Wave 8 — Issued 2026-03-21 (KB Management, Product Clarity, Provider Auditability, Documentation)
+
+**Rationale:** Wave 7 (Metrics Dashboard) closed the historical visibility gap. Wave 8 closes three orthogonal gaps: (1) the entity alias write surface deferred since Phase 1, (2) a product clarity note about the semantic relationship gap, and (3) API key scope visibility for multi-agent operators. Documentation for Wave 5 and Wave 7 features is also overdue.
+
+**Priority sequencing:**
+- CP-T061 (Entity Alias UI) — P2 — backend + frontend, moderate complexity
+- CP-T063 (API Key Scope Audit) — P2 — backend + frontend, low complexity
+- CP-T062 (Relationship Graph B9 note) — P3 — frontend only, one-file change
+- CP-T064 (Documentation update) — P3 — technical_writer only
+
+---
+
+### Assignment — CP-T061 (Entity Alias Management UI) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t061.md`
+**Priority:** P2
+**Phase:** 3, Wave 8
+
+**Why now:** Entity aliases have been deferred since CP-T006 (Phase 1 spike). The Iranti API (`POST /kb/alias`, `GET /kb/entity/:entityType/:entityId/aliases`) has existed since Phase 1. The Entity Detail view (CP-T036) is now stable, write-surface patterns are established (CP-T049 restore, CP-T033 repair actions), and alias management is a routine housekeeping task for operators ingesting data from multiple sources.
+
+**backend_developer scope:**
+- Add `GET /api/control-plane/kb/entity/:entityType/:entityId/aliases` — proxy to Iranti, return alias list
+- Add `POST /api/control-plane/kb/alias` — proxy to Iranti `POST /kb/alias`; 201 on success, 400 if entity not found, 503 if upstream unreachable
+- Add to `src/server/routes/control-plane/kb.ts`
+- TypeScript clean, no `any`
+
+**frontend_developer scope:**
+- Add "Aliases" collapsible section to Entity Detail view (`src/client/src/components/memory/EntityDetail.tsx`), positioned after Relationships section
+- List existing aliases with entity type/ID links and creation timestamps
+- Empty state: "No aliases — this entity has no aliases yet."
+- Inline "Create alias" form (collapsed by default) with entityType + entityId fields and Create button
+- On success: refresh alias list. On error: inline error message.
+- Each alias links to `/memory/:aliasEntityType/:aliasEntityId`
+- TypeScript clean, no `any`
+
+**Files to read before starting:**
+- `docs/tickets/cp-t061.md` — full ticket and acceptance criteria
+- `docs/specs/entity-aliases-spike.md` — Phase 1 spike; design rationale and API shape
+- `src/server/routes/control-plane/kb.ts` — existing KB proxy patterns
+- `src/client/src/components/memory/EntityDetail.tsx` — Entity Detail component structure
+- `src/server/routes/control-plane/archivist.ts` or `escalations.ts` — write-path proxy patterns
+
+**Acceptance criteria:**
+- AC-1: `GET .../aliases` proxy returns alias list or empty array
+- AC-2: `POST /kb/alias` proxy returns 201 on success, 400 on bad entity, 503 on unreachable
+- AC-3: Backend TypeScript clean
+- AC-4: Aliases panel in Entity Detail with list + create form
+- AC-5: Each alias links to the aliased entity detail page
+- AC-6: Frontend TypeScript clean
+
+**Report back to PM with:**
+- Confirmation of which Iranti API shape was used (`POST /kb/alias` request body fields)
+- Whether the alias creation form was tested with real data or in empty-table state
+- Any upstream API gaps found (e.g., missing `createdAt` field in alias response)
+- TypeScript status both sides
+
+---
+
+### Assignment — CP-T063 (API Key Scope Audit View) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t063.md`
+**Priority:** P2
+**Phase:** 3, Wave 8
+
+**Why now:** Iranti v0.2.1 introduced namespace-aware API key scopes. The Provider Manager shows key presence and reachability but not scope assignments. Wave 7 (Metrics Dashboard) surfaces per-agent write volume, making multi-agent routing patterns visible. Wave 8 should make the provider configuration that supports those agents auditable.
+
+**backend_developer scope:**
+- Before implementing: check whether Iranti's provider endpoint (or config files) exposes scope information in v0.2.14. If yes, add `scope` and `scopeType` fields to `GET /api/control-plane/providers` response. If no, return `scope: null` / `scopeType: "unknown"` and note the upstream gap.
+- Read `src/server/routes/control-plane/providers.ts` for the current provider endpoint and `src/server/routes/control-plane/setup.ts` for config-file reading patterns.
+- TypeScript clean, no `any`
+
+**frontend_developer scope:**
+- Add "Scope" column to Provider Manager list view: "global" badge, scope string in code-styled label, or "—" for unknown
+- Add "API Key Scope" row to Provider Manager detail panel with full scope string and explanatory note
+- Truncate long scope strings with tooltip
+- TypeScript clean, no `any`
+
+**Files to read before starting:**
+- `docs/tickets/cp-t063.md` — full ticket and acceptance criteria
+- `src/server/routes/control-plane/providers.ts` — current provider endpoint
+- `src/server/routes/control-plane/setup.ts` — config-file reading (source of truth for env/config values)
+- `src/client/src/components/providers/ProviderManager.tsx` — current Provider Manager component
+
+**Acceptance criteria:**
+- AC-1: `scope` and `scopeType` fields in provider endpoint response (or `null`/`"unknown"` gracefully)
+- AC-2: Backend TypeScript clean
+- AC-3: Scope column in Provider Manager list
+- AC-4: Scope row in Provider Manager detail panel with explanatory note
+- AC-5: Frontend TypeScript clean
+
+**Report back to PM with:**
+- Whether Iranti v0.2.14 exposes scope in a queryable API or only in config files
+- Whether real scope data was visible or only the `null`/`"unknown"` placeholder
+- TypeScript status both sides
+
+---
+
+### Assignment — CP-T062 (Relationship Graph B9 Note) — `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t062.md`
+**Priority:** P3
+**Phase:** 3, Wave 8
+
+**Why now:** Operators looking at the Relationship Graph have no way to know that semantic similarity relationships (`GET /kb/related`) are a planned capability blocked by B9 (no MCP read tool). CP-T052 surfaces vector backend status in Health, so operators now understand the vector layer — this note closes the communication loop.
+
+**frontend_developer scope:**
+- Add a muted informational note below the Relationship Graph in Entity Detail: "This graph shows explicit relationships. Semantic relationships via vector similarity (`GET /kb/related`) are not yet available from the control plane — this requires MCP read tool support (B9)."
+- Only show when the Relationship Graph section is visible (entity has relationships)
+- Use `--color-text-tertiary` token, no new CSS classes needed
+- Link to `/health` for vector backend status check
+- TypeScript clean
+
+**Files to read before starting:**
+- `docs/tickets/cp-t062.md` — full ticket
+- `src/client/src/components/memory/EntityDetail.tsx` — where the graph renders
+- `src/client/src/components/memory/EntityDetail.module.css` — existing label styles to reuse
+
+**Acceptance criteria:**
+- AC-1: Informational note rendered below the graph, linking to /health
+- AC-2: Note only appears when graph section is rendered (entity has relationships)
+- AC-3: TypeScript clean
+
+**Report back to PM with:**
+- Confirmation of which CSS class/token was used for the note text
+- Whether the note is visible in both light and dark mode
+
+---
+
+### Assignment — CP-T064 (Documentation Update) — `technical_writer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t064.md`
+**Priority:** P3
+**Phase:** 3, Wave 8
+
+**Why now:** CP-T056 (asOf picker) and CP-T057 (Contributors panel) were accepted in Wave 5 but the guide was not updated at that time. CP-T060 (Metrics Dashboard) was accepted today. The documentation debt must be paid in Wave 8.
+
+**technical_writer scope:**
+- Update `docs/guides/memory-explorer.md`: add asOf picker section (what it does, how to use it, limitations) and Contributors panel section (what it shows, relation to `GET /kb/whoknows`)
+- Update `docs/guides/getting-started.md`: add Metrics Dashboard row to the "What's Available Now" table
+- No new files. Edit in place.
+
+**Files to read before starting:**
+- `docs/tickets/cp-t064.md` — full ticket and acceptance criteria
+- `docs/tickets/cp-t056.md` — asOf picker feature description
+- `docs/tickets/cp-t057.md` — Contributors panel feature description
+- `docs/tickets/cp-t060.md` — Metrics Dashboard feature description
+- `docs/guides/memory-explorer.md` — current state
+- `docs/guides/getting-started.md` — current state (add to "What's Available Now" table)
+
+**Acceptance criteria:**
+- AC-1: asOf picker documented in memory-explorer.md
+- AC-2: Contributors panel documented in memory-explorer.md
+- AC-3: Metrics Dashboard row added to getting-started.md table
+- AC-4: No new files created
+
+**Report back to PM with:**
+- Sections added and their headings
+- Any gaps found between ticket spec and actual implementation (e.g., if asOf picker UI differs from ticket description)
