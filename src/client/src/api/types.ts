@@ -369,17 +369,21 @@ export interface AsOfQueryResult {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Entity Aliases (CP-T061)                                           */
+/*  Entity Aliases (CP-T061 / CP-T065)                                */
 /* ------------------------------------------------------------------ */
 
 export interface EntityAlias {
-  aliasEntityType: string
-  aliasEntityId: string
+  alias: string
+  aliasNorm: string
+  source: string
+  confidence: number
   createdAt: string
 }
 
 export interface EntityAliasesResponse {
+  canonicalEntity: string
   aliases: EntityAlias[]
+  total: number
 }
 
 /* ------------------------------------------------------------------ */

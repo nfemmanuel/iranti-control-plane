@@ -4,9 +4,9 @@
 
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { EntityDetailResponse, KBFact, ArchiveFact, WhoKnowsResponse, AgentsListResponse } from '../../api/types'
+import type { EntityDetailResponse, KBFact, ArchiveFact, WhoKnowsResponse, AgentsListResponse, EntityAlias, EntityAliasesResponse } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import { RelationshipGraphView } from './RelationshipGraphView'
 import styles from './EntityDetail.module.css'
@@ -333,10 +333,205 @@ function ContributorsPanel({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Aliases Panel (CP-T061 / CP-T065)                                  */
+/* ------------------------------------------------------------------ */
+
+interface AliasRowProps {
+  alias: EntityAlias
+}
+
+function AliasRow({ alias }: AliasRowProps) {
+  return (
+    <div className={styles.aliasRow}>
+      <code className={styles.aliasToken}>{alias.alias}</code>
+      <span className={styles.aliasSource}>{alias.source}</span>
+      <ConfidenceBar value={alias.confidence} />
+      <span className={styles.aliasCreatedAt} title={new Date(alias.createdAt).toLocaleString()}>
+        {formatRelativeTime(alias.createdAt)}
+      </span>
+    </div>
+  )
+}
+
+interface CreateAliasFormProps {
+  entityType: string
+  entityId: string
+  onSuccess: () => void
+}
+
+function CreateAliasForm({ entityType, entityId, onSuccess }: CreateAliasFormProps) {
+  const [token, setToken] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const canonicalEntity = `${entityType}/${entityId}`
+
+  const mutation = useMutation<void, Error, string>({
+    mutationFn: async (aliasToken) => {
+      const res = await fetch('/api/control-plane/kb/alias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          canonicalEntity,
+          alias: aliasToken,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error((err as { error?: string }).error ?? res.statusText)
+      }
+    },
+    onSuccess: () => {
+      setToken('')
+      setFormError(null)
+      onSuccess()
+    },
+    onError: (err) => {
+      setFormError(err.message)
+    },
+  })
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const trimmed = token.trim()
+    if (!trimmed) {
+      setFormError('Alias token is required.')
+      return
+    }
+    setFormError(null)
+    mutation.mutate(trimmed)
+  }
+
+  return (
+    <form className={styles.aliasForm} onSubmit={handleSubmit} aria-label="Create alias form">
+      <div className={styles.aliasFormFields}>
+        <input
+          type="text"
+          className={styles.aliasInput}
+          placeholder="Alias token (e.g. alice)"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          aria-label="Alias token"
+          disabled={mutation.isPending}
+        />
+        <button
+          type="submit"
+          className={styles.aliasSubmitBtn}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? 'Creating…' : 'Create'}
+        </button>
+      </div>
+      {formError && (
+        <p className={styles.aliasFormError} role="alert">{formError}</p>
+      )}
+    </form>
+  )
+}
+
+interface AliasesPanelProps {
+  entityType: string
+  entityId: string
+}
+
+function AliasesPanel({ entityType, entityId }: AliasesPanelProps) {
+  const [formOpen, setFormOpen] = useState(false)
+  const queryClient = useQueryClient()
+
+  const {
+    data,
+    isLoading,
+    error,
+  } = useQuery<EntityAliasesResponse, Error>({
+    queryKey: ['entity-aliases', entityType, entityId],
+    queryFn: () =>
+      apiFetch<EntityAliasesResponse>(
+        `/kb/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/aliases`
+      ),
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const handleAliasCreated = () => {
+    void queryClient.invalidateQueries({ queryKey: ['entity-aliases', entityType, entityId] })
+    setFormOpen(false)
+  }
+
+  const is503 =
+    error !== null &&
+    error !== undefined &&
+    (error.message.includes('503') || error.message.includes('UNAVAILABLE'))
+
+  const aliases = data?.aliases ?? []
+
+  return (
+    <div className={styles.aliasesPanel}>
+      <div className={styles.aliasesHeader}>
+        <span className={styles.aliasesPanelTitle}>Aliases</span>
+        {data && data.total > 0 && (
+          <span className={styles.aliasCount}>{data.total}</span>
+        )}
+        <button
+          type="button"
+          className={styles.aliasToggleBtn}
+          onClick={() => setFormOpen(v => !v)}
+          aria-expanded={formOpen}
+        >
+          {formOpen ? 'Cancel' : 'Create alias'}
+        </button>
+      </div>
+
+      {/* Create form */}
+      {formOpen && (
+        <CreateAliasForm
+          entityType={entityType}
+          entityId={entityId}
+          onSuccess={handleAliasCreated}
+        />
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <div className={styles.aliasesSkeleton} aria-busy="true" aria-label="Loading aliases">
+          <div className={styles.skeletonCard} />
+          <div className={styles.skeletonCard} />
+        </div>
+      )}
+
+      {/* 503 / error */}
+      {!isLoading && (is503 || (error && !is503)) && (
+        <p className={styles.aliasesUnavailable}>
+          Alias data unavailable.{' '}
+          <Link to="/health" className={styles.aliasHealthLink}>Check Health Dashboard</Link> for instance status.
+        </p>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && !error && aliases.length === 0 && (
+        <p className={styles.aliasesEmpty}>
+          No aliases — this entity has no aliases yet.
+        </p>
+      )}
+
+      {/* Alias list */}
+      {!isLoading && !error && aliases.length > 0 && (
+        <div className={styles.aliasList} role="list">
+          {aliases.map((alias) => (
+            <AliasRow
+              key={alias.aliasNorm}
+              alias={alias}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Tab types                                                           */
 /* ------------------------------------------------------------------ */
 
-type Tab = 'facts' | 'archived' | 'relationships'
+type Tab = 'facts' | 'archived' | 'relationships' | 'aliases'
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                      */
@@ -481,6 +676,14 @@ export function EntityDetail() {
             <span className={styles.tabBadge}>{relationships.length}</span>
           )}
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'aliases'}
+          className={`${styles.tab} ${activeTab === 'aliases' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('aliases')}
+        >
+          Aliases
+        </button>
       </div>
 
       {/* Tab content */}
@@ -500,6 +703,9 @@ export function EntityDetail() {
             entityType={decodedType}
             entityId={decodedId}
           />
+        )}
+        {activeTab === 'aliases' && (
+          <AliasesPanel entityType={decodedType} entityId={decodedId} />
         )}
       </div>
 

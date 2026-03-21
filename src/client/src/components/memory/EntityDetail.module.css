@@ -664,6 +664,207 @@
   50% { opacity: 0.4; }
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   Aliases Panel (CP-T061)
+   ────────────────────────────────────────────────────────────────── */
+
+.aliasesPanel {
+  padding: var(--space-4) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.aliasesHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.aliasesPanelTitle {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.aliasCount {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  padding: 1px var(--space-2);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+}
+
+.aliasToggleBtn {
+  margin-left: auto;
+  padding: 2px var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.aliasToggleBtn:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+/* Create alias form */
+
+.aliasForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+.aliasFormFields {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.aliasInput {
+  flex: 1;
+  min-width: 120px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+  transition: border-color 0.1s;
+}
+
+.aliasInput:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.aliasInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aliasSubmitBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-accent-primary);
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-bg-base);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+
+.aliasSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aliasFormError {
+  font-size: 12px;
+  color: var(--color-status-error);
+  margin: 0;
+}
+
+/* Alias list */
+
+.aliasList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.aliasRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+}
+
+/* Flat token display — no entity link */
+
+.aliasToken {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background: var(--color-bg-sunken);
+  padding: 1px var(--space-2);
+  border-radius: 3px;
+  border: 1px solid var(--color-border-subtle);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aliasSource {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.aliasCreatedAt {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  cursor: default;
+}
+
+/* Aliases skeleton (reuses skeletonCard keyframe from contributors) */
+
+.aliasesSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Empty / unavailable / health link */
+
+.aliasesEmpty {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  font-style: italic;
+}
+
+.aliasesUnavailable {
+  font-size: 12px;
+  color: var(--color-status-warning);
+  margin: 0;
+}
+
+.aliasHealthLink {
+  color: var(--color-status-warning);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.aliasHealthLink:hover {
+  opacity: 0.8;
+}
+
 /* Empty / unavailable states */
 
 .contributorsEmpty {
