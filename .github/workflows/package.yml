@@ -78,6 +78,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            src/server/package.json
 
       - name: Install server deps
         run: npm install --prefix src/server
@@ -111,6 +115,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            src/server/package.json
 
       - name: Install server deps
         run: npm install --prefix src/server
@@ -205,17 +213,31 @@ jobs:
           mkdir -p "${APP_BUNDLE}/Contents/MacOS"
           mkdir -p "${APP_BUNDLE}/Contents/Resources/public/control-plane"
 
-          # Copy binary
+          # Copy SEA binary as iranti-cp (the actual executable — not CFBundleExecutable)
           cp dist/sea/iranti-cp "${APP_BUNDLE}/Contents/MacOS/iranti-cp"
           chmod +x "${APP_BUNDLE}/Contents/MacOS/iranti-cp"
 
-          # Copy sidecar assets
+          # Copy package.json alongside the binary for runtime version detection.
+          # dirname(process.execPath) = Contents/MacOS/ in SEA context.
+          cp package.json "${APP_BUNDLE}/Contents/MacOS/package.json"
+
+          # Write shell launcher as CFBundleExecutable.
+          # macOS launches this script; it sets IRANTI_CP_ASSETS_DIR to the
+          # Resources directory and exec-replaces itself with the SEA binary.
+          # Without this wrapper, the server cannot locate sidecar assets.
+          cat > "${APP_BUNDLE}/Contents/MacOS/iranti-control-plane" <<'LAUNCHER'
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+          BUNDLE_DIR="$(dirname "$SCRIPT_DIR")"
+          export IRANTI_CP_ASSETS_DIR="$BUNDLE_DIR/Resources/public/control-plane"
+          exec "$SCRIPT_DIR/iranti-cp" "$@"
+          LAUNCHER
+          chmod +x "${APP_BUNDLE}/Contents/MacOS/iranti-control-plane"
+
+          # Copy sidecar assets into Resources/
           cp -r public/control-plane/. "${APP_BUNDLE}/Contents/Resources/public/control-plane/"
 
-          # Copy package.json for runtime version detection
-          cp package.json "${APP_BUNDLE}/Contents/Resources/package.json"
-
-          # Write Info.plist
+          # Write Info.plist — CFBundleExecutable must point at the shell launcher
           cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -227,7 +249,7 @@ jobs:
             <key>CFBundleVersion</key><string>${VERSION}</string>
             <key>CFBundleShortVersionString</key><string>${VERSION}</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleExecutable</key><string>iranti-cp</string>
+            <key>CFBundleExecutable</key><string>iranti-control-plane</string>
             <key>LSMinimumSystemVersion</key><string>13.0</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict>
