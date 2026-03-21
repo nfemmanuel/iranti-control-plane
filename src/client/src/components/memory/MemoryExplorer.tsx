@@ -1,12 +1,22 @@
 /* Iranti Control Plane — Memory Explorer */
 /* Route: /memory */
 /* CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5 */
+/* CP-T066 — KB Full-Text Search mode */
+/* CP-T067 — Entity Type Browser landing panel */
 
 import { Fragment, useState, useReducer, useEffect, useRef, type CSSProperties } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { KBFact, KBListResponse, ConflictEntry } from '../../api/types'
+import type {
+  KBFact,
+  KBListResponse,
+  ConflictEntry,
+  KBSearchResponse,
+  KBSearchResult,
+  EntityTypeSummary,
+  EntityTypesResponse,
+} from '../../api/types'
 import styles from './MemoryExplorer.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -102,6 +112,11 @@ function formatRelativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function truncate(str: string | null, maxLen: number): string {
+  if (!str) return '—'
+  return str.length > maxLen ? str.slice(0, maxLen) + '…' : str
 }
 
 /* ------------------------------------------------------------------ */
@@ -586,18 +601,332 @@ function PaginationControls({
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T067 — Entity Type Browser                                      */
+/* ------------------------------------------------------------------ */
+
+function EntityTypeBrowser({ onBrowse }: { onBrowse: (entityType: string) => void }) {
+  const { data, isLoading, error } = useQuery<EntityTypesResponse, Error>({
+    queryKey: ['entity-types'],
+    queryFn: () => apiFetch<EntityTypesResponse>('/kb/entity-types'),
+    staleTime: 2 * 60 * 1000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className={styles.entityTypeBrowserPanel}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <Spinner size="md" label="Loading entity types" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={styles.entityTypeBrowserPanel}>
+        <div className={styles.entityTypeBrowserEmpty}>
+          <span className={styles.entityTypeBrowserEmptyIcon} aria-hidden="true">⚠</span>
+          <p className={styles.entityTypeBrowserEmptyTitle}>Unable to load entity types</p>
+          <p className={styles.entityTypeBrowserEmptyBody}>{error.message}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const entityTypes: EntityTypeSummary[] = data?.entityTypes ?? []
+
+  if (entityTypes.length === 0) {
+    return (
+      <div className={styles.entityTypeBrowserPanel}>
+        <div className={styles.entityTypeBrowserEmpty}>
+          <span className={styles.entityTypeBrowserEmptyIcon} aria-hidden="true">⬡</span>
+          <p className={styles.entityTypeBrowserEmptyTitle}>No entities in the knowledge base yet</p>
+          <p className={styles.entityTypeBrowserEmptyBody}>
+            Once agents start writing facts, entity types will appear here. You can also check the{' '}
+            <Link to="/logs" className={styles.entityTypeBrowserEmptyLink}>Staff Logs</Link>{' '}
+            to see what agents have been doing.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const total = data?.total ?? entityTypes.length
+
+  return (
+    <div className={styles.entityTypeBrowserPanel}>
+      <div className={styles.entityTypeBrowserHeader}>
+        <h2 className={styles.entityTypeBrowserTitle}>
+          Knowledge Base — {total} entity {total === 1 ? 'type' : 'types'}
+        </h2>
+        <span className={styles.entityTypeBrowserSubtitle}>
+          Select an entity type to browse its facts
+        </span>
+      </div>
+
+      <div className={styles.entityTypeBrowserGrid}>
+        {entityTypes.map(et => (
+          <div key={et.entityType} className={styles.entityTypeCard}>
+            <div className={styles.entityTypeCardHeader}>
+              <span className={styles.entityTypeCardName}>{et.entityType}</span>
+              <span className={styles.entityTypeFactCount}>
+                {et.factCount.toLocaleString()} {et.factCount === 1 ? 'fact' : 'facts'}
+              </span>
+            </div>
+            <span className={styles.entityTypeCardMeta}>
+              {et.lastUpdatedAt
+                ? `Updated ${formatRelativeTime(et.lastUpdatedAt)}`
+                : 'No recent activity'}
+            </span>
+            <button
+              className={styles.entityTypeCardBrowseButton}
+              onClick={() => onBrowse(et.entityType)}
+              type="button"
+              aria-label={`Browse ${et.entityType} entity type`}
+            >
+              Browse →
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T066 — KB Search fetch (raw fetch for status code access)       */
+/* ------------------------------------------------------------------ */
+
+interface SearchFetchError extends Error {
+  statusCode?: number
+}
+
+async function fetchKBSearch(query: string): Promise<KBSearchResponse> {
+  const url = new URL('/api/control-plane/kb/search', window.location.origin)
+  url.searchParams.set('query', query)
+  url.searchParams.set('limit', '20')
+
+  const res = await fetch(url.toString())
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    const err: SearchFetchError = new Error(
+      (body as { error?: string }).error ?? res.statusText
+    )
+    err.statusCode = res.status
+    throw err
+  }
+
+  return res.json() as Promise<KBSearchResponse>
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T066 — Search Results Panel                                     */
+/* ------------------------------------------------------------------ */
+
+function SearchResultsPanel({
+  query,
+  onClear,
+}: {
+  query: string
+  onClear: () => void
+}) {
+  const { data, isLoading, error } = useQuery<KBSearchResponse, SearchFetchError>({
+    queryKey: ['kb-search', query],
+    queryFn: () => fetchKBSearch(query),
+    enabled: query.length > 0,
+    retry: false,
+  })
+
+  if (isLoading) {
+    return (
+      <div className={styles.searchResultsPanel}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <Spinner size="md" label="Searching knowledge base" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    const is503 = error.statusCode === 503
+    const is403 = error.statusCode === 403
+
+    return (
+      <div className={styles.searchResultsPanel}>
+        <div className={styles.searchErrorPanel}>
+          <span style={{ fontSize: '28px', color: 'var(--color-status-warning)' }} aria-hidden="true">⚠</span>
+          <p className={styles.searchErrorTitle}>
+            {is503
+              ? 'Search unavailable — Iranti instance unreachable'
+              : is403
+                ? 'Search requires a global-scope API key'
+                : 'Search failed'}
+          </p>
+          <p className={styles.searchErrorBody}>
+            {is503 && (
+              <>
+                The Iranti instance could not be reached.{' '}
+                <Link to="/health" className={styles.searchErrorLink}>Check the Health Dashboard.</Link>
+              </>
+            )}
+            {is403 && (
+              'This instance\'s key may be namespace-scoped. Full-text search requires a globally-scoped API key.'
+            )}
+            {!is503 && !is403 && error.message}
+          </p>
+          {is403 && (
+            <p className={styles.searchScopeNote}>
+              Namespace-scoped keys restrict access to a single entity namespace. The /kb/search endpoint requires a global-scope key.
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const results: KBSearchResult[] = data?.results ?? []
+
+  if (results.length === 0) {
+    return (
+      <div className={styles.searchResultsPanel}>
+        <div className={styles.searchErrorPanel}>
+          <span style={{ fontSize: '28px', color: 'var(--color-text-tertiary)' }} aria-hidden="true">⬡</span>
+          <p className={styles.searchErrorTitle}>No results for "{query}"</p>
+          <p className={styles.searchErrorBody}>
+            Try a different query, or{' '}
+            <button
+              onClick={onClear}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent-primary)', padding: 0, font: 'inherit' }}
+              type="button"
+            >
+              clear the search
+            </button>{' '}
+            to return to the KB browser.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // AC-5: if all results have vectorScore === 0, show lexical-only fallback note
+  const allLexical = results.every(r => r.vectorScore === 0)
+
+  return (
+    <div className={styles.searchResultsPanel}>
+      <div className={styles.searchResultsHeader}>
+        <span className={styles.searchResultsTitle}>Results</span>
+        <span className={styles.searchResultsCount}>
+          {results.length} match{results.length !== 1 ? 'es' : ''} for "{query}"
+        </span>
+      </div>
+
+      <div className={styles.searchResultsList} role="list" aria-label="Search results">
+        {results.map((result, i) => {
+          const scorePercent = Math.round(result.score * 100)
+          const entityPath = `/memory/${encodeURIComponent(result.entityType)}/${encodeURIComponent(result.entityId)}`
+
+          return (
+            <div key={`${result.entityType}/${result.entityId}/${result.key}/${i}`} className={styles.searchResultRow} role="listitem">
+              {/* Entity type + ID */}
+              <div className={styles.searchResultEntity}>
+                <Link to={entityPath} className={styles.searchResultEntityLink} title={result.entityId}>
+                  {result.entityId}
+                </Link>
+                <span className={styles.searchResultEntityType}>{result.entityType}</span>
+              </div>
+
+              {/* Fact key */}
+              <span className={styles.searchResultKey} title={result.key}>
+                {result.key}
+              </span>
+
+              {/* Value summary */}
+              <span className={styles.searchResultSummary} title={result.valueSummary ?? undefined}>
+                {truncate(result.valueSummary, 80)}
+              </span>
+
+              {/* Score display */}
+              <div className={styles.searchScore} title={`Lexical: ${result.lexicalScore.toFixed(3)} / Vector: ${result.vectorScore.toFixed(3)}`}>
+                <span className={styles.searchScoreValue}>{scorePercent}%</span>
+                <div className={styles.searchScoreBar}>
+                  <div
+                    className={styles.searchScoreBarFill}
+                    style={{ width: `${scorePercent}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+
+              {/* Confidence */}
+              <span className={styles.searchResultConfidence} title="Confidence">
+                {result.confidence}
+              </span>
+
+              {/* Source */}
+              <span className={styles.searchResultSource} title={result.source}>
+                {result.source}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {allLexical && (
+        <p className={styles.searchModeNote}>
+          Semantic search returned no vector matches — showing lexical results only.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                      */
 /* ------------------------------------------------------------------ */
 
 export function MemoryExplorer() {
   const navigate = useNavigate()
-  const [filters, dispatch] = useReducer(filterReducer, DEFAULT_FILTERS)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // CP-T067: Initialise entityType filter from URL search param
+  const urlEntityType = searchParams.get('entityType') ?? ''
+
+  const [filters, dispatch] = useReducer(filterReducer, {
+    ...DEFAULT_FILTERS,
+    entityType: urlEntityType,
+  })
   const [sort, setSort] = useState<SortState>({ column: 'updatedAt', dir: 'desc' })
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [pagination, setPagination] = useState<PaginationState>({ offset: 0, limit: 25 })
 
-  // Debounce the search field to avoid a new request on every keystroke
+  // CP-T066: Global KB search query (orthogonal to browse filters)
+  const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounced(searchQuery, 300)
+
+  // Debounce the browse search field to avoid a new request on every keystroke
   const debouncedSearch = useDebounced(filters.search, 300)
+
+  // CP-T067: Sync entityType filter changes back to the URL
+  const prevEntityTypeRef = useRef(filters.entityType)
+  useEffect(() => {
+    if (prevEntityTypeRef.current !== filters.entityType) {
+      prevEntityTypeRef.current = filters.entityType
+      if (filters.entityType) {
+        setSearchParams(params => {
+          const next = new URLSearchParams(params)
+          next.set('entityType', filters.entityType)
+          return next
+        }, { replace: true })
+      } else {
+        setSearchParams(params => {
+          const next = new URLSearchParams(params)
+          next.delete('entityType')
+          return next
+        }, { replace: true })
+      }
+    }
+  }, [filters.entityType, setSearchParams])
 
   // Build the effective query params (use debounced search)
   const queryParams = {
@@ -613,9 +942,20 @@ export function MemoryExplorer() {
     offset: pagination.offset,
   }
 
+  // Browse mode query — disabled when in search mode
+  const isSearchMode = debouncedSearchQuery.length > 0
+  const isBrowseMode = !isSearchMode
+
+  // EntityTypeBrowser is shown when: browse mode AND no entityType selected
+  const showEntityTypeBrowser = isBrowseMode && filters.entityType === ''
+
+  // Normal table is shown when: browse mode AND entityType is selected
+  const showBrowseTable = isBrowseMode && filters.entityType !== ''
+
   const { data, isLoading, error, refetch } = useQuery<KBListResponse, Error>({
     queryKey: ['kb', queryParams],
     queryFn: () => apiFetch<KBListResponse>('/kb', queryParams as Record<string, string | number | boolean | undefined>),
+    enabled: showBrowseTable,
   })
 
   // Reset to page 1 when filters change
@@ -628,8 +968,6 @@ export function MemoryExplorer() {
   }, [filters])
 
   // CP-T059 AC-9: Exclude __diagnostics__ probe entities from default browse view.
-  // When the operator explicitly filters by entityType === '__diagnostics__', show them.
-  // This is a UI default filter only — no data is deleted or hidden from the API.
   const rawFacts = data?.items ?? []
   const facts = filters.entityType === '__diagnostics__'
     ? rawFacts
@@ -655,124 +993,196 @@ export function MemoryExplorer() {
     )
   }
 
+  // CP-T067: Browse → handler from EntityTypeBrowser card
+  const handleBrowseEntityType = (entityType: string) => {
+    dispatch({ type: 'SET_FIELD', field: 'entityType', value: entityType })
+  }
+
+  // CP-T067: "Back to entity types" — clears entityType filter, returns to browser
+  const handleBackToBrowser = () => {
+    dispatch({ type: 'SET_FIELD', field: 'entityType', value: '' })
+  }
+
   return (
     <div className={styles.page}>
-      <FilterBar filters={filters} dispatch={dispatch} />
-
-      <div className={styles.tableRegion}>
-        <table className={styles.table} aria-label="Knowledge base facts">
-          <thead>
-            <tr>
-              <th
-                className={styles.thSortable}
-                onClick={() => handleSort('entityType')}
-                aria-sort={sort.column === 'entityType' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Entity <SortIndicator column="entityType" sort={sort} />
-              </th>
-              <th
-                className={styles.thSortable}
-                onClick={() => handleSort('key')}
-                aria-sort={sort.column === 'key' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Key <SortIndicator column="key" sort={sort} />
-              </th>
-              <th>Summary</th>
-              <th
-                className={styles.thSortable}
-                onClick={() => handleSort('confidence')}
-                aria-sort={sort.column === 'confidence' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Conf <SortIndicator column="confidence" sort={sort} />
-              </th>
-              <th
-                className={styles.thSortable}
-                onClick={() => handleSort('source')}
-                aria-sort={sort.column === 'source' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Source <SortIndicator column="source" sort={sort} />
-              </th>
-              <th>Written by</th>
-              <th>Valid from</th>
-              <th
-                className={styles.thSortable}
-                onClick={() => handleSort('updatedAt')}
-                aria-sort={sort.column === 'updatedAt' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              >
-                Updated <SortIndicator column="updatedAt" sort={sort} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr aria-label="Loading memory">
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0' }}>
-                  <Spinner size="md" label="Loading memory" />
-                </td>
-              </tr>
-            )}
-
-            {!isLoading && error && (
-              <ErrorState message={error.message} onRetry={() => void refetch()} />
-            )}
-
-            {!isLoading && !error && facts.length === 0 && (
-              <EmptyState
-                filters={filters}
-                onClearFilters={() => dispatch({ type: 'RESET' })}
-              />
-            )}
-
-            {!isLoading && !error && facts.map(fact => (
-              <Fragment key={fact.id}>
-                <tr
-                  className={`${styles.dataRow} ${expandedRowId === fact.id ? styles.dataRowExpanded : ''}`}
-                  onClick={() => handleRowClick(fact.id)}
-                  aria-expanded={expandedRowId === fact.id}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleRowClick(fact.id) }}
-                >
-                  <td className={styles.cellEntity}>
-                    <span className={styles.entityType}>{fact.entityType}</span>
-                    <span className={styles.entitySep}>/</span>
-                    <span className={styles.entityId}>{fact.entityId}</span>
-                  </td>
-                  <td className={styles.cellKey}>{fact.key}</td>
-                  <td className={styles.cellSummary}>
-                    <span className={styles.summaryText}>{fact.valueSummary ?? '—'}</span>
-                  </td>
-                  <td className={styles.cellConfidence}>
-                    <ConfidenceBar value={fact.confidence} />
-                  </td>
-                  <td className={styles.cellSource}>{fact.source}</td>
-                  <td className={styles.cellMono}>{fact.agentId}</td>
-                  <td className={styles.cellMeta}>
-                    {fact.validFrom ? new Date(fact.validFrom).toLocaleDateString() : '—'}
-                  </td>
-                  <td className={styles.cellMeta}>
-                    {fact.updatedAt ? formatRelativeTime(fact.updatedAt) : fact.createdAt ? formatRelativeTime(fact.createdAt) : '—'}
-                  </td>
-                </tr>
-
-                {expandedRowId === fact.id && (
-                  <ExpandedRowDetail
-                    fact={fact}
-                    onViewHistory={handleViewHistory}
-                  />
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+      {/* ── CP-T066: Global KB search bar (always visible above filter bar) ── */}
+      <div className={styles.searchBar}>
+        <div className={styles.searchInputWrapper}>
+          <span className={styles.searchInputIcon} aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            className={styles.searchInput}
+            placeholder="Search KB…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            aria-label="Search knowledge base"
+          />
+        </div>
+        {isSearchMode && (
+          <span className={styles.searchModeBadge}>Cross-KB search</span>
+        )}
+        {isSearchMode && (
+          <button
+            className={styles.searchClearButton}
+            onClick={() => setSearchQuery('')}
+            type="button"
+            aria-label="Clear search"
+          >
+            Clear search ×
+          </button>
+        )}
       </div>
 
-      <PaginationControls
-        pagination={pagination}
-        total={total}
-        onPageChange={offset => setPagination(p => ({ ...p, offset }))}
-        onPageSizeChange={limit => setPagination(p => ({ ...p, limit, offset: 0 }))}
-      />
+      {/* ── CP-T066: Search mode renders search results panel exclusively ── */}
+      {isSearchMode && (
+        <SearchResultsPanel
+          query={debouncedSearchQuery}
+          onClear={() => setSearchQuery('')}
+        />
+      )}
+
+      {/* ── CP-T067: EntityTypeBrowser — shown when no entityType filter ── */}
+      {showEntityTypeBrowser && (
+        <EntityTypeBrowser onBrowse={handleBrowseEntityType} />
+      )}
+
+      {/* ── Browse mode: normal filter bar + table ── */}
+      {showBrowseTable && (
+        <>
+          {/* Back-to-browser strip */}
+          <div className={styles.browseHeader}>
+            <button
+              className={styles.browseBackButton}
+              onClick={handleBackToBrowser}
+              type="button"
+              aria-label="Back to entity types"
+            >
+              ← All types
+            </button>
+            <span className={styles.browseHeaderLabel}>{filters.entityType}</span>
+            {total > 0 && (
+              <span className={styles.browseHeaderSub}>{total.toLocaleString()} facts</span>
+            )}
+          </div>
+
+          <FilterBar filters={filters} dispatch={dispatch} />
+
+          <div className={styles.tableRegion}>
+            <table className={styles.table} aria-label="Knowledge base facts">
+              <thead>
+                <tr>
+                  <th
+                    className={styles.thSortable}
+                    onClick={() => handleSort('entityType')}
+                    aria-sort={sort.column === 'entityType' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Entity <SortIndicator column="entityType" sort={sort} />
+                  </th>
+                  <th
+                    className={styles.thSortable}
+                    onClick={() => handleSort('key')}
+                    aria-sort={sort.column === 'key' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Key <SortIndicator column="key" sort={sort} />
+                  </th>
+                  <th>Summary</th>
+                  <th
+                    className={styles.thSortable}
+                    onClick={() => handleSort('confidence')}
+                    aria-sort={sort.column === 'confidence' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Conf <SortIndicator column="confidence" sort={sort} />
+                  </th>
+                  <th
+                    className={styles.thSortable}
+                    onClick={() => handleSort('source')}
+                    aria-sort={sort.column === 'source' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Source <SortIndicator column="source" sort={sort} />
+                  </th>
+                  <th>Written by</th>
+                  <th>Valid from</th>
+                  <th
+                    className={styles.thSortable}
+                    onClick={() => handleSort('updatedAt')}
+                    aria-sort={sort.column === 'updatedAt' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Updated <SortIndicator column="updatedAt" sort={sort} />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading && (
+                  <tr aria-label="Loading memory">
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0' }}>
+                      <Spinner size="md" label="Loading memory" />
+                    </td>
+                  </tr>
+                )}
+
+                {!isLoading && error && (
+                  <ErrorState message={error.message} onRetry={() => void refetch()} />
+                )}
+
+                {!isLoading && !error && facts.length === 0 && (
+                  <EmptyState
+                    filters={filters}
+                    onClearFilters={() => dispatch({ type: 'RESET' })}
+                  />
+                )}
+
+                {!isLoading && !error && facts.map(fact => (
+                  <Fragment key={fact.id}>
+                    <tr
+                      className={`${styles.dataRow} ${expandedRowId === fact.id ? styles.dataRowExpanded : ''}`}
+                      onClick={() => handleRowClick(fact.id)}
+                      aria-expanded={expandedRowId === fact.id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleRowClick(fact.id) }}
+                    >
+                      <td className={styles.cellEntity}>
+                        <span className={styles.entityType}>{fact.entityType}</span>
+                        <span className={styles.entitySep}>/</span>
+                        <span className={styles.entityId}>{fact.entityId}</span>
+                      </td>
+                      <td className={styles.cellKey}>{fact.key}</td>
+                      <td className={styles.cellSummary}>
+                        <span className={styles.summaryText}>{fact.valueSummary ?? '—'}</span>
+                      </td>
+                      <td className={styles.cellConfidence}>
+                        <ConfidenceBar value={fact.confidence} />
+                      </td>
+                      <td className={styles.cellSource}>{fact.source}</td>
+                      <td className={styles.cellMono}>{fact.agentId}</td>
+                      <td className={styles.cellMeta}>
+                        {fact.validFrom ? new Date(fact.validFrom).toLocaleDateString() : '—'}
+                      </td>
+                      <td className={styles.cellMeta}>
+                        {fact.updatedAt ? formatRelativeTime(fact.updatedAt) : fact.createdAt ? formatRelativeTime(fact.createdAt) : '—'}
+                      </td>
+                    </tr>
+
+                    {expandedRowId === fact.id && (
+                      <ExpandedRowDetail
+                        fact={fact}
+                        onViewHistory={handleViewHistory}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <PaginationControls
+            pagination={pagination}
+            total={total}
+            onPageChange={offset => setPagination(p => ({ ...p, offset }))}
+            onPageSizeChange={limit => setPagination(p => ({ ...p, limit, offset: 0 }))}
+          />
+        </>
+      )}
     </div>
   )
 }

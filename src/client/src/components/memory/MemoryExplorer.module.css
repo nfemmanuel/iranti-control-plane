@@ -630,3 +630,490 @@
   font-size: 12px;
   cursor: pointer;
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   KB Search input (CP-T066)
+   ────────────────────────────────────────────────────────────────── */
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border-default);
+  flex-shrink: 0;
+}
+
+.searchInputWrapper {
+  position: relative;
+  flex: 1;
+  max-width: 560px;
+}
+
+.searchInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-3) 0 36px;
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent-primary);
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.searchInputIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.searchModeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  padding: 0 var(--space-2);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.searchClearButton {
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.searchClearButton:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Search results panel (CP-T066)
+   ────────────────────────────────────────────────────────────────── */
+
+.searchResultsPanel {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: var(--space-4) var(--section-padding);
+}
+
+.searchResultsHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.searchResultsTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.searchResultsCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.searchResultsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.searchResultRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.7fr) minmax(0, 2fr) 80px 60px 80px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.searchResultRow:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-default);
+}
+
+.searchResultEntity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.searchResultEntityLink {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.searchResultEntityLink:hover {
+  text-decoration: underline;
+}
+
+.searchResultEntityType {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.searchResultKey {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchResultSummary {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchScore {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.searchScoreValue {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.searchScoreBar {
+  width: 48px;
+  height: 3px;
+  background: var(--color-border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.searchScoreBarFill {
+  height: 100%;
+  background: var(--color-accent-primary);
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+
+.searchResultConfidence {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.searchResultSource {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchModeNote {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.searchErrorPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.searchErrorTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.searchErrorBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 480px;
+}
+
+.searchErrorLink {
+  color: var(--color-accent-primary);
+  text-decoration: none;
+}
+
+.searchErrorLink:hover {
+  text-decoration: underline;
+}
+
+.searchScopeNote {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-warning-bg);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  color: var(--color-status-warning);
+  max-width: 480px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Entity Type Browser (CP-T067)
+   ────────────────────────────────────────────────────────────────── */
+
+.entityTypeBrowserPanel {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: var(--space-5) var(--section-padding);
+}
+
+.entityTypeBrowserHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.entityTypeBrowserTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.entityTypeBrowserSubtitle {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.entityTypeBrowserGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 900px) {
+  .entityTypeBrowserGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .entityTypeBrowserGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.entityTypeCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.entityTypeCard:hover {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-elevated);
+}
+
+.entityTypeCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.entityTypeCardName {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.entityTypeFactCount {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-2);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.entityTypeCardMeta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.entityTypeCardBrowseButton {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.1s;
+  margin-top: var(--space-1);
+}
+
+.entityTypeCardBrowseButton:hover {
+  background: var(--color-accent-subtle);
+}
+
+.entityTypeBrowserEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.entityTypeBrowserEmptyIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.entityTypeBrowserEmptyTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.entityTypeBrowserEmptyBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 460px;
+}
+
+.entityTypeBrowserEmptyLink {
+  color: var(--color-accent-primary);
+  text-decoration: none;
+}
+
+.entityTypeBrowserEmptyLink:hover {
+  text-decoration: underline;
+}
+
+/* Back-to-browser header strip */
+
+.browseHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.browseBackButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 26px;
+  padding: 0 var(--space-2);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.browseBackButton:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.browseHeaderLabel {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.browseHeaderSub {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}

@@ -1320,5 +1320,126 @@ kbRouter.post(
   }
 )
 
+// ---------------------------------------------------------------------------
+// GET /kb/search — CP-T066
+//
+// Proxy to Iranti's GET /kb/search (hybrid lexical+vector search).
+// Required: query
+// Optional: limit (default 20, cap 50), entityType, minScore
+// Does NOT forward lexicalWeight / vectorWeight — let Iranti use defaults.
+// ---------------------------------------------------------------------------
+
+kbRouter.get('/kb/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const queryParam = req.query.query as string | undefined
+    if (!queryParam || queryParam.trim() === '') {
+      res.status(400).json({
+        error: 'MISSING_QUERY',
+        message: 'query parameter is required',
+      })
+      return
+    }
+
+    const rawLimit = parseInt((req.query.limit as string | undefined) ?? '20', 10)
+    const limit = isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 50)
+
+    const entityType = req.query.entityType as string | undefined
+    const minScore = req.query.minScore as string | undefined
+
+    const upstreamParams = new URLSearchParams()
+    upstreamParams.set('query', queryParam)
+    upstreamParams.set('limit', String(limit))
+    if (entityType) upstreamParams.set('entityType', entityType)
+    if (minScore) upstreamParams.set('minScore', minScore)
+
+    const baseUrl = getIrantiBaseUrl()
+    const upstreamUrl = `${baseUrl}/kb/search?${upstreamParams.toString()}`
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+    let irantiRes: globalThis.Response
+    try {
+      irantiRes = await fetch(upstreamUrl, {
+        method: 'GET',
+        headers: buildIrantiHeaders(req),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    if (irantiRes.status === 401 || irantiRes.status === 403) {
+      res.status(403).json({
+        error: 'SCOPE_ERROR',
+        message: 'Search requires a global-scope API key.',
+      })
+      return
+    }
+
+    if (!irantiRes.ok) {
+      res.status(502).json({
+        error: 'IRANTI_ERROR',
+        message: `Iranti /kb/search returned unexpected status ${irantiRes.status}`,
+      })
+      return
+    }
+
+    const body = await irantiRes.json() as unknown
+    res.json(body)
+  } catch (err: unknown) {
+    const name = (err as Error)?.name
+    if (name === 'AbortError' || name === 'TypeError') {
+      res.status(503).json({
+        error: 'IRANTI_UNAVAILABLE',
+        message: 'Iranti instance unreachable.',
+      })
+      return
+    }
+    next(err)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// GET /kb/entity-types — CP-T067
+//
+// Returns distinct entity types in the local knowledge_base table with
+// fact counts and last-updated timestamps. Direct Postgres query — no Iranti
+// API call required.
+// ---------------------------------------------------------------------------
+
+interface EntityTypeSummaryRow {
+  entityType: string
+  factCount: string
+  lastUpdatedAt: string | null
+}
+
+kbRouter.get('/kb/entity-types', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await query<EntityTypeSummaryRow>(
+      `SELECT
+         "entityType",
+         COUNT(*) AS "factCount",
+         MAX(COALESCE("updatedAt", "createdAt")) AS "lastUpdatedAt"
+       FROM knowledge_base
+       GROUP BY "entityType"
+       ORDER BY "factCount" DESC`
+    )
+
+    const entityTypes = result.rows.map((row) => ({
+      entityType: String(row.entityType),
+      factCount: parseInt(String(row.factCount), 10),
+      lastUpdatedAt: row.lastUpdatedAt != null ? toIso(row.lastUpdatedAt) : null,
+    }))
+
+    res.json({
+      entityTypes,
+      total: entityTypes.length,
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Error handler must be last
 kbRouter.use(errorHandler)

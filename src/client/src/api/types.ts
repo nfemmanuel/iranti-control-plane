@@ -569,3 +569,40 @@ export interface DiagnosticRunResult {
   checks: DiagnosticCheckResult[]
   totalDurationMs: number
 }
+
+/* ------------------------------------------------------------------ */
+/*  KB Search (CP-T066)                                                */
+/* ------------------------------------------------------------------ */
+
+export interface KBSearchResult {
+  entityType: string
+  entityId: string
+  key: string
+  valueSummary: string | null
+  confidence: number
+  source: string
+  lexicalScore: number
+  vectorScore: number
+  score: number
+}
+
+export interface KBSearchResponse {
+  results: KBSearchResult[]
+  query: string
+  total: number
+}
+
+/* ------------------------------------------------------------------ */
+/*  Entity Type Browser (CP-T067)                                      */
+/* ------------------------------------------------------------------ */
+
+export interface EntityTypeSummary {
+  entityType: string
+  factCount: number
+  lastUpdatedAt: string | null
+}
+
+export interface EntityTypesResponse {
+  entityTypes: EntityTypeSummary[]
+  total: number
+}
