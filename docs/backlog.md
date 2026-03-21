@@ -140,10 +140,10 @@ Tasks will be assigned per story during sprint planning within each phase.
 
 Phase: 3
 Owner: backend_developer, frontend_developer, devops_engineer
-Status: **IN PROGRESS** — Wave 1–4 complete; Wave 5 PM-ACCEPTED 2026-03-21
+Status: **IN PROGRESS** — Waves 1–9 active; CP-T065 PM-ACCEPTED 2026-03-21; CP-T066, CP-T067 OPEN (Wave 9)
 Tier: Should Have
-Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), platform-native installer packages (CP-T048), Agent Registry View (CP-T051), Health extensions (CP-T052), Memory Explorer field label improvements (CP-T053), temporal asOf query (CP-T056), WhoKnows contributor panel (CP-T057), and operator guidance UX labels (CP-T058). Wave 5 tickets (CP-T056, CP-T057, CP-T058) PM-ACCEPTED 2026-03-21.
-Linked tickets: CP-T050, CP-T049, CP-T048, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058
+Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), platform-native installer packages (CP-T048), Agent Registry View (CP-T051), Health extensions (CP-T052), Memory Explorer field label improvements (CP-T053), temporal asOf query (CP-T056), WhoKnows contributor panel (CP-T057), operator guidance UX labels (CP-T058), Interactive Diagnostics (CP-T059), Metrics Dashboard (CP-T060), Entity Alias Management UI (CP-T061), Relationship Graph B9 note (CP-T062), API Key Scope Audit (CP-T063), documentation updates (CP-T064), alias panel rewrite (CP-T065). Wave 9 adds CP-T066 (KB Search) and CP-T067 (Entity Type Browser).
+Linked tickets: CP-T050, CP-T049, CP-T048, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060, CP-T061, CP-T062, CP-T063, CP-T064, CP-T065, CP-T066, CP-T067
 
 ---
 
@@ -172,6 +172,19 @@ Linked tickets: CP-T060
 
 ---
 
+---
+
+### CP-E014 — Knowledge Base Power Features (Phase 3)
+
+Phase: 3
+Owner: backend_developer, frontend_developer
+Status: **IN PROGRESS** — CP-T061 (Entity Alias Management) complete; CP-T065 (Alias Panel Rewrite) PM-ACCEPTED 2026-03-21; CP-T066 (KB Search) and CP-T067 (Entity Type Browser) OPEN Wave 9
+Tier: Should Have
+Description: Advanced KB inspection and search capabilities for operators who need to navigate and reason about the knowledge base at scale. Covers entity alias management (find canonical forms, register lookup tokens), full-text and semantic search across all KB facts using the native Iranti /kb/search endpoint, and entity type discovery (browse the KB's structural taxonomy without prior knowledge of entity types). These features close the gap between the Memory Explorer's current browse-only model and a true operator knowledge management surface.
+Linked tickets: CP-T061, CP-T065, CP-T066, CP-T067
+
+---
+
 ## Subtasks
 
 - [x] Phase 0: All 5 tickets (CP-T001 through CP-T005) assigned and accepted by agents
@@ -183,5 +196,9 @@ Linked tickets: CP-T060
 - [x] Phase 3 Wave 4: CP-T051, CP-T052, CP-T053 — PM-ACCEPTED 2026-03-21
 - [ ] Phase 3: CP-T048 clean-machine testing (AC-11) — blocked on CI artifact availability
 - [x] Phase 3 Wave 5: CP-T056, CP-T057, CP-T058 — PM-ACCEPTED 2026-03-21
-- [ ] Phase 3 Wave 6: CP-T059 backend PM-ACCEPTED 2026-03-21; CP-T059 frontend pending
-- [ ] Phase 3 Wave 7: CP-T060 (Metrics Dashboard, CP-E013) — stub ready, dispatch pending
+- [x] Phase 3 Wave 6: CP-T059 (Diagnostics Panel) — PM-ACCEPTED 2026-03-21
+- [x] Phase 3 Wave 7: CP-T060 (Metrics Dashboard, CP-E013) — PM-ACCEPTED 2026-03-21
+- [x] Phase 3 Wave 8: CP-T061 (backend+CP-T065 frontend), CP-T062, CP-T063, CP-T064 — all PM-ACCEPTED 2026-03-21
+- [x] Phase 3 Wave 9: CP-T065 (Alias Panel Rewrite) — PM-ACCEPTED 2026-03-21
+- [ ] Phase 3 Wave 9: CP-T066 (KB Full-Text Search) — OPEN
+- [ ] Phase 3 Wave 9: CP-T067 (Entity Type Browser) — OPEN

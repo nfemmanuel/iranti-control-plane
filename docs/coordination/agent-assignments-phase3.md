@@ -35,6 +35,9 @@ CP-T063 PM-ACCEPTED: 2026-03-21 — scope/scopeType fields added (gracefully nul
 CP-T064 issued: 2026-03-21 Wave 8 — Documentation update for CP-T056/T057/T060 (technical_writer) — P3
 CP-T064 PM-ACCEPTED: 2026-03-21 — asOf picker section, Contributors panel section, Metrics Dashboard row all present and accurate to actual implementation (not spec). Two spec gaps noted (rejectionCount/firstSeen fields don't exist; no Query button — reactive instead). Documented actual behavior, which is correct.
 CP-T065 issued: 2026-03-21 Wave 9 — Entity Alias Panel Rewrite (frontend_developer) — P2, CP-E014
+CP-T065 PM-ACCEPTED: 2026-03-21 — All 6 ACs verified. Types correct (EntityAlias flat token shape, EntityAliasesResponse with canonicalEntity/aliases/total). AliasRow renders alias in <code>, source muted, ConfidenceBar, relative createdAt. CreateAliasForm single-field with canonicalEntity derived from props, correct POST body, clears on success, inline error. Empty state unchanged, count badge from data.total. aliasToken CSS class monospace. tsc --noEmit clean (both server and client, 0 errors). CP-T061 frontend now fully accepted via CP-T065.
+CP-T066 issued: 2026-03-21 Wave 9 — KB Full-Text/Semantic Search Surface (backend_developer + frontend_developer) — P2, CP-E014
+CP-T067 issued: 2026-03-21 Wave 9 — Entity Type Browser (backend_developer + frontend_developer) — P3, CP-E014
 
 Iranti upstream drift check (2026-03-21): v0.2.15 now current (unreleased — "Pending release notes"). v0.2.14 Windows updater fix only. v0.2.13 partially fixes B11 attend classifier; hybrid search fallback improved. v0.2.15 alias API shape confirmed real by backend agent: flat string tokens (not entity cross-references). No breaking API changes beyond alias shape (which was always speculative). No other control plane rework required.
 
@@ -1284,12 +1287,14 @@ Create `src/client/src/components/metrics/MetricsDashboard.tsx` and add the `/me
 
 ---
 
-## Wave 9 — Issued 2026-03-21 (Alias Panel Fix)
+## Wave 9 — Issued 2026-03-21 (KB Power Features)
 
-**Rationale:** Wave 8 revealed that the CP-T061 frontend was built against a speculative API shape from the CP-T006 spike that does not match Iranti's real alias API. The backend was correct and accepted. Wave 9 immediately corrects the frontend before the broken alias panel reaches any operator. Full-text search (GET /kb/search) is the next candidate after CP-T065 lands.
+**Rationale:** Wave 8 revealed that the CP-T061 frontend was built against a speculative API shape from the CP-T006 spike that does not match Iranti's real alias API. The backend was correct and accepted. Wave 9 immediately corrects the frontend (CP-T065 — PM-ACCEPTED) and then adds the two highest-value remaining KB operator features: full-text/semantic search across the entire KB (CP-T066) and entity type discovery (CP-T067). These close the gap between the Memory Explorer's browse-only model and a true knowledge management surface.
 
 **Tickets in this wave:**
-- CP-T065 (Entity Alias Panel Rewrite) — P2 — frontend only, direct fix for CP-T061 rejection
+- CP-T065 (Entity Alias Panel Rewrite) — P2 — frontend only — **PM-ACCEPTED 2026-03-21**
+- CP-T066 (KB Full-Text/Semantic Search) — P2 — backend + frontend
+- CP-T067 (Entity Type Browser) — P3 — backend + frontend
 
 ---
 
@@ -1335,3 +1340,123 @@ POST body:
 - Confirmation that CreateAliasForm POST body matches the real API
 - TypeScript check output
 - Any Iranti API edge cases discovered during testing
+
+---
+
+### Assignment — CP-T066 (KB Full-Text/Semantic Search) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN
+**Ticket:** `docs/tickets/cp-t066.md`
+**Priority:** P2
+**Phase:** 3, Wave 9
+
+**Why this wave:** The Iranti API's `GET /kb/search` endpoint provides hybrid lexical+vector search across the full KB. It is already used internally by the diagnostics module (`iranti_auth` and `vector_search_check` probes) but is not exposed as an operator search surface. Memory Explorer currently uses ILIKE substring filtering only. This ticket surfaces real search to operators for the first time — answering "which entities know something about onboarding?" without knowing entity type or ID.
+
+**Key files to change:**
+- `src/server/routes/control-plane/kb.ts` — add `GET /kb/search` proxy endpoint
+- `src/client/src/api/types.ts` — add `KBSearchResult`, `KBSearchResponse` interfaces
+- `src/client/src/components/memory/MemoryExplorer.tsx` — add search mode
+- `src/client/src/components/memory/MemoryExplorer.module.css` — search result styles
+
+**Key reference:**
+- `src/server/routes/control-plane/diagnostics.ts` — already calls `/kb/search`; use same URL construction pattern
+- `docs/coordination/cross-repo-audit-2026-03-21.md` — line 41, endpoint spec: `query`, `limit` (1–50), `entityType`, `entityId`, `lexicalWeight`, `vectorWeight`, `minScore`; requires global scope `kb:read`
+- Real Iranti search response includes per-result `lexicalScore`, `vectorScore`, `score` (combined)
+
+**Backend work:**
+- Proxy `GET /api/control-plane/kb/search?query=<q>&limit=<n>&entityType=<optional>` → `GET /kb/search` on active instance
+- Do NOT expose `lexicalWeight`/`vectorWeight` in the API at MVP (Iranti defaults are fine)
+- Handle: 400 (missing query), 403 (scope error → return to client with SCOPE_ERROR), 503 (unreachable)
+
+**Frontend work:**
+- Add a search input above the entity type filter that triggers a call to `/api/control-plane/kb/search`
+- Show results as a ranked list: entity type + entity ID (link to `/memory/:type/:id`), fact key, value summary, score display
+- If `vectorScore === 0` for all results, show muted note: "Semantic search returned no vector matches — showing lexical results only."
+- If 403/SCOPE error, explain: "Full-text search requires a global-scope API key."
+- Empty state: "No results for [query]."
+- Must not break existing Memory Explorer browse mode
+
+**Acceptance criteria (from ticket):**
+- AC-1: Backend proxy returns results; handles 503/400/403
+- AC-2: `KBSearchResult` and `KBSearchResponse` types correct and match real API
+- AC-3: Operator can type a query and receive cross-KB results (not ILIKE entity filter)
+- AC-4: Results show entity+key+summary+score+confidence, entity link navigates to detail
+- AC-5: Score display; vectorScore=0 → lexical fallback note
+- AC-6: Empty and error states correct
+- AC-7: Existing Memory Explorer browse mode unaffected
+- AC-8: tsc --noEmit CLEAN in both server and client
+
+**Report back to PM with:**
+- Confirmation of the real `KBSearchResult` shape (verify against live instance before committing types)
+- Design decision made for search mode integration (separate input vs toggle vs mode switch)
+- TypeScript check output
+- Any scope errors observed during testing
+
+---
+
+### Assignment — CP-T067 (Entity Type Browser) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN
+**Ticket:** `docs/tickets/cp-t067.md`
+**Priority:** P3
+**Phase:** 3, Wave 9
+
+**Why this wave:** CP-T067 can run in parallel with CP-T066. The Entity Type Browser is purely additive — it does not modify any existing routes or components, only adds a new initial state to the Memory Explorer. The backend aggregation query is straightforward and reads from the local `knowledge_base` table, requiring no new Iranti API calls. This gives new operators an instant map of the KB's structure.
+
+**Key files to change:**
+- `src/server/routes/control-plane/kb.ts` — add `GET /api/control-plane/kb/entity-types` endpoint
+- `src/client/src/api/types.ts` — add `EntityTypeSummary`, `EntityTypesResponse`
+- `src/client/src/components/memory/MemoryExplorer.tsx` — add EntityTypeBrowser as initial view when no entityType filter is active
+- `src/client/src/components/memory/MemoryExplorer.module.css` — entity type card styles
+
+**Backend work:**
+```sql
+SELECT entity_type,
+       COUNT(*) as fact_count,
+       MAX(COALESCE(updated_at, created_at)) as last_updated_at
+FROM knowledge_base
+GROUP BY entity_type
+ORDER BY fact_count DESC;
+```
+Returns `{ entityTypes: [{ entityType, factCount, lastUpdatedAt }], total }`.
+
+**Frontend work:**
+- When `entityType` filter is empty (default Memory Explorer state), show EntityTypeBrowser grid instead of empty table
+- Each card: entity type name, fact count badge, last updated relative time, "Browse →" that sets entityType filter
+- Setting entityType filter switches to normal browse mode; clearing it returns to EntityTypeBrowser
+- URL: use `?entityType=<type>` query param for shareability
+
+**Acceptance criteria (from ticket):**
+- AC-1: Endpoint returns distinct entity types with correct counts and lastUpdatedAt
+- AC-2: Memory Explorer shows EntityTypeBrowser on initial load (no entityType selected)
+- AC-3: Clicking "Browse →" activates entity type filter and shows facts
+- AC-4: Counts and recency are accurate
+- AC-5: Empty state for empty KB
+- AC-6: Existing browse mode unaffected; clearing entityType returns to browser
+- AC-7: tsc --noEmit CLEAN in both server and client
+
+**Report back to PM with:**
+- Design decision for grid vs list layout
+- How the URL param is handled (query param vs state-only)
+- TypeScript check output
+- Empty KB behavior
+
+---
+
+## CP-T025 — Carryover: Native Emitter PR Diff Files
+
+**Status:** Carryover from Phase 2 — spec PM-approved; diff files NOT yet produced
+**Assigned:** system_architect
+**Priority:** P1 (long-deferred, but critical for full Staff Activity Stream coverage)
+
+**Context:** The CP-T025 spec (`docs/specs/cp-t025-emitter-design.md` — 1,035 lines, PM-approved 2026-03-20) and upstream PR description (`docs/specs/cp-t025-upstream-pr.md` — 298 lines) are complete. The system_architect was assigned to produce actual TypeScript diff files (7 files covering all 4 Staff components) but this was never confirmed complete. The upstream PR remains unsubmitted.
+
+**Why this still matters:** Until the upstream PR is merged, the Staff Activity Stream shows Librarian and Archivist events only. Attendant events (handshake, attend, reconvene) and Resolutionist events (resolution filed, escalation deferred) are completely invisible in the control plane — including B11 (attend classifier failure), which v0.2.13 partially fixes but still cannot be observed.
+
+**Action for system_architect:**
+1. Read `docs/specs/cp-t025-emitter-design.md` and `docs/specs/cp-t025-upstream-pr.md`
+2. Confirm or produce the 7 TypeScript diff files
+3. Confirm the target upstream repository and submission path (`nfemmanuel/iranti` on GitHub, based on `docs/specs/cp-t023-wizard-design.md`)
+4. Report back to PM with diff file locations, submission status, and any blockers
+
+**This is not a new ticket** — it is the outstanding Part 2 deliverable from CP-T025. Track in Iranti memory under `ticket/cp-t025`.

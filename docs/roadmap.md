@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Wave 7 PM-ACCEPTED + Wave 8 dispatched)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–7 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 8 dispatched 2026-03-21: CP-T061 (Entity Alias Management UI), CP-T062 (Relationship Graph B9 note), CP-T063 (API Key Scope Audit View), CP-T064 (documentation update for CP-T056/T057/T060). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
+> **Last updated: 2026-03-21 (Wave 9 dispatched + CP-T065 PM-ACCEPTED)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **IN PROGRESS** — Waves 1–8 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060, CP-T061 backend, CP-T062, CP-T063, CP-T064 PM-ACCEPTED; CP-T065 PM-ACCEPTED 2026-03-21). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 9 dispatched 2026-03-21: CP-T065 (Entity Alias Panel rewrite — PM-ACCEPTED), CP-T066 (KB Full-Text Search), CP-T067 (Entity Type Browser). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix); v0.2.13 partially fixes B11 attend classifier.
 
 ## Horizon
 
@@ -220,7 +220,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 **Wave 6 COMPLETE:** CP-T059 (Interactive Diagnostics Panel) — PM-ACCEPTED 2026-03-21
 **Wave 7 COMPLETE:** CP-T060 (Metrics Dashboard) — PM-ACCEPTED 2026-03-21
 **Wave 8 DISPATCHED 2026-03-21:** CP-T061, CP-T062, CP-T063, CP-T064
-**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress) → CP-T051/T052/T053 ✓ → CP-T056/T057/T058 ✓ → CP-T059 ✓ → CP-T060 ✓ → CP-T061/T062/T063/T064 (open)
+**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress) → CP-T051/T052/T053 ✓ → CP-T056/T057/T058 ✓ → CP-T059 ✓ → CP-T060 ✓ → CP-T061/T062/T063/T064 ✓ → CP-T065 ✓ → CP-T066/T067 (open)
 **Coordination doc:** `docs/coordination/agent-assignments-phase3.md`
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
@@ -278,12 +278,13 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 **Wave 7 (PM-ACCEPTED 2026-03-21):** CP-T060 — Metrics Dashboard (CP-E013 Metrics epic)
 - CP-T060 (Metrics Dashboard): `backend_developer` + `frontend_developer` — **PM-ACCEPTED 2026-03-21**. Three endpoints (kb-growth, agent-activity, summary), compound DB index migration 003, SVG-native line and bar charts, 4 summary stat cards, period toggle, empty state. Action type strings confirmed as real lowercase values (`write_created`, `write_replaced`, `entry_archived`, `entry_decayed`, `write_rejected`, `write_escalated`). Both TypeScript checks pass clean.
 
-**Wave 8 (dispatched 2026-03-21):** CP-T061, CP-T062, CP-T063, CP-T064 — KB management, product clarity, provider auditability, documentation
-- CP-T061 (Entity Alias Management UI): `backend_developer` + `frontend_developer` — alias proxy endpoints + Aliases panel in Entity Detail. P2. Deferred since Phase 1 (CP-T006 spike); now ready because the Entity Detail view is stable and write-surface patterns are established.
-- CP-T062 (Relationship Graph B9 Note): `frontend_developer` — informational note in Entity Detail graph section explaining that `GET /kb/related` (semantic similarity) is not surfaced due to B9 (no MCP read tool). P3. Pure frontend, one file.
-- CP-T063 (API Key Scope Audit View): `backend_developer` + `frontend_developer` — add `scope` and `scopeType` fields to provider endpoint; show scope in Provider Manager list and detail panel. P2. Namespace-aware scopes (v0.2.1) are invisible in the control plane.
-- CP-T064 (Documentation Update): `technical_writer` — update `docs/guides/memory-explorer.md` for CP-T056 (asOf picker) and CP-T057 (Contributors panel); add Metrics Dashboard row to `docs/guides/getting-started.md` for CP-T060. P3.
-- Upstream drift check: Iranti now at v0.2.14. v0.2.13 partially fixes B11 (attend classifier). No breaking API changes. v0.2.14 is Windows updater fix only — no control plane impact.
+**Wave 8 (PM-ACCEPTED 2026-03-21):** CP-T061 (backend), CP-T062, CP-T063, CP-T064 — KB management, product clarity, provider auditability, documentation. CP-T061 frontend REJECTED and reissued as CP-T065 (Wave 9).
+
+**Wave 9 (dispatched 2026-03-21):** CP-T065 (PM-ACCEPTED), CP-T066, CP-T067 — alias panel rewrite + KB power features
+- CP-T065 (Entity Alias Panel Rewrite): `frontend_developer` — rewrite AliasRow, CreateAliasForm, EntityAlias/EntityAliasesResponse types for real Iranti flat-token alias shape. **PM-ACCEPTED 2026-03-21.**
+- CP-T066 (KB Full-Text/Semantic Search): `backend_developer` + `frontend_developer` — proxy `GET /kb/search` (hybrid lexical+vector), add KBSearchResult/KBSearchResponse types, add search mode to Memory Explorer with ranked results, score display, scope warning. P2.
+- CP-T067 (Entity Type Browser): `backend_developer` + `frontend_developer` — `GET /api/control-plane/kb/entity-types` aggregation endpoint, Memory Explorer landing view showing all entity types with fact counts and "Browse →" links. P3.
+- Upstream carryover: CP-T025 native emitter PR — `system_architect` to produce actual diff files against the Iranti repo and confirm submission path. Spec is PM-approved. Diff files are the remaining deliverable.
 
 ### Tickets
 
@@ -300,10 +301,13 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T058 | UX Polish: Operator Guidance Labels (M4/M5/H8) | frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
 | CP-T059 | Interactive Diagnostics Panel | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
 | CP-T060 | Metrics Dashboard: KB Growth + Agent Write Volume | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
-| CP-T061 | Entity Alias Management UI | backend_developer + frontend_developer | P2 | **OPEN** — Wave 8, issued 2026-03-21 |
-| CP-T062 | Relationship Graph: B9 Blocker Note | frontend_developer | P3 | **OPEN** — Wave 8, issued 2026-03-21 |
-| CP-T063 | API Key Scope Audit View | backend_developer + frontend_developer | P2 | **OPEN** — Wave 8, issued 2026-03-21 |
-| CP-T064 | Documentation: asOf + Contributors + Metrics guide updates | technical_writer | P3 | **OPEN** — Wave 8, issued 2026-03-21 |
+| CP-T061 | Entity Alias Management UI | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** (backend accepted; frontend accepted via CP-T065) |
+| CP-T062 | Relationship Graph: B9 Blocker Note | frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
+| CP-T063 | API Key Scope Audit View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T064 | Documentation: asOf + Contributors + Metrics guide updates | technical_writer | P3 | **PM-ACCEPTED 2026-03-21** |
+| CP-T065 | Entity Alias Panel: Rewrite for Real Iranti Shape | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T066 | KB Full-Text/Semantic Search Surface | backend_developer + frontend_developer | P2 | **OPEN** — Wave 9, issued 2026-03-21 |
+| CP-T067 | Entity Type Browser | backend_developer + frontend_developer | P3 | **OPEN** — Wave 9, issued 2026-03-21 |
 
 ### Exit Criteria
 
@@ -321,10 +325,13 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [x] CP-T058: Operator guidance labels — Provider Manager write-path hint, unreachable instance command, IRANTI_PROJECT_MODE (Wave 5) — PM-ACCEPTED 2026-03-21
 - [x] CP-T059: Interactive Diagnostics Panel — 7 live checks, fixHint messages, "Run Diagnostics" button in Health Dashboard (Wave 6, CP-E012) — PM-ACCEPTED 2026-03-21
 - [x] CP-T060: Metrics Dashboard — KB growth trend, per-agent write volume chart, summary stat cards (Wave 7, CP-E013) — PM-ACCEPTED 2026-03-21
-- [ ] CP-T061: Entity Alias Management UI — alias panel in Entity Detail, POST/GET proxy endpoints (Wave 8)
-- [ ] CP-T062: Relationship Graph B9 note — informational annotation for semantic relationship gap (Wave 8)
-- [ ] CP-T063: API Key Scope Audit View — scope field in provider endpoint and Provider Manager UI (Wave 8)
-- [ ] CP-T064: Documentation — update guides for asOf picker, Contributors panel, Metrics Dashboard (Wave 8)
+- [x] CP-T061: Entity Alias Management UI — backend PM-ACCEPTED; frontend PM-ACCEPTED via CP-T065 (Wave 8/9)
+- [x] CP-T062: Relationship Graph B9 note — informational annotation for semantic relationship gap (Wave 8) — PM-ACCEPTED 2026-03-21
+- [x] CP-T063: API Key Scope Audit View — scope field in provider endpoint and Provider Manager UI (Wave 8) — PM-ACCEPTED 2026-03-21
+- [x] CP-T064: Documentation — update guides for asOf picker, Contributors panel, Metrics Dashboard (Wave 8) — PM-ACCEPTED 2026-03-21
+- [x] CP-T065: Entity Alias Panel rewrite — correct types, AliasRow, CreateAliasForm for real Iranti flat-token shape (Wave 9) — PM-ACCEPTED 2026-03-21
+- [ ] CP-T066: KB Full-Text/Semantic Search — proxy GET /kb/search, Memory Explorer search mode with scored results (Wave 9)
+- [ ] CP-T067: Entity Type Browser — GET /kb/entity-types endpoint, Memory Explorer landing view (Wave 9)
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 
