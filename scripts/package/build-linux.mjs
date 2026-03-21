@@ -94,11 +94,13 @@ chmodSync(resolve(APP_USR_BIN, 'iranti-control-plane'), 0o755)
 // Copy sidecar assets
 cpSync(CLIENT_DIST, resolve(APP_USR_SHARE, 'public/control-plane'), { recursive: true })
 
-// Copy package.json for version detection
-writeFileSync(
-  resolve(APP_USR_SHARE, 'package.json'),
-  readFileSync(resolve(ROOT, 'package.json'), 'utf8')
-)
+// Copy package.json for version detection.
+// In AppImage context: dirname(process.execPath) = <mount>/usr/bin/
+// so package.json must be in usr/bin/ alongside the binary.
+// Also copy to usr/share/ for consistency with the .deb bin layout.
+const pkgJson = readFileSync(resolve(ROOT, 'package.json'), 'utf8')
+writeFileSync(resolve(APP_USR_BIN, 'package.json'), pkgJson)
+writeFileSync(resolve(APP_USR_SHARE, 'package.json'), pkgJson)
 
 // Write .desktop file
 const desktopEntry = `[Desktop Entry]
