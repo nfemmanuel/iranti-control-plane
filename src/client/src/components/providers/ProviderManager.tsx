@@ -493,6 +493,15 @@ export function ProviderManager() {
         </button>
       </div>
 
+      {/* CP-T058 AC-1 (M4) — read-only guidance note */}
+      <div className={styles.readOnlyNote} role="note" aria-label="Provider configuration guidance">
+        <span className={styles.readOnlyNoteIcon} aria-hidden="true">ℹ</span>
+        <p className={styles.readOnlyNoteText}>
+          Provider and model configuration is read-only. To change providers or models, run{' '}
+          <code className={styles.readOnlyNoteCode}>iranti setup</code> in your project directory.
+        </p>
+      </div>
+
       {/* Main content: provider list + detail panel */}
       <div className={styles.layout}>
         {/* Left: provider list */}

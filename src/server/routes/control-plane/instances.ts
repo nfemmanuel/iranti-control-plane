@@ -74,6 +74,8 @@ interface InstanceMetadata {
     providerKeys: { anthropic: boolean; openai: boolean; otherKeys: string[] }
     providerRoutingOverrides: null
   }
+  /** CP-T058 H8 — IRANTI_PROJECT_MODE from the instance's .env.iranti; null if not set */
+  projectMode: 'isolated' | 'shared' | null
   projects: []
   registeredAt: string | null
   notes: string | null   // string | null — buildErrorInstance may set a string message
@@ -229,6 +231,18 @@ async function readVersionFromPackageJson(runtimeRoot: string): Promise<string |
 }
 
 // ---------------------------------------------------------------------------
+// CP-T058 H8 — Resolve IRANTI_PROJECT_MODE to a typed value
+// ---------------------------------------------------------------------------
+
+function resolveProjectMode(raw: string | undefined): 'isolated' | 'shared' | null {
+  if (!raw) return null
+  const normalized = raw.trim().toLowerCase()
+  if (normalized === 'isolated') return 'isolated'
+  if (normalized === 'shared') return 'shared'
+  return null  // unrecognized value treated as not set
+}
+
+// ---------------------------------------------------------------------------
 // Per-instance aggregation
 // ---------------------------------------------------------------------------
 
@@ -278,6 +292,8 @@ async function aggregateInstance(
       },
       providerRoutingOverrides: null,
     },
+    // CP-T058 H8 — IRANTI_PROJECT_MODE: safe to surface (non-secret operational config)
+    projectMode: resolveProjectMode(envResult.raw?.['IRANTI_PROJECT_MODE']),
     // Phase 1: project bindings are stubbed — CP-T006 spike required for binding source
     projects: [],
     registeredAt: registeredAt ?? null,
@@ -305,6 +321,7 @@ function buildErrorInstance(
       providerKeys: { anthropic: false, openai: false, otherKeys: [] },
       providerRoutingOverrides: null,
     },
+    projectMode: null,
     projects: [],
     registeredAt,
     notes: `Aggregation error: ${errorMsg}`,

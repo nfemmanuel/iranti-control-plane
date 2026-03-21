@@ -278,6 +278,16 @@ function DatabaseSection({ instance }: { instance: InstanceMetadata }) {
 
 function EnvironmentSection({ instance }: { instance: InstanceMetadata }) {
   const { envFile } = instance
+  const projectMode = instance.projectMode
+
+  // Human-readable project mode annotation
+  const projectModeNote: string | null =
+    projectMode === 'isolated'
+      ? 'Each project gets its own isolated memory context.'
+      : projectMode === 'shared'
+        ? 'All projects share a single memory context.'
+        : null
+
   return (
     <section className={styles.detailSection}>
       <SectionTitle>Environment</SectionTitle>
@@ -309,6 +319,19 @@ function EnvironmentSection({ instance }: { instance: InstanceMetadata }) {
           )}
         </>
       )}
+      {/* CP-T058 AC-3 (H8) — Project Mode field */}
+      <FieldRow label="Project Mode">
+        {projectMode ? (
+          <span className={styles.monoValue} title={projectModeNote ?? undefined}>
+            {projectMode}
+            {projectModeNote && (
+              <span className={styles.helpText}> — {projectModeNote}</span>
+            )}
+          </span>
+        ) : (
+          <span className={styles.dimValue}>—</span>
+        )}
+      </FieldRow>
     </section>
   )
 }
@@ -451,6 +474,13 @@ function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor }: {
               {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
             </span>
           )}
+          {/* CP-T058 AC-2 (M5) — remediation hint */}
+          <p className={styles.unreachableHint}>
+            {instance.name
+              ? <>To start this instance, run <code className={styles.inlineCode}>iranti run --instance {instance.name}</code> in your terminal.</>
+              : <>To start this instance, run <code className={styles.inlineCode}>iranti run</code> in your terminal.</>
+            }
+          </p>
         </div>
       )}
 

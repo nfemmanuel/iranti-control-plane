@@ -770,3 +770,41 @@
   color: var(--color-status-error);
   margin: var(--space-3) var(--section-padding);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T058 AC-1 (M4) — Read-only guidance note
+   Uses info/blue tone — not a warning or error. Not dismissible.
+   ────────────────────────────────────────────────────────────────── */
+
+.readOnlyNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--section-padding);
+  background: var(--color-status-info-bg);
+  border-bottom: 1px solid var(--color-status-info);
+  flex-shrink: 0;
+}
+
+.readOnlyNoteIcon {
+  font-size: 13px;
+  color: var(--color-status-info);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.readOnlyNoteText {
+  font-size: 12px;
+  color: var(--color-status-info);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.readOnlyNoteCode {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-bg-elevated);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+  color: var(--color-status-info);
+}

@@ -530,6 +530,16 @@
   opacity: 0.8;
 }
 
+/* CP-T058 AC-2 (M5) — remediation hint inside unreachable banner */
+
+.unreachableHint {
+  margin: var(--space-1) 0 0 0;
+  font-size: 11px;
+  color: var(--color-status-error);
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
 /* Warning / stub notes */
 
 .warningNote {
