@@ -223,6 +223,26 @@ async function checkReachability(providerId: string): Promise<boolean> {
 // ProviderStatus shape (flat routes)
 // ---------------------------------------------------------------------------
 
+/**
+ * CP-T063 — API Key Scope field
+ *
+ * Investigation finding (2026-03-21, Iranti v0.2.15):
+ *
+ * Iranti does not expose LLM provider key scopes via any API endpoint.
+ * The /health endpoint returns only `{ status, version, provider, runtime }`.
+ * There is no /providers, /config, or /admin/keys endpoint.
+ *
+ * Iranti's internal API key scopes (kb:read, kb:write, etc.) govern what the
+ * *control plane's key* can do — they are not per-LLM-provider scope assignments.
+ * The Iranti instance .env has no namespace-scope assignments for provider keys
+ * (only LLM_PROVIDER, OPENAI_API_KEY, etc.).
+ *
+ * Conclusion: provider scope info is not available from Iranti API or config files
+ * in this version. Both fields are returned as null / "unknown" gracefully.
+ * When Iranti adds a provider scope API, populate these fields from it.
+ */
+type ScopeType = 'namespace' | 'global' | 'unknown'
+
 interface ProviderStatus {
   id: string
   name: string
@@ -232,6 +252,10 @@ interface ProviderStatus {
   reachable: boolean
   lastChecked: string
   isDefault: boolean
+  /** LLM provider key namespace scope string, or null if not available/configured */
+  scope: string | null
+  /** Scope type classification: "namespace", "global", or "unknown" when not available */
+  scopeType: ScopeType
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +337,10 @@ providersRouter.get(
         reachable: reachabilityMap.get(p.id) ?? false,
         lastChecked: checkedAt,
         isDefault: computedDefault === p.id,
+        // CP-T063: Iranti v0.2.15 does not expose LLM provider key scopes via API or config.
+        // Returned as null/"unknown" until Iranti adds a provider scope endpoint.
+        scope: null,
+        scopeType: 'unknown' as ScopeType,
       }))
 
       res.json({ providers, checkedAt })

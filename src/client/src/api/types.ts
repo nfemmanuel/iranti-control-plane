@@ -369,8 +369,25 @@ export interface AsOfQueryResult {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Entity Aliases (CP-T061)                                           */
+/* ------------------------------------------------------------------ */
+
+export interface EntityAlias {
+  aliasEntityType: string
+  aliasEntityId: string
+  createdAt: string
+}
+
+export interface EntityAliasesResponse {
+  aliases: EntityAlias[]
+}
+
+/* ------------------------------------------------------------------ */
 /*  Providers (CP-T034)                                                 */
 /* ------------------------------------------------------------------ */
+
+/** CP-T063: scope type — "global" means key applies to all namespaces */
+export type ProviderScopeType = 'global' | 'namespace' | 'unknown'
 
 export interface ProviderStatus {
   id: string
@@ -381,6 +398,10 @@ export interface ProviderStatus {
   reachable: boolean
   lastChecked: string
   isDefault: boolean
+  /** CP-T063: scope string from provider config; null if unavailable */
+  scope: string | null
+  /** CP-T063: derived scope category; "unknown" if Iranti doesn't expose it */
+  scopeType: ProviderScopeType
 }
 
 export interface ProvidersResponse {

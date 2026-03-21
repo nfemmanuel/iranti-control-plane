@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse } from '../../api/types'
+import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse, ProviderScopeType } from '../../api/types'
 import styles from './ProviderManager.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -99,6 +99,40 @@ function ReachabilityBadge({ state }: { state: ReachabilityState }) {
       {labels[state]}
     </span>
   )
+}
+
+// ---------------------------------------------------------------------------
+// CP-T063: Scope badge + helpers
+// ---------------------------------------------------------------------------
+
+/** Truncate a scope string for display in the list card */
+function truncateScope(scope: string, max = 28): string {
+  return scope.length > max ? scope.slice(0, max - 1) + '…' : scope
+}
+
+interface ScopeBadgeProps {
+  scope: string | null
+  scopeType: ProviderScopeType
+}
+
+function ScopeBadge({ scope, scopeType }: ScopeBadgeProps) {
+  if (scopeType === 'global') {
+    return (
+      <span className={styles.scopeBadgeGlobal} title="Global — applies to all namespaces">
+        global
+      </span>
+    )
+  }
+  if (scopeType === 'namespace' && scope) {
+    const display = truncateScope(scope)
+    return (
+      <code className={styles.scopeCode} title={scope}>
+        {display}
+      </code>
+    )
+  }
+  // unknown or null
+  return <span className={styles.scopeUnknown}>—</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +300,24 @@ function DetailPanel({
         )}
       </section>
 
+      {/* CP-T063: API Key Scope */}
+      <section className={styles.detailSection}>
+        <h3 className={styles.detailSectionTitle}>API Key Scope</h3>
+        <div className={styles.scopeDetailRow}>
+          <ScopeBadge scope={provider.scope} scopeType={provider.scopeType} />
+          {provider.scope && provider.scopeType !== 'unknown' && (
+            <code className={styles.scopeDetailFull} title={provider.scope}>
+              {provider.scope}
+            </code>
+          )}
+        </div>
+        <p className={styles.scopeDetailNote}>
+          Scopes restrict which agent or project namespaces this key services. A global scope (or no
+          scope) means the key applies to all namespaces. Manage scopes with{' '}
+          <code className={styles.scopeInlineCode}>iranti setup</code>.
+        </p>
+      </section>
+
       {/* Quota / balance */}
       <section className={styles.detailSection}>
         <h3 className={styles.detailSectionTitle}>Balance &amp; Quota</h3>
@@ -399,6 +451,12 @@ function ProviderCard({ provider, isSelected, onClick }: ProviderCardProps) {
           <code className={styles.keyMaskedValue}>{provider.keyMasked}</code>
         </div>
       )}
+
+      {/* CP-T063: Scope column in list card */}
+      <div className={styles.cardScopeRow}>
+        <span className={styles.cardScopeLabel}>Scope</span>
+        <ScopeBadge scope={provider.scope} scopeType={provider.scopeType} />
+      </div>
 
       <div className={styles.cardFooter}>
         <span className={styles.lastChecked}>
