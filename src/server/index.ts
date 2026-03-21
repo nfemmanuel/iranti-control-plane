@@ -149,6 +149,15 @@ const server = app.listen(PORT, () => {
   startAdapter().catch((err: unknown) => {
     console.warn('[adapter] Failed to start:', (err as Error).message)
   })
+
+  // AC-6: auto-open browser when running as a packaged SEA binary
+  if ((process as NodeJS.Process & { isSea?: () => boolean }).isSea?.()) {
+    import('open').then(({ default: open }) => {
+      void open(`http://localhost:${PORT}`)
+    }).catch(() => {
+      // Non-fatal — browser open failure should not crash the server
+    })
+  }
 })
 
 // ---------------------------------------------------------------------------
