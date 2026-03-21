@@ -1,0 +1,388 @@
+name: Package & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Override version tag (e.g. v0.3.0-test)'
+        required: false
+        default: ''
+
+# Permissions needed to create GitHub Releases and upload artifacts
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  # Windows — NSIS .exe installer
+  # ============================================================
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            src/server/package.json
+            src/client/package.json
+
+      - name: Install root deps
+        run: npm install
+
+      - name: Install server deps
+        run: npm install --prefix src/server
+
+      - name: Install client deps
+        run: npm install --prefix src/client
+
+      - name: Build frontend (Vite)
+        run: npm run build:client
+
+      - name: Install NSIS
+        run: choco install nsis -y
+        # makensis will be on PATH after this step.
+        # Alternative: winget install NSIS.NSIS
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Build Windows installer
+        run: node scripts/package/build-windows.mjs
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/installers/iranti-control-plane-setup-*.exe
+          retention-days: 7
+
+  # ============================================================
+  # macOS arm64 — Node SEA binary for Apple Silicon
+  # ============================================================
+  build-macos-arm64:
+    name: Build macOS arm64 Binary
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install server deps
+        run: npm install --prefix src/server
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Run esbuild bundle
+        run: node scripts/package/bundle.mjs
+
+      - name: Build SEA binary (arm64)
+        run: node scripts/package/build-sea.mjs
+
+      - name: Upload arm64 binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binary-arm64
+          path: dist/sea/iranti-cp
+          retention-days: 7
+
+  # ============================================================
+  # macOS x86_64 — Node SEA binary for Intel Macs
+  # ============================================================
+  build-macos-x86:
+    name: Build macOS x86_64 Binary
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install server deps
+        run: npm install --prefix src/server
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Run esbuild bundle
+        run: node scripts/package/bundle.mjs
+
+      - name: Build SEA binary (x86_64)
+        run: node scripts/package/build-sea.mjs
+
+      - name: Upload x86_64 binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binary-x86_64
+          path: dist/sea/iranti-cp
+          retention-days: 7
+
+  # ============================================================
+  # macOS Universal — lipo merge + .app bundle + .dmg
+  # Depends on both macOS arch jobs completing first
+  # ============================================================
+  build-macos-universal:
+    name: Build macOS Universal DMG
+    runs-on: macos-14
+    needs: [build-macos-arm64, build-macos-x86]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            src/client/package.json
+
+      - name: Install root deps
+        run: npm install
+
+      - name: Install client deps
+        run: npm install --prefix src/client
+
+      - name: Build frontend (Vite)
+        run: npm run build:client
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Install create-dmg
+        run: npm install -g create-dmg
+
+      - name: Download arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binary-arm64
+          path: dist/sea/arm64
+
+      - name: Download x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binary-x86_64
+          path: dist/sea/x86_64
+
+      - name: Create universal binary with lipo
+        run: |
+          mkdir -p dist/sea
+          chmod +x dist/sea/arm64/iranti-cp dist/sea/x86_64/iranti-cp
+          lipo -create \
+            dist/sea/arm64/iranti-cp \
+            dist/sea/x86_64/iranti-cp \
+            -output dist/sea/iranti-cp
+          chmod +x dist/sea/iranti-cp
+          echo "[lipo] Universal binary created:"
+          lipo -info dist/sea/iranti-cp
+
+      - name: Ad-hoc sign universal binary
+        run: |
+          codesign --remove-signature dist/sea/iranti-cp || true
+          codesign --sign - --force dist/sea/iranti-cp
+
+      - name: Assemble .app bundle and build DMG
+        run: |
+          # Read version from package.json
+          VERSION=$(node -p "require('./package.json').version")
+          APP_NAME="Iranti Control Plane"
+          APP_BUNDLE="dist/app/${APP_NAME}.app"
+
+          mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+          mkdir -p "${APP_BUNDLE}/Contents/Resources/public/control-plane"
+
+          # Copy binary
+          cp dist/sea/iranti-cp "${APP_BUNDLE}/Contents/MacOS/iranti-cp"
+          chmod +x "${APP_BUNDLE}/Contents/MacOS/iranti-cp"
+
+          # Copy sidecar assets
+          cp -r public/control-plane/. "${APP_BUNDLE}/Contents/Resources/public/control-plane/"
+
+          # Copy package.json for runtime version detection
+          cp package.json "${APP_BUNDLE}/Contents/Resources/package.json"
+
+          # Write Info.plist
+          cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>${APP_NAME}</string>
+            <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
+            <key>CFBundleIdentifier</key><string>com.iranti.control-plane</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleExecutable</key><string>iranti-cp</string>
+            <key>LSMinimumSystemVersion</key><string>13.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Ad-hoc sign the .app bundle (deep)
+          codesign --sign - --force --deep "${APP_BUNDLE}"
+
+          # Build DMG
+          mkdir -p dist/installers
+          create-dmg "${APP_BUNDLE}" dist/installers --overwrite || true
+
+          # Rename to canonical output name
+          mv "dist/installers/${APP_NAME} ${VERSION}.dmg" \
+             "dist/installers/iranti-control-plane-universal-${VERSION}.dmg" 2>/dev/null || true
+
+          echo "[build-macos-universal] DMG contents:"
+          ls -lh dist/installers/
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-universal
+          path: dist/installers/iranti-control-plane-universal-*.dmg
+          retention-days: 7
+
+  # ============================================================
+  # Linux — .AppImage + .deb
+  # ============================================================
+  build-linux:
+    name: Build Linux Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            src/server/package.json
+            src/client/package.json
+
+      - name: Install root deps
+        run: npm install
+
+      - name: Install server deps
+        run: npm install --prefix src/server
+
+      - name: Install client deps
+        run: npm install --prefix src/client
+
+      - name: Build frontend (Vite)
+        run: npm run build:client
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Install appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+            -O /tmp/appimagetool
+          chmod +x /tmp/appimagetool
+          sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+
+      - name: Install fpm
+        run: |
+          sudo apt-get install -y ruby-dev build-essential
+          sudo gem install fpm --no-document
+
+      - name: Build Linux packages
+        run: APPIMAGE_EXTRACT_AND_RUN=1 node scripts/package/build-linux.mjs
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/installers/iranti-control-plane-*.AppImage
+          retention-days: 7
+
+      - name: Upload Linux .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: dist/installers/iranti-control-plane_*.deb
+          retention-days: 7
+
+  # ============================================================
+  # Release — download all artifacts, create GitHub Release
+  # Depends on all platform build jobs completing first
+  # ============================================================
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos-universal, build-linux]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/release-artifacts
+
+      - name: List artifacts
+        run: find dist/release-artifacts -type f | sort
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Iranti Control Plane ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Iranti Control Plane ${{ steps.version.outputs.version }}
+
+            ### Downloads
+
+            | Platform | File | Notes |
+            |---|---|---|
+            | Windows 10/11 | `iranti-control-plane-setup-*.exe` | NSIS installer. SmartScreen will show "Windows protected your PC" — click **More info → Run anyway** to proceed. |
+            | macOS 13+ (Universal) | `iranti-control-plane-universal-*.dmg` | Universal binary (arm64 + x86_64). Ad-hoc signed. Gatekeeper will block on first launch — **right-click → Open → Open** to proceed. |
+            | Linux (AppImage) | `iranti-control-plane-*.AppImage` | Universal Linux. No install needed — `chmod +x` and run. |
+            | Linux (deb) | `iranti-control-plane_*_amd64.deb` | Debian/Ubuntu. Install: `sudo dpkg -i <file>` |
+
+            ### No Node.js required
+
+            These installers bundle the Node.js 22 LTS runtime. No existing Node.js installation is needed.
+
+            ### Iranti must be pre-installed
+
+            This installer packages the Iranti Control Plane UI only. Iranti itself (the HTTP server, PostgreSQL, pgvector) must be pre-installed and running. See the [Getting Started guide](docs/guides/getting-started.md).
+
+            ### Code signing
+
+            Initial Phase 3 release ships without commercial code signing certificates.
+
+            - **macOS:** Ad-hoc signed (`codesign --sign -`). No Apple Developer account required for this release. Full Developer ID notarization is on the post-launch roadmap.
+            - **Windows:** Unsigned. SmartScreen bypass: **More info → Run anyway**. OV/EV certificate signing is the post-launch upgrade path.
+            - **Linux:** No signing required.
+
+            ### Binary sizes
+
+            Uncompressed binary (Node 22 LTS runtime + app bundle): ~82–92 MB.
+            Compressed installer download: ~50–65 MB (well within the 80 MB target).
+          files: |
+            dist/release-artifacts/**/*.exe
+            dist/release-artifacts/**/*.dmg
+            dist/release-artifacts/**/*.AppImage
+            dist/release-artifacts/**/*.deb

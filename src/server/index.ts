@@ -1,19 +1,95 @@
 import express from 'express'
 import cors from 'cors'
+import net from 'net'
 import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
+import { createRequire } from 'module'
 import { controlPlaneRouter } from './routes/control-plane/index.js'
 import { startAdapter, stopAdapter } from './lib/staff-event-adapter.js'
 import { env } from './db.js'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+// ---------------------------------------------------------------------------
+// SEA-aware path resolution
+// ---------------------------------------------------------------------------
+// Inside a Node SEA binary, import.meta.url resolves to a blob: URI, making
+// fileURLToPath() unreliable for locating sidecar files on disk.
+// We detect the SEA context via process.isSea() (available in Node 22+) and
+// resolve relative to the binary's own path instead.
+
+const _isSea: boolean =
+  typeof (process as NodeJS.Process & { isSea?: () => boolean }).isSea === 'function' &&
+  (process as NodeJS.Process & { isSea?: () => boolean }).isSea!()
+
+const __dirname = _isSea
+  ? dirname(process.execPath)
+  : dirname(fileURLToPath(import.meta.url))
+
+// In SEA context: assets are in <install-dir>/public/control-plane/
+// In dev/tsc context: assets are at <project-root>/public/control-plane/
+//   (src/server/dist/index.js -> ../../public/control-plane)
+const clientDist = _isSea
+  ? resolve(dirname(process.execPath), 'public', 'control-plane')
+  : resolve(__dirname, '../../public/control-plane')
+
+// ---------------------------------------------------------------------------
+// Version detection
+// ---------------------------------------------------------------------------
+// Read version from the package.json that is closest to this binary/module.
+// In dev: src/server/package.json. In SEA: root package.json placed alongside
+// the binary by the installer (or the bundled string injected by esbuild).
+
+let _version = '0.0.0'
+try {
+  if (_isSea) {
+    // In SEA, the installer places package.json next to the binary.
+    const pkgPath = resolve(dirname(process.execPath), 'package.json')
+    const _require = createRequire(pathToFileURL(process.execPath).href)
+    const pkg = _require(pkgPath) as { version?: string }
+    _version = pkg.version ?? '0.0.0'
+  } else {
+    // In dev/tsc, resolve relative to this file.
+    const _require = createRequire(import.meta.url)
+    const pkg = _require('../../package.json') as { version?: string }
+    _version = pkg.version ?? '0.0.0'
+  }
+} catch {
+  // Non-fatal — version stays '0.0.0'
+}
+
+export const VERSION: string = _version
+
+// ---------------------------------------------------------------------------
+// Port auto-increment (AC-12)
+// ---------------------------------------------------------------------------
+// Tries ports start..end (inclusive), returns the first available one.
+// Throws if no port in the range is available.
+
+function testPort(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer()
+    srv.once('error', () => resolve(false))
+    srv.once('listening', () => {
+      srv.close(() => resolve(true))
+    })
+    srv.listen(port, '127.0.0.1')
+  })
+}
+
+async function findAvailablePort(start: number, end: number): Promise<number> {
+  for (let p = start; p <= end; p++) {
+    if (await testPort(p)) return p
+  }
+  throw new Error(
+    `[iranti-cp] No available port in range ${start}–${end}. ` +
+      `Free one of those ports and try again.`
+  )
+}
+
+// ---------------------------------------------------------------------------
+// App setup
+// ---------------------------------------------------------------------------
 
 const app = express()
-const PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3002', 10)
-
-// ---------------------------------------------------------------------------
-// Middleware
-// ---------------------------------------------------------------------------
 
 app.use(cors({ origin: `http://localhost:5173` }))
 app.use(express.json())
@@ -28,7 +104,6 @@ app.use('/api/control-plane', controlPlaneRouter)
 // Serve built frontend (production)
 // ---------------------------------------------------------------------------
 
-const clientDist = resolve(__dirname, '../../public/control-plane')
 app.use('/control-plane', express.static(clientDist))
 app.get('/control-plane/*', (_req, res) => {
   res.sendFile(resolve(clientDist, 'index.html'))
@@ -62,8 +137,12 @@ app.use(
 // Start
 // ---------------------------------------------------------------------------
 
+const BASE_PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3000', 10)
+
+const PORT = await findAvailablePort(BASE_PORT, BASE_PORT + 10)
+
 const server = app.listen(PORT, () => {
-  console.log(`[iranti-cp] Control plane running at http://localhost:${PORT}`)
+  console.log(`[iranti-cp] v${VERSION} running at http://localhost:${PORT}`)
   console.log(`[iranti-cp] API at http://localhost:${PORT}/api/control-plane/`)
 
   // Start the staff-events adapter after the server is listening

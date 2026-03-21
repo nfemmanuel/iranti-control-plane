@@ -1,0 +1,7 @@
+{
+  "main": "dist/server/bundle.cjs",
+  "output": "dist/sea/iranti-cp.blob",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": false
+}

@@ -12,7 +12,12 @@
     "start": "cd src/server && npm start",
     "migrate": "cd src/server && npm run migrate",
     "setup": "node scripts/setup-wizard.js",
-    "dev-setup": "npm install --prefix src/server && npm install --prefix src/client"
+    "dev-setup": "npm install --prefix src/server && npm install --prefix src/client",
+    "package:bundle": "node scripts/package/bundle.mjs",
+    "package:windows": "node scripts/package/build-windows.mjs",
+    "package:macos": "node scripts/package/build-macos.mjs",
+    "package:linux": "node scripts/package/build-linux.mjs",
+    "package:all": "npm run package:bundle && npm run package:windows && npm run package:macos && npm run package:linux"
   },
   "devDependencies": {
     "@clack/prompts": "^1.1.0",
