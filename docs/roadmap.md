@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Wave 9 dispatched + CP-T065 PM-ACCEPTED)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **IN PROGRESS** — Waves 1–8 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060, CP-T061 backend, CP-T062, CP-T063, CP-T064 PM-ACCEPTED; CP-T065 PM-ACCEPTED 2026-03-21). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 9 dispatched 2026-03-21: CP-T065 (Entity Alias Panel rewrite — PM-ACCEPTED), CP-T066 (KB Full-Text Search), CP-T067 (Entity Type Browser). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix); v0.2.13 partially fixes B11 attend classifier.
+> **Last updated: 2026-03-21 (Wave 9 complete — all Phase 3 tickets PM-ACCEPTED; v0.3.0 candidate declared — CP-T048 AC-11 clean-machine validation is the sole remaining gate)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058, CP-T059, CP-T060, CP-T061, CP-T062, CP-T063, CP-T064, CP-T065, CP-T066, CP-T067). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate before v0.3.0 final release. Iranti upstream drift confirmed: v0.2.14 (Windows updater fix); v0.2.13 partially fixes B11 attend classifier.
 
 ## Horizon
 
@@ -211,7 +211,7 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 
 ## Phase 3 — Advanced Operator Features
 
-**Status: IN PROGRESS — kicked off 2026-03-20**
+**Status: COMPLETE (2026-03-21) — v0.3.0 candidate declared; CP-T048 AC-11 clean-machine validation is the sole remaining gate before v0.3.0 final release**
 **Wave 1 COMPLETE:** CP-T050 (Staff Logs View) — PM-ACCEPTED 2026-03-20
 **Wave 2 COMPLETE:** CP-T049 (Archivist Transparency) — PM-ACCEPTED 2026-03-20
 **Wave 3 IN PROGRESS:** CP-T048 (Platform Installer Packages) — implementation complete; AC-11 clean-machine testing pending
@@ -280,10 +280,10 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 
 **Wave 8 (PM-ACCEPTED 2026-03-21):** CP-T061 (backend), CP-T062, CP-T063, CP-T064 — KB management, product clarity, provider auditability, documentation. CP-T061 frontend REJECTED and reissued as CP-T065 (Wave 9).
 
-**Wave 9 (dispatched 2026-03-21):** CP-T065 (PM-ACCEPTED), CP-T066, CP-T067 — alias panel rewrite + KB power features
+**Wave 9 (PM-ACCEPTED 2026-03-21):** CP-T065, CP-T066, CP-T067 — alias panel rewrite + KB power features — **ALL PM-ACCEPTED 2026-03-21**
 - CP-T065 (Entity Alias Panel Rewrite): `frontend_developer` — rewrite AliasRow, CreateAliasForm, EntityAlias/EntityAliasesResponse types for real Iranti flat-token alias shape. **PM-ACCEPTED 2026-03-21.**
-- CP-T066 (KB Full-Text/Semantic Search): `backend_developer` + `frontend_developer` — proxy `GET /kb/search` (hybrid lexical+vector), add KBSearchResult/KBSearchResponse types, add search mode to Memory Explorer with ranked results, score display, scope warning. P2.
-- CP-T067 (Entity Type Browser): `backend_developer` + `frontend_developer` — `GET /api/control-plane/kb/entity-types` aggregation endpoint, Memory Explorer landing view showing all entity types with fact counts and "Browse →" links. P3.
+- CP-T066 (KB Full-Text/Semantic Search): `backend_developer` + `frontend_developer` — proxy `GET /kb/search` (hybrid lexical+vector), KBSearchResult/KBSearchResponse types, search mode in Memory Explorer with ranked results, score percentage bar, fallback-to-lexical note, global-scope API key requirement. **PM-ACCEPTED 2026-03-21.**
+- CP-T067 (Entity Type Browser): `backend_developer` + `frontend_developer` — `GET /api/control-plane/kb/entity-types` aggregation endpoint, Memory Explorer landing card grid showing all entity types with fact counts, last-updated times, and "Browse →" links. Replaces empty-table initial state. **PM-ACCEPTED 2026-03-21.**
 - Upstream carryover: CP-T025 native emitter PR — `system_architect` to produce actual diff files against the Iranti repo and confirm submission path. Spec is PM-approved. Diff files are the remaining deliverable.
 
 ### Tickets
@@ -306,8 +306,8 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T063 | API Key Scope Audit View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
 | CP-T064 | Documentation: asOf + Contributors + Metrics guide updates | technical_writer | P3 | **PM-ACCEPTED 2026-03-21** |
 | CP-T065 | Entity Alias Panel: Rewrite for Real Iranti Shape | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
-| CP-T066 | KB Full-Text/Semantic Search Surface | backend_developer + frontend_developer | P2 | **OPEN** — Wave 9, issued 2026-03-21 |
-| CP-T067 | Entity Type Browser | backend_developer + frontend_developer | P3 | **OPEN** — Wave 9, issued 2026-03-21 |
+| CP-T066 | KB Full-Text/Semantic Search Surface | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T067 | Entity Type Browser | backend_developer + frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
 
 ### Exit Criteria
 
@@ -330,8 +330,8 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [x] CP-T063: API Key Scope Audit View — scope field in provider endpoint and Provider Manager UI (Wave 8) — PM-ACCEPTED 2026-03-21
 - [x] CP-T064: Documentation — update guides for asOf picker, Contributors panel, Metrics Dashboard (Wave 8) — PM-ACCEPTED 2026-03-21
 - [x] CP-T065: Entity Alias Panel rewrite — correct types, AliasRow, CreateAliasForm for real Iranti flat-token shape (Wave 9) — PM-ACCEPTED 2026-03-21
-- [ ] CP-T066: KB Full-Text/Semantic Search — proxy GET /kb/search, Memory Explorer search mode with scored results (Wave 9)
-- [ ] CP-T067: Entity Type Browser — GET /kb/entity-types endpoint, Memory Explorer landing view (Wave 9)
+- [x] CP-T066: KB Full-Text/Semantic Search — proxy GET /kb/search, Memory Explorer search mode with ranked results and score percentage bar, fallback-to-lexical note (Wave 9) — PM-ACCEPTED 2026-03-21
+- [x] CP-T067: Entity Type Browser — GET /kb/entity-types endpoint, Memory Explorer landing card grid with fact counts and "Browse →" links (Wave 9) — PM-ACCEPTED 2026-03-21
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 
