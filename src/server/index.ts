@@ -139,46 +139,54 @@ app.use(
 )
 
 // ---------------------------------------------------------------------------
-// Start
+// Start — wrapped in async main() for CJS SEA compatibility.
+// Node SEA embeds CJS only; top-level await is not supported in CJS, so
+// the async startup logic lives here and is invoked via main().catch().
 // ---------------------------------------------------------------------------
 
-const BASE_PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3000', 10)
+async function main(): Promise<void> {
+  const BASE_PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3000', 10)
+  const PORT = await findAvailablePort(BASE_PORT, BASE_PORT + 10)
 
-const PORT = await findAvailablePort(BASE_PORT, BASE_PORT + 10)
+  const server = app.listen(PORT, () => {
+    console.log(`[iranti-cp] v${VERSION} running at http://localhost:${PORT}`)
+    console.log(`[iranti-cp] API at http://localhost:${PORT}/api/control-plane/`)
 
-const server = app.listen(PORT, () => {
-  console.log(`[iranti-cp] v${VERSION} running at http://localhost:${PORT}`)
-  console.log(`[iranti-cp] API at http://localhost:${PORT}/api/control-plane/`)
-
-  // Start the staff-events adapter after the server is listening
-  startAdapter().catch((err: unknown) => {
-    console.warn('[adapter] Failed to start:', (err as Error).message)
-  })
-
-  // AC-6: auto-open browser when running as a packaged SEA binary
-  if ((process as NodeJS.Process & { isSea?: () => boolean }).isSea?.()) {
-    import('open').then(({ default: open }) => {
-      void open(`http://localhost:${PORT}`)
-    }).catch(() => {
-      // Non-fatal — browser open failure should not crash the server
+    // Start the staff-events adapter after the server is listening
+    startAdapter().catch((err: unknown) => {
+      console.warn('[adapter] Failed to start:', (err as Error).message)
     })
-  }
-})
 
-// ---------------------------------------------------------------------------
-// Graceful shutdown
-// ---------------------------------------------------------------------------
-
-function shutdown(signal: string): void {
-  console.log(`[iranti-cp] Received ${signal} — shutting down gracefully.`)
-  stopAdapter()
-  server.close(() => {
-    console.log('[iranti-cp] Server closed.')
-    process.exit(0)
+    // AC-6: auto-open browser when running as a packaged SEA binary
+    if ((process as NodeJS.Process & { isSea?: () => boolean }).isSea?.()) {
+      import('open').then(({ default: open }) => {
+        void open(`http://localhost:${PORT}`)
+      }).catch(() => {
+        // Non-fatal — browser open failure should not crash the server
+      })
+    }
   })
-  // Force-exit if server takes too long to close
-  setTimeout(() => process.exit(1), 10_000)
+
+  // ---------------------------------------------------------------------------
+  // Graceful shutdown
+  // ---------------------------------------------------------------------------
+
+  function shutdown(signal: string): void {
+    console.log(`[iranti-cp] Received ${signal} — shutting down gracefully.`)
+    stopAdapter()
+    server.close(() => {
+      console.log('[iranti-cp] Server closed.')
+      process.exit(0)
+    })
+    // Force-exit if server takes too long to close
+    setTimeout(() => process.exit(1), 10_000)
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => shutdown('SIGINT'))
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('SIGINT', () => shutdown('SIGINT'))
+main().catch((err: unknown) => {
+  console.error('[iranti-cp] Fatal startup error:', (err as Error).message ?? err)
+  process.exit(1)
+})

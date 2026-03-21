@@ -1,15 +1,24 @@
 import pg from 'pg'
 import { readFileSync, existsSync } from 'fs'
-import { resolve } from 'path'
+import { resolve, dirname } from 'path'
 import { homedir } from 'os'
 
 const { Pool } = pg
 
-// Load .env.iranti from project root or home directory
+// Load .env.iranti from the exe directory (SEA), cwd, or home directory.
+// When double-clicking a Windows exe, process.cwd() is not reliably the
+// exe's own directory — so we check process.execPath first in SEA context.
 function loadEnv(): Record<string, string> {
+  const isSea =
+    typeof (process as NodeJS.Process & { isSea?: () => boolean }).isSea === 'function' &&
+    (process as NodeJS.Process & { isSea?: () => boolean }).isSea!()
+
   const candidates = [
+    // SEA: next to the binary (most reliable when double-clicked)
+    ...(isSea ? [resolve(dirname(process.execPath), '.env.iranti')] : []),
     resolve(process.cwd(), '.env.iranti'),
     resolve(homedir(), '.iranti', '.env.iranti'),
+    resolve(homedir(), '.iranti', 'instances', 'local', '.env'),
   ]
   for (const p of candidates) {
     if (existsSync(p)) {
@@ -34,11 +43,14 @@ export const env = loadEnv()
 const databaseUrl = env.DATABASE_URL ?? process.env.DATABASE_URL
 
 if (!databaseUrl) {
-  console.error('[db] No DATABASE_URL found in .env.iranti or environment')
+  console.warn('[db] No DATABASE_URL found in .env.iranti or environment — DB queries will fail until configured')
 }
 
+// Pass a placeholder when databaseUrl is absent so pg.Pool doesn't throw
+// synchronously during startup (the server still launches; DB-dependent
+// routes return errors gracefully until the user configures credentials).
 export const pool = new Pool({
-  connectionString: databaseUrl,
+  connectionString: databaseUrl ?? 'postgresql://localhost/iranti',
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
