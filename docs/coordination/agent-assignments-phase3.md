@@ -10,8 +10,8 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 8 dispatched 2026-03-21 (Wave 7 PM-ACCEPTED)
-Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058 → CP-T059 → CP-T060 → CP-T061 / CP-T062 / CP-T063 / CP-T064
+Current wave: Wave 9 dispatched 2026-03-21 (Wave 8 PM acceptance complete)
+Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058 → CP-T059 → CP-T060 → CP-T061 / CP-T062 / CP-T063 / CP-T064 → CP-T065
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
@@ -27,11 +27,16 @@ CP-T059 PM-ACCEPTED: 2026-03-21 — All 5 frontend ACs pass, tsc clean, AC-9 __d
 CP-T060 issued: 2026-03-21 Wave 7 — Metrics Dashboard (backend_developer + frontend_developer) — P2, CP-E013 epic
 CP-T060 PM-ACCEPTED: 2026-03-21 — Backend: action_type strings verified correct (lowercase real values), totalFacts cumulative from all-time window, graceful degradation confirmed, tsc clean. Frontend: SVG line + bar charts, 4 summary cards, period toggle with re-fetch, empty state at < 2 data points or truncated, tsc clean. Both halves accepted.
 CP-T061 issued: 2026-03-21 Wave 8 — Entity Alias Management UI (backend_developer + frontend_developer) — P2, CP-E014
+CP-T061 PM-PARTIAL: 2026-03-21 — Backend ACCEPTED (real Iranti shape); Frontend REJECTED (shape mismatch — built against wrong CP-T006 spike spec). Follow-on CP-T065 issued.
 CP-T062 issued: 2026-03-21 Wave 8 — Relationship Graph B9 note (frontend_developer) — P3
+CP-T062 PM-ACCEPTED: 2026-03-21 — Semantic note below graph, only when relationships exist, links to /health, uses --color-text-tertiary, tsc clean.
 CP-T063 issued: 2026-03-21 Wave 8 — API Key Scope Audit View (backend_developer + frontend_developer) — P2
+CP-T063 PM-ACCEPTED: 2026-03-21 — scope/scopeType fields added (gracefully null; Iranti v0.2.15 does not expose scope via API). ScopeBadge in list and detail. tsc clean.
 CP-T064 issued: 2026-03-21 Wave 8 — Documentation update for CP-T056/T057/T060 (technical_writer) — P3
+CP-T064 PM-ACCEPTED: 2026-03-21 — asOf picker section, Contributors panel section, Metrics Dashboard row all present and accurate to actual implementation (not spec). Two spec gaps noted (rejectionCount/firstSeen fields don't exist; no Query button — reactive instead). Documented actual behavior, which is correct.
+CP-T065 issued: 2026-03-21 Wave 9 — Entity Alias Panel Rewrite (frontend_developer) — P2, CP-E014
 
-Iranti upstream drift check (2026-03-21): v0.2.14 current (was v0.2.12 at last audit). v0.2.13 partially fixes B11 attend classifier; hybrid search now falls back to in-process scoring when pgvector unavailable. v0.2.14 is Windows updater fix only. No breaking API changes. No control plane rework required.
+Iranti upstream drift check (2026-03-21): v0.2.15 now current (unreleased — "Pending release notes"). v0.2.14 Windows updater fix only. v0.2.13 partially fixes B11 attend classifier; hybrid search fallback improved. v0.2.15 alias API shape confirmed real by backend agent: flat string tokens (not entity cross-references). No breaking API changes beyond alias shape (which was always speculative). No other control plane rework required.
 
 ---
 
@@ -1276,3 +1281,57 @@ Create `src/client/src/components/metrics/MetricsDashboard.tsx` and add the `/me
 **Report back to PM with:**
 - Sections added and their headings
 - Any gaps found between ticket spec and actual implementation (e.g., if asOf picker UI differs from ticket description)
+
+---
+
+## Wave 9 — Issued 2026-03-21 (Alias Panel Fix)
+
+**Rationale:** Wave 8 revealed that the CP-T061 frontend was built against a speculative API shape from the CP-T006 spike that does not match Iranti's real alias API. The backend was correct and accepted. Wave 9 immediately corrects the frontend before the broken alias panel reaches any operator. Full-text search (GET /kb/search) is the next candidate after CP-T065 lands.
+
+**Tickets in this wave:**
+- CP-T065 (Entity Alias Panel Rewrite) — P2 — frontend only, direct fix for CP-T061 rejection
+
+---
+
+### Assignment — CP-T065 (Entity Alias Panel Rewrite) — `frontend_developer`
+
+**Status:** OPEN
+**Ticket:** `docs/tickets/cp-t065.md`
+**Priority:** P2
+**Phase:** 3, Wave 9
+
+**Why this wave:** The CP-T061 frontend was rejected because it rendered `alias.aliasEntityType / alias.aliasEntityId` (fields that don't exist) and sent `{ fromEntityType, fromEntityId, toEntityType, toEntityId }` as the POST body (wrong shape). The correct shape is flat string alias tokens. This must be fixed before the alias tab is visible to operators.
+
+**Key files to change:**
+- `src/client/src/api/types.ts` — replace `EntityAlias` and `EntityAliasesResponse` with correct interfaces
+- `src/client/src/components/memory/EntityDetail.tsx` — rewrite `AliasRow` (no entity link, show token + metadata) and `CreateAliasForm` (single token field, correct POST body)
+- `src/client/src/components/memory/EntityDetail.module.css` — token display styles if needed
+
+**Key files to leave unchanged:**
+- `src/server/routes/control-plane/kb.ts` — backend is correct, accepted in CP-T061
+
+**Real API shapes (from backend agent investigation of Iranti v0.2.15):**
+
+GET response:
+```json
+{ "canonicalEntity": "user/alice-doe", "aliases": [{ "alias": "alice", "aliasNorm": "alice", "source": "query", "confidence": 50, "createdAt": "..." }], "total": 1 }
+```
+
+POST body:
+```json
+{ "canonicalEntity": "user/alice-doe", "alias": "alice", "source": "manual", "confidence": 80 }
+```
+
+**Acceptance criteria:**
+- AC-1: `EntityAlias` and `EntityAliasesResponse` match real API shape
+- AC-2: `AliasRow` shows alias token (monospace), source, confidence, createdAt — no entity Link
+- AC-3: `CreateAliasForm` single field; POST body is `{ canonicalEntity: "type/id", alias: token }`
+- AC-4: Empty state and count badge unchanged
+- AC-5: Visual design quality — ConfidenceBar reused, tokens in code style
+- AC-6: tsc --noEmit CLEAN in both src/server and src/client
+
+**Report back to PM with:**
+- Confirmation that AliasRow renders flat string tokens (not entity links)
+- Confirmation that CreateAliasForm POST body matches the real API
+- TypeScript check output
+- Any Iranti API edge cases discovered during testing

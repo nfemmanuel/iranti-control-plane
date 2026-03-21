@@ -145,6 +145,83 @@ Each interval in the history shows:
 
 > **Example**: The key history for `agent/product_manager → current_assignment` might show three intervals: the current value (validUntil = null), a prior value from last week (validUntil set, archivedReason = superseded), and an original value from a month ago. This tells you exactly how the assignment has changed over time.
 
+### Point in Time — the asOf Picker
+
+The Temporal History view includes a **Point in Time** date and time picker in the view header. Use it to answer the question: "What did Iranti believe about this fact on March 15 at 14:30?" — useful when debugging why an agent had stale or unexpected information at a specific moment.
+
+**When to use it:**
+
+- You want to reconstruct the KB state before a recent high-confidence write replaced a fact.
+- You need to know whether a fact existed at all at a given time, not just its current value.
+- A conflict or escalation happened at a known timestamp and you want to see which fact version was active at that moment.
+
+**How to use it:**
+
+1. Open the key history view for a specific `entityType / entityId / key`.
+2. In the header, locate the **Point in Time** field and select a date and time. The picker accepts a datetime-local value (your local timezone). The picker will not accept a date in the future.
+3. As soon as a date/time is selected, the view fires a query against the Iranti API (`GET /kb/query/:entityType/:entityId/:key?asOf=<ISO timestamp>&includeExpired=true`). No separate "Query" button is needed.
+4. A callout box appears below the picker row showing the result.
+5. The interval in the timeline that was active at the selected moment receives an **"active at query time"** badge and is visually highlighted (elevated styling).
+6. To return to the normal full-history view, click the **✕** button next to the picker to clear the selection. The highlight and callout both disappear.
+
+**What the callout shows:**
+
+| Field | What it means |
+|---|---|
+| **Value** | The `valueSummary` at that point in time, or the raw JSON if no summary was written. |
+| **Confidence** | The confidence score (0–100) at that moment. |
+| **Source** | The `providerSource` (caller-supplied provenance label) of the fact at that time. |
+| **Created by** | The `agentId` that wrote the fact (the authenticated agent identity). |
+| **Interval** | The `validFrom` → `validUntil` window. "still active" appears in place of `validUntil` if this version is the current live fact. |
+
+A **Raw value** expandable section below the callout fields shows the full JSON stored in Iranti at that point in time.
+
+**If no fact existed at that time:**
+
+The callout shows "No fact existed at this time." This is not an error — it means no fact with a matching `[validFrom, validUntil)` interval was found for the selected timestamp. This is expected for keys that were first written after the selected date.
+
+**Known limitation:**
+
+The asOf query is bounded by when the `staff_events` table began recording data. If you select a timestamp before Iranti was first run, the query may return no result even though a fact was written at a later date that is currently the live value. Use the interval list itself to read `validFrom` values and calibrate your time selection.
+
+---
+
+### Contributors Panel
+
+The **Contributors** panel appears below the tab content on every entity detail page (`/memory/:entityType/:entityId`). It shows which agents have contributed facts to this entity, drawn from the `GET /memory/whoknows/:entityType/:entityId` Iranti endpoint.
+
+**What it shows:**
+
+Each contributor is shown as a card with three pieces of information:
+
+| Field | What it means |
+|---|---|
+| **Agent ID** | The authenticated agent identity (`agentId`) that wrote facts to this entity. Shown in monospace. |
+| **Write count** | How many facts this agent has written to the entity across all keys. |
+| **Last contribution** | How long ago the agent last contributed a fact (relative time, e.g. "3h ago"). Hover for the absolute timestamp. |
+
+Contributors are sorted by write count, highest first. This gives you an immediate sense of which agent has shaped this entity's memory most heavily.
+
+**Agent Registry links:**
+
+If an agent in the list is registered in the Agent Registry (CP-T051), its ID is displayed as a link to `/agents/:agentId`. If the agent is not registered (or the Agent Registry is unavailable), the ID is shown as plain monospace text. The panel always renders without breaking if the Agent Registry cannot be reached.
+
+**Empty state:**
+
+If no contributor data is available — for example, because no agents have written attributed facts to this entity yet — the panel shows:
+
+> No attributed contributors for this entity.
+
+This is not an error. It can occur on entities that predate the current `staff_events` table or entities that have only system-level writes with no agent attribution.
+
+**Unavailable state:**
+
+If the Contributors endpoint returns a 503 or any error (typically because the connected Iranti API key lacks `memory:read` scope), the panel shows:
+
+> Contributor data unavailable. Check that your Iranti API key has `memory:read` scope.
+
+All other facts and tabs on the entity detail page continue to function normally when the Contributors panel is in this state. See the Health Dashboard (`/health`) if you need to verify your API key's configured scopes.
+
 ---
 
 ## Relationships View
