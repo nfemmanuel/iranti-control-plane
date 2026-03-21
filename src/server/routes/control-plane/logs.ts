@@ -285,11 +285,11 @@ logsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     )
 
     res.json({
-      events: dataResult.rows.map((r) => serializeEventRow(r as Record<string, unknown>)),
+      items: dataResult.rows.map((r) => serializeEventRow(r as Record<string, unknown>)),
       total,
       limit,
       offset,
-      hasMore: offset + limit < total,
+      oldestEventTimestamp: null,
     })
   } catch (err) {
     next(err)

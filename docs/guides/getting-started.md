@@ -28,6 +28,7 @@ The following views are functional as of 2026-03-20:
 | **Provider Manager** | Standalone provider management at `/providers` — reachability history, warning thresholds (Phase 2 — CP-T046) |
 | **Entity Relationship Graph** | Interactive radial graph in the Entity Detail Relationships tab — depth 1 or 2, click to navigate (Phase 2 — CP-T032) |
 | **Command Palette** | Global Cmd+K / Ctrl+K palette for navigation and inline shortcuts help (Phase 2 — CP-T024/CP-T042) |
+| **Staff Logs** | Persistent, queryable Staff event history at `/logs` — filter by component, date range, severity, agent, and event type; expand rows for full payload; export as JSONL or CSV (Phase 3 — CP-T050) |
 
 ---
 
@@ -145,16 +146,17 @@ If you see a database connection error, confirm that PostgreSQL is running and t
 
 **In production (built frontend served by server):** Navigate to `http://localhost:3002/control-plane`.
 
-You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all eight live sections in order:
+You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all nine live sections in order:
 
 1. **Memory Explorer** (`/memory`) — browse the live knowledge base
 2. **Archive** (`/archive`) — browse superseded and decayed facts
 3. **Activity** (`/activity`) — live Staff event stream
-4. **Instances** (`/instances`) — discovered Iranti instances and project bindings
-5. **Health** (`/health`) — diagnostics and integration checks
-6. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
-7. **Providers** (`/providers`) — provider reachability and model management
-8. **Getting Started** (`/getting-started`) — guided first-run setup checklist
+4. **Logs** (`/logs`) — persistent, queryable Staff event history with export
+5. **Instances** (`/instances`) — discovered Iranti instances and project bindings
+6. **Health** (`/health`) — diagnostics and integration checks
+7. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
+8. **Providers** (`/providers`) — provider reachability and model management
+9. **Getting Started** (`/getting-started`) — guided first-run setup checklist
 
 **Settings** is a Phase 2 item — it appears in the sidebar as a disabled placeholder and is not yet functional.
 

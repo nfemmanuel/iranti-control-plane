@@ -35,3 +35,4 @@ Thumbs.db
 # Test output
 coverage/
 src/server/tests/coverage/
+RESUME_NEXT_SESSION_PROMPT.md
