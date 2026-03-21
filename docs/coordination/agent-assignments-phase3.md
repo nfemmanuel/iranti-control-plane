@@ -10,11 +10,15 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 3
-Ticket sequence: CP-T050 → CP-T049 → CP-T048
+Current wave: Wave 3 + Wave 4 issued
+Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)
 CP-T049 PM-accepted: 2026-03-20 (backend ACs 5–8 PASS, frontend ACs 1–6, 8–9 PASS, AC-7 backend responsibility, archive_flags migration included, restore transaction-wrapped with supersession, TypeScript clean both sides)
+CP-T048 Wave 3: implementation complete 2026-03-21 — Node SEA, all platform build scripts, CI pipeline, QA test plan written. AC-11 clean-machine validation pending.
+CP-T051 issued: 2026-03-21 from cross-repo audit H5 — Agent Registry View (backend + frontend)
+CP-T052 issued: 2026-03-21 from cross-repo audit H2/H3/C1/C2 — Health View: Decay + Vector + Attend (backend + frontend)
+CP-T053 issued: 2026-03-21 from cross-repo audit H4/M7/H1 — Memory Explorer ConflictLog + Field Labels (frontend only)
 
 ---
 
@@ -542,3 +546,84 @@ AC-11 requires validation on a clean machine — a VM or fresh OS image with no 
 
 - **CP-T025 upstream PR submission** — `system_architect` should submit the upstream PR to the Iranti maintainer in Phase 3. This is not a new ticket; it is a carryover action. Track status in Iranti memory under `ticket/cp-t025`.
 - **CP-T022 write path** — Provider manager write-path (mutating active provider/model config at runtime) was deferred from Phase 2. Phase 3 will revisit once the upstream Iranti configuration API surface is clear. PM will create a new ticket if/when that surface stabilizes.
+
+---
+
+## Wave 4 — Issued 2026-03-21 (Cross-Repo Audit Findings)
+
+**Source:** `docs/coordination/cross-repo-audit-2026-03-21.md`
+**Audit findings addressed:** H1, H2, H3, H4, H5, M7, C1/C2 (informational surface)
+
+---
+
+### Assignment — CP-T051 (Agent Registry View) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t051.md`
+**Priority:** P2
+**Phase:** 3, Wave 4
+
+**Why now:** Iranti's `GET /agents` API (with per-agent write/rejection/escalation stats) has existed since at least v0.2.9. The control plane has never surfaced it. Operators have no way to see which agents are registered, what their error rates are, or whether any agents are going dark. The API is ready; this is purely a missing UI surface.
+
+**backend_developer scope:**
+- `GET /api/control-plane/agents` — proxy to `GET /agents` on the connected Iranti instance
+- `GET /api/control-plane/agents/:agentId` — proxy to `GET /agents/:agentId`
+- 503 graceful degradation if upstream is unreachable or returns 401
+- Forward `X-Iranti-Key` with `agents:read` scope (see `providers.ts` for the forwarding pattern)
+- Pattern reference: `src/server/routes/control-plane/providers.ts`
+
+**frontend_developer scope:**
+- Add "Agents" nav item to sidebar (position: after Providers, before Getting Started)
+- `/agents` route — paginated table: agentId, display name, lastSeen (relative), active indicator, writes, rejections (red if high), escalations (amber if any), avg confidence
+- Agent detail drawer/page: full stats, capabilities, model, properties (JSON), description
+- Empty state: "No agents registered yet. Agents appear here after their first `iranti_handshake` call."
+- 503 empty state: match Staff Logs 503 state pattern
+- Stretch: sidebar badge if any agent is inactive with high escalations
+
+---
+
+### Assignment — CP-T052 (Health: Decay Config + Vector Backend + Attend Status) — `backend_developer` + `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t052.md`
+**Priority:** P2
+**Phase:** 3, Wave 4
+
+**Why now:** Three operator-critical signals are missing from the Health dashboard: (1) decay configuration (`IRANTI_DECAY_ENABLED` etc.) is invisible — operators don't know if decay is active or why facts are being archived; (2) vector backend (`IRANTI_VECTOR_BACKEND`) is not surfaced — this is the first diagnostic signal for B4-style search failures; (3) Attendant classifier failures (B11 benchmark) are invisible and need at minimum an informational note.
+
+**backend_developer scope:**
+- Extend `GET /api/control-plane/health` to include `decay` object: `{ enabled, stabilityBase, stabilityIncrement, stabilityMax, decayThreshold }` — read from `IRANTI_DECAY_*` env vars
+- Extend health endpoint to include `vectorBackend` object: `{ type, configured, url }` — read from `IRANTI_VECTOR_BACKEND`, `IRANTI_QDRANT_URL`, `IRANTI_CHROMA_URL`
+- For qdrant/chroma: lightweight HTTP probe to configured URL; report status as `ok`, `warn`, `error`
+- Add `attendant` informational object to health endpoint — static message about CP-T025 limitation
+- Reference: `src/server/routes/control-plane/health.ts`
+
+**frontend_developer scope:**
+- "Memory Decay" card in Health Dashboard: enabled status (green=disabled, amber=enabled), decay threshold, stability range
+- "Vector Backend" card: type, status indicator, URL for qdrant/chroma, "Uses primary database connection" for pgvector
+- "Attendant" informational card: status=Informational, surfaces the entityHints workaround and CP-T025 context
+- All new cards must use the four-tier severity taxonomy from CP-T028 (Critical/Warning/Informational/Healthy)
+- Reference: `src/client/src/components/health/HealthDashboard.tsx`
+
+---
+
+### Assignment — CP-T053 (Memory Explorer: ConflictLog Timeline + Field Labels) — `frontend_developer`
+
+**Status:** OPEN — issued 2026-03-21
+**Ticket:** `docs/tickets/cp-t053.md`
+**Priority:** P2
+**Phase:** 3, Wave 4
+
+**Why now:** The `conflictLog` field on every KB fact is an append-only array of conflict events — type, timestamp, reason, LLM usage, scores. This data is already returned by the API. Currently it's shown as raw JSON (if at all). The cross-repo audit confirmed the field structure. This is a pure frontend improvement with no backend work required.
+
+**frontend_developer scope:**
+- `MemoryExplorer.tsx` — expanded fact row: render "Conflict History" section if `conflictLog` has entries
+  - Each entry: relative timestamp (absolute on hover), event type badge (CONFLICT_ESCALATED=amber, CONFLICT_REJECTED=red, CONFLICT_RESOLVED=green, IDEMPOTENT_SKIP=grey), reason text, "Used LLM: Yes/No"
+  - If `existingScore` + `incomingScore` present: "Existing: N vs. Incoming: N"
+  - If `incomingSource` present: show it
+- `ArchiveExplorer.tsx` — same ConflictLog rendering in expanded archive row
+- Rename "Agent" label to "Written by" (maps to `createdBy`) across both expanded and collapsed row
+- Keep "Source" for `source` field; add tooltip: "Caller-supplied provenance label (e.g. 'mcp', 'git', 'manual')"
+- Add `stability` (N days) and `lastAccessedAt` (relative time) to expanded fact detail — omit if null
+- Remove raw JSON `conflictLog` expand once timeline renders; keep `properties` and `metadata` raw expand unchanged
+- The server serializes `conflictLog` as `Record<string, unknown> | null` — cast to `ConflictEntry[]` in the frontend

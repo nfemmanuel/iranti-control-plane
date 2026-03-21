@@ -215,7 +215,8 @@ This roadmap covers the full delivery arc of the Iranti Control Plane from archi
 **Wave 1 COMPLETE:** CP-T050 (Staff Logs View) — PM-ACCEPTED 2026-03-20
 **Wave 2 COMPLETE:** CP-T049 (Archivist Transparency) — PM-ACCEPTED 2026-03-20
 **Wave 3 IN PROGRESS:** CP-T048 (Platform Installer Packages) — implementation complete; AC-11 clean-machine testing pending
-**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress)
+**Wave 4 ISSUED 2026-03-21:** CP-T051 (Agent Registry View), CP-T052 (Health: Decay + Vector + Attend), CP-T053 (ConflictLog Timeline + Field Labels) — from cross-repo audit
+**Ticket sequence:** CP-T050 ✓ → CP-T049 ✓ → CP-T048 (in progress) → CP-T051, CP-T052, CP-T053 (open)
 **Coordination doc:** `docs/coordination/agent-assignments-phase3.md`
 
 **Goal**: Power-user and team-scale operator features for operators running Iranti at higher complexity or scale. Specific scope is gated on Phase 2 learnings and user feedback.
@@ -257,6 +258,12 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - Rationale: packaging infrastructure benefits from a stable, feature-complete control plane; Node SEA ESM spike is the first task and must be validated before any CI pipeline work
 - Assigned: `devops_engineer` (Wave 3 kickoff by PM after CP-T049 acceptance)
 
+**Wave 4 (issued 2026-03-21 from cross-repo audit):** CP-T051, CP-T052, CP-T053 — audit-driven alignment tickets
+- Rationale: cross-repo audit of Iranti v0.2.12 (vs v0.2.9 at last audit) surfaced agent registry API, decay config, vector backend, ConflictLog structure, createdBy/source distinction, and stability/lastAccessedAt fields — all visible data that the control plane does not surface
+- CP-T051 (Agent Registry View): `backend_developer` (proxy endpoints) + `frontend_developer` (/agents route, list + detail)
+- CP-T052 (Health: Decay + Vector + Attend): `backend_developer` (health endpoint extensions) + `frontend_developer` (new cards)
+- CP-T053 (Memory Explorer: ConflictLog + Field Labels): `frontend_developer` (pure frontend — API already returns conflictLog)
+
 ### Tickets
 
 | ID | Title | Assigned | Priority | Status |
@@ -264,6 +271,10 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T050 | Staff Logs View | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
 | CP-T049 | Archivist Transparency and Operator Review | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-20** |
 | CP-T048 | Platform Installer Packages (MSI, .dmg, .deb) | devops_engineer | P2 | **IN PROGRESS** — implementation complete (2026-03-21); AC-11 clean-machine testing pending |
+| CP-T051 | Agent Registry View | backend_developer + frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
+| CP-T052 | Health View: Decay Config + Vector Backend + Attend Status | backend_developer + frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
+| CP-T053 | Memory Explorer: ConflictLog Timeline + Field Label Fixes | frontend_developer | P2 | **OPEN** — issued 2026-03-21 (Wave 4) |
+| CP-T056 | Temporal History: Point-in-Time `asOf` Query | frontend_developer | P3 | **OPEN** — issued 2026-03-21 (Wave 4+, pure frontend) |
 
 ### Exit Criteria
 
@@ -273,6 +284,9 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [x] CP-T050: Staff Logs View passes all 13 ACs — PM-ACCEPTED 2026-03-20
 - [x] CP-T049: Archivist Transparency passes all 9 ACs — PM-ACCEPTED 2026-03-20
 - [ ] CP-T048: Platform installers validated on clean machines for Windows, macOS, and Linux — implementation complete 2026-03-21; AC-11 clean-machine testing pending
+- [ ] CP-T051: Agent Registry View — backend proxy + frontend /agents view (Wave 4)
+- [ ] CP-T052: Health view extended with decay config, vector backend, Attendant status (Wave 4)
+- [ ] CP-T053: ConflictLog timeline and createdBy/source label distinction in Memory + Archive Explorers (Wave 4)
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 

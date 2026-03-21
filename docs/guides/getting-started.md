@@ -14,12 +14,13 @@ The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 
 
 | View | What it does |
 |---|---|
-| **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. |
-| **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. |
+| **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. Expanded fact rows show a **Conflict History** timeline for any fact that has conflict log entries, field-level stability and last-accessed data, and clear "Written by" / "Source" labels. (Wave 4 — CP-T053, In Progress) |
+| **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. Expanded archive rows also show Conflict History timelines where applicable. |
 | **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — a table of all current KB facts for the entity (key, value summary, confidence, source, agent, validFrom), a collapsible table of archived facts, a flat relationships list, and a breadcrumb back to Memory Explorer. (Phase 2 — CP-T036) |
 | **Temporal History** | Per-key fact history at `/memory/:entityType/:entityId/:key` — every interval that key has held, with confidence, validFrom/validUntil, and archivedReason. Click any interval to expand and read the full raw JSON value. The live fact carries a "current" badge. Empty state: "No history — this fact has not been superseded or archived." (Phase 2 — CP-T036) |
 | **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
-| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, and runtime version. |
+| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. (Wave 4 — CP-T052, In Progress) |
+| **Agent Registry** | Read-only view of all registered agents at `/agents` — last seen, active status, write volume, rejection rate, escalation history, and per-agent detail panel. (Wave 4 — CP-T051, In Progress) |
 | **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
 | **Getting Started / Onboarding** | Guided setup checklist at `/getting-started` — 4 steps covering database connection, provider configuration, project binding, and Claude/Codex integration. Auto-shown on first load when setup has never been completed. The sidebar nav item displays a persistent badge with the count of incomplete steps until all steps are resolved. A dismissible setup banner also appears in the page header until setup is complete. (Phase 2 — CP-T035) |
 | **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
@@ -147,7 +148,7 @@ If you see a database connection error, confirm that PostgreSQL is running and t
 
 **In production (built frontend served by server):** Navigate to `http://localhost:3002/control-plane`.
 
-You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all nine live sections in order:
+You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all live sections in order:
 
 1. **Memory Explorer** (`/memory`) — browse the live knowledge base
 2. **Archive** (`/archive`) — browse superseded and decayed facts
@@ -157,7 +158,8 @@ You'll land on the **Memory Explorer** by default. Use the sidebar on the left t
 6. **Health** (`/health`) — diagnostics and integration checks
 7. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
 8. **Providers** (`/providers`) — provider reachability and model management
-9. **Getting Started** (`/getting-started`) — guided first-run setup checklist
+9. **Agents** (`/agents`) — registered agent registry with health stats (Wave 4 — CP-T051)
+10. **Getting Started** (`/getting-started`) — guided first-run setup checklist
 
 **Settings** is a Phase 2 item — it appears in the sidebar as a disabled placeholder and is not yet functional.
 
@@ -251,6 +253,26 @@ Full values are returned without truncation in the history view — unlike the l
 
 ## Troubleshooting Your First Run
 
+### Run `iranti doctor` first
+
+Before diving into specific errors, run Iranti's built-in diagnostics:
+
+```bash
+iranti doctor --debug
+```
+
+Available since Iranti v0.2.12, `iranti doctor` checks database connectivity, environment variables, provider keys, and project bindings in one pass. The `--debug` flag outputs the full check log including values (with secrets masked). This is the fastest way to confirm whether an issue is with Iranti itself, the connection between the control plane and Iranti, or the control plane configuration.
+
+```bash
+iranti --debug          # verbose flag for any iranti subcommand
+iranti doctor           # health check without verbose output
+iranti doctor --debug   # full diagnostic output — recommended starting point
+```
+
+If `iranti doctor` reports green across the board but the control plane still shows errors, the issue is in the control plane's own `.env` file or network binding.
+
+---
+
 ### "DB unreachable" error on the Health dashboard
 
 The control plane cannot connect to PostgreSQL. Things to check:
@@ -322,6 +344,9 @@ Phase 3 advanced operator features began shipping on 2026-03-20.
 | **Staff Logs View** | CP-T050 | Complete — persistent, queryable Staff event history with export |
 | **Archivist Decision Transparency** | CP-T049 | Complete — Archivist History per fact, flag for review, restore |
 | **Platform Installer Packages** | CP-T048 | In progress — implementation complete; clean-machine testing (AC-11) pending |
+| **Agent Registry View** | CP-T051 | In Progress — Wave 4 |
+| **Health Extensions (Decay, Vector Backend, Attendant)** | CP-T052 | In Progress — Wave 4 |
+| **Memory Explorer: Conflict History + Field Label Fixes** | CP-T053 | In Progress — Wave 4 |
 
 ---
 
