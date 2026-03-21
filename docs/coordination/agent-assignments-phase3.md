@@ -10,7 +10,7 @@
 ## Status
 
 Phase 3 kickoff: 2026-03-20
-Current wave: Wave 5 (issued 2026-03-21)
+Current wave: Wave 5 + Wave 6 (dispatched 2026-03-21) — Wave 7 stub ready
 Ticket sequence: CP-T050 → CP-T049 → CP-T048 → CP-T051 / CP-T052 / CP-T053 → CP-T056 / CP-T057 / CP-T058
 
 CP-T050 PM-accepted: 2026-03-20 (backend 18 ACs PASS, frontend 13 ACs PASS, TypeScript clean)

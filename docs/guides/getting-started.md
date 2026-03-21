@@ -14,13 +14,13 @@ The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 
 
 | View | What it does |
 |---|---|
-| **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. Expanded fact rows show a **Conflict History** timeline for any fact that has conflict log entries, field-level stability and last-accessed data, and clear "Written by" / "Source" labels. (Wave 4 — CP-T053, In Progress) |
+| **Memory Explorer** | Browse the live knowledge base (`/memory`). Filter by entity type, entity ID, key, source, agent, and confidence. Expanded fact rows show a **Conflict History** timeline for any fact that has conflict log entries, field-level stability and last-accessed data, and clear "Written by" / "Source" labels. (Wave 4 — CP-T053, PM-accepted 2026-03-21) |
 | **Archive Explorer** | Browse superseded and decayed facts (`/archive`). Filter by archived reason, resolution state, and date range. Expanded archive rows also show Conflict History timelines where applicable. |
 | **Entity Detail** | Full entity page at `/memory/:entityType/:entityId` — a table of all current KB facts for the entity (key, value summary, confidence, source, agent, validFrom), a collapsible table of archived facts, a flat relationships list, and a breadcrumb back to Memory Explorer. (Phase 2 — CP-T036) |
 | **Temporal History** | Per-key fact history at `/memory/:entityType/:entityId/:key` — every interval that key has held, with confidence, validFrom/validUntil, and archivedReason. Click any interval to expand and read the full raw JSON value. The live fact carries a "current" badge. Empty state: "No history — this fact has not been superseded or archived." (Phase 2 — CP-T036) |
 | **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
-| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. (Wave 4 — CP-T052, In Progress) |
-| **Agent Registry** | Read-only view of all registered agents at `/agents` — last seen, active status, write volume, rejection rate, escalation history, and per-agent detail panel. (Wave 4 — CP-T051, In Progress) |
+| **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. (Wave 4 — CP-T052, PM-accepted 2026-03-21) |
+| **Agent Registry** | Read-only view of all registered agents at `/agents` — last seen, active status, write volume, rejection rate, escalation history, and per-agent detail panel. (Wave 4 — CP-T051, PM-accepted 2026-03-21) |
 | **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
 | **Getting Started / Onboarding** | Guided setup checklist at `/getting-started` — 4 steps covering database connection, provider configuration, project binding, and Claude/Codex integration. Auto-shown on first load when setup has never been completed. The sidebar nav item displays a persistent badge with the count of incomplete steps until all steps are resolved. A dismissible setup banner also appears in the page header until setup is complete. (Phase 2 — CP-T035) |
 | **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
@@ -344,9 +344,9 @@ Phase 3 advanced operator features began shipping on 2026-03-20.
 | **Staff Logs View** | CP-T050 | Complete — persistent, queryable Staff event history with export |
 | **Archivist Decision Transparency** | CP-T049 | Complete — Archivist History per fact, flag for review, restore |
 | **Platform Installer Packages** | CP-T048 | In progress — implementation complete; clean-machine testing (AC-11) pending |
-| **Agent Registry View** | CP-T051 | In Progress — Wave 4 |
-| **Health Extensions (Decay, Vector Backend, Attendant)** | CP-T052 | In Progress — Wave 4 |
-| **Memory Explorer: Conflict History + Field Label Fixes** | CP-T053 | In Progress — Wave 4 |
+| **Agent Registry View** | CP-T051 | PM-accepted 2026-03-21 |
+| **Health Extensions (Decay, Vector Backend, Attendant)** | CP-T052 | PM-accepted 2026-03-21 |
+| **Memory Explorer: Conflict History + Field Label Fixes** | CP-T053 | PM-accepted 2026-03-21 |
 
 ---
 

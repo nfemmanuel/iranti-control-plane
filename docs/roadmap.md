@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Wave 5 kickoff)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–4 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Wave 5 issued 2026-03-21: CP-T056, CP-T057, CP-T058. Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
+> **Last updated: 2026-03-21 (Wave 5/6 dispatch + Wave 7 stub)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted, CP-T020 and CP-T023 manually verified by user. Phase 3 **IN PROGRESS** — Waves 1–4 complete (CP-T050, CP-T049, CP-T051, CP-T052, CP-T053 all PM-ACCEPTED). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing is the only remaining gate. Waves 5/6 dispatched 2026-03-21: CP-T056, CP-T057, CP-T058, CP-T059 — agents briefed and running. Wave 7 stub ready: CP-T060 (Metrics Dashboard). Iranti upstream drift confirmed: v0.2.14 (Windows updater fix, no control plane impact); v0.2.13 partially fixes B11 attend classifier.
 
 ## Horizon
 
@@ -270,6 +270,10 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - CP-T057 (WhoKnows Contributor Panel): `backend_developer` (proxy endpoint) + `frontend_developer` (Contributors panel in Entity Detail)
 
 **Wave 6 (issued 2026-03-21 — concurrent with Wave 5):** CP-T059 — Interactive Diagnostics Panel (new CP-E012 Diagnostics epic)
+
+**Wave 7 (stub ready 2026-03-21 — dispatch after Wave 5/6 acceptance):** CP-T060 — Metrics Dashboard (new CP-E013 Metrics epic)
+- Rationale: Completes the passive→interactive→historical operator surface progression. Wave 5/6 gives operators real-time query and diagnostics. Wave 7 adds the time-dimension view: KB growth trends, per-agent write volume, rejection rate trends — all derived from the existing `staff_events` table with no new data collection infrastructure. Highest-value Wave 7 candidate because: (a) data already exists, (b) closes a major capability gap, (c) chart implementation uses native SVG (precedent from CP-T032).
+- CP-T060 (Metrics Dashboard): `backend_developer` (metrics endpoints — kb-growth, agent-activity, summary; SQL aggregates over staff_events) + `frontend_developer` (/metrics route, line/bar charts, summary cards)
 - Rationale: The Health Dashboard is passive. Operators with problems must drop to the CLI. An active diagnostics surface — "Run Diagnostics" button triggering 7 live checks (Iranti connectivity, auth, DB, vector backend, ingest round-trip, attend check, vector search quality) with actionable fix hints — makes the control plane the primary operator diagnostic tool, not a supplement to `iranti doctor`. This is P2, not P3, because it directly reduces operator time-to-resolution.
 - CP-T059 (Interactive Diagnostics Panel): `backend_developer` (POST /diagnostics/run, GET /diagnostics/last, 7 checks, fixHint messages) + `frontend_developer` (Health Dashboard "Run Diagnostics" button, results panel, command palette registration)
 - CP-T058 (Operator Guidance Labels — M4/M5/H8): `frontend_developer` (pure frontend — 3 small UX label additions)
@@ -289,6 +293,7 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 | CP-T057 | Entity Detail: WhoKnows Contributor Panel | backend_developer + frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
 | CP-T058 | UX Polish: Operator Guidance Labels (M4/M5/H8) | frontend_developer | P3 | **OPEN** — Wave 5, issued 2026-03-21 |
 | CP-T059 | Interactive Diagnostics Panel | backend_developer + frontend_developer | P2 | **OPEN** — Wave 6, issued 2026-03-21 |
+| CP-T060 | Metrics Dashboard: KB Growth + Agent Write Volume | backend_developer + frontend_developer | P2 | **STUB** — Wave 7, drafted 2026-03-21, dispatch after Wave 5/6 acceptance |
 
 ### Exit Criteria
 
@@ -305,6 +310,7 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 - [ ] CP-T057: WhoKnows Contributor Panel in Entity Detail (Wave 5)
 - [ ] CP-T058: Operator guidance labels — Provider Manager write-path hint, unreachable instance command, IRANTI_PROJECT_MODE (Wave 5)
 - [ ] CP-T059: Interactive Diagnostics Panel — 7 live checks, fixHint messages, "Run Diagnostics" button in Health Dashboard (Wave 6, CP-E012)
+- [ ] CP-T060: Metrics Dashboard — KB growth trend, per-agent write volume chart, summary stat cards (Wave 7, CP-E013)
 
 **Primary agents**: backend_developer, frontend_developer, devops_engineer
 
