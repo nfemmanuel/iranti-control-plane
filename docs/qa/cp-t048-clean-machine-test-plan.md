@@ -4,7 +4,7 @@
 **AC scope:** AC-11 (clean-machine validation), AC-12 (port conflict), AC-7 (version display), AC-6 (browser auto-open), AC-1/AC-2 (Windows), AC-3 (macOS), AC-4/AC-5 (Linux)
 **Prepared by:** qa_engineer
 **Date:** 2026-03-20
-**Status:** STATIC ANALYSIS COMPLETE — ISSUE-1, ISSUE-2, ISSUE-3, ISSUE-5, ISSUE-6 RESOLVED — awaiting installer artifacts from CI for manual execution (AC-11)
+**Status:** STATIC ANALYSIS COMPLETE — ISSUE-1, ISSUE-2, ISSUE-3, ISSUE-5, ISSUE-6, ISSUE-7 RESOLVED — awaiting installer artifacts from CI for manual execution (AC-11)
 
 ---
 
@@ -147,6 +147,20 @@ The local `build-macos.mjs` was correctly fixed by ISSUE-1 resolution, but the C
 - `.deb` build: The SEA binary is now placed at `/usr/share/iranti-control-plane/bin/iranti-cp`. A shell launcher wrapper at `/usr/local/bin/iranti-control-plane` sets `IRANTI_CP_ASSETS_DIR=/usr/share/iranti-control-plane/public/control-plane` and exec-replaces with the SEA binary.
 - AppImage: `AppRun` path corrected from `$HERE/usr/share/iranti-control-plane` to `$HERE/usr/share/iranti-control-plane/public/control-plane` (the correct full path to assets).
 - `package.json` for `.deb` version detection now placed alongside the SEA binary at `/usr/share/iranti-control-plane/bin/package.json`.
+
+---
+
+### ISSUE-7 — Linux AppImage version detection shows '0.0.0' ✅ RESOLVED (commit df81ef0)
+
+**Severity:** Low — version display (AC-7) would show '0.0.0' in the AppImage instead of the real version
+
+**Description:**
+
+In the AppImage context, `process.execPath` is the SEA binary at `<mount>/usr/bin/iranti-control-plane`. `dirname(process.execPath)` = `<mount>/usr/bin/`. However, `package.json` was only placed at `usr/share/iranti-control-plane/package.json` — not in `usr/bin/`. The server's version detection (`resolve(dirname(process.execPath), 'package.json')`) would silently catch the ENOENT and leave `_version = '0.0.0'`. The version shown in the startup log and `/api/control-plane/health` would be wrong.
+
+This pattern is inconsistent with macOS (package.json in `Contents/MacOS/` alongside binary), Linux `.deb` (package.json in `/usr/share/iranti-control-plane/bin/` alongside binary), and Windows (package.json in install dir alongside binary).
+
+**Resolution (commit df81ef0):** Added `package.json` copy to `APP_USR_BIN` (`usr/bin/`) in addition to `APP_USR_SHARE`, so `dirname(process.execPath)` finds it correctly.
 
 ---
 
