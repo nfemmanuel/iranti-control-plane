@@ -24,8 +24,11 @@ Phase 4 kickoff: 2026-03-21
 Current wave: Wave 10 dispatched 2026-03-21
 
 CP-T068 dispatched: 2026-03-21 (backend_developer + frontend_developer — parallel)
+CP-T068 PM-ACCEPTED: 2026-03-21 — all 12 ACs PASS, tsc clean both sides
 CP-T069 dispatched: 2026-03-21 after CP-T068 (frontend_developer)
+CP-T069 PM-ACCEPTED: 2026-03-21 — all 11 ACs PASS, tsc clean client
 CP-T070 dispatched: 2026-03-21 after CP-T068 (frontend_developer)
+CP-T070 PM-ACCEPTED: 2026-03-21 — all 8 ACs PASS, tsc clean client
 
 ---
 
