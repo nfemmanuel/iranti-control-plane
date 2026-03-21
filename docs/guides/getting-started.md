@@ -10,7 +10,7 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ## What's Available Now
 
-The following views are functional as of 2026-03-20:
+The following views are functional as of 2026-03-21 (v0.2.0-beta + Phase 3 Wave 1/2):
 
 | View | What it does |
 |---|---|
@@ -29,6 +29,7 @@ The following views are functional as of 2026-03-20:
 | **Entity Relationship Graph** | Interactive radial graph in the Entity Detail Relationships tab — depth 1 or 2, click to navigate (Phase 2 — CP-T032) |
 | **Command Palette** | Global Cmd+K / Ctrl+K palette for navigation and inline shortcuts help (Phase 2 — CP-T024/CP-T042) |
 | **Staff Logs** | Persistent, queryable Staff event history at `/logs` — filter by component, date range, severity, agent, and event type; expand rows for full payload; export as JSONL or CSV (Phase 3 — CP-T050) |
+| **Archivist History** | Per-fact Archivist event timeline in the Archive Explorer expanded row — every Archivist action on a fact with timestamp, reason, and agent. Flag facts for operator review and restore superseded values. Queue of flagged facts at `/archive?flagged=true` (Phase 3 — CP-T049) |
 
 ---
 
@@ -288,20 +289,39 @@ Run `npm run migrate` from the project root. This creates the `staff_events` tab
 
 ---
 
-## Phase 2 — In Progress
+## Phase 2 — Complete (v0.2.0-beta)
 
-Phase 2 is currently in progress as of 2026-03-20. The following features are actively being developed or are pending:
+Phase 2 shipped as v0.2.0-beta on 2026-03-20. All 18 Phase 2 tickets were PM-accepted. The following features are live:
 
 | Feature | Ticket | Status |
 |---|---|---|
-| **Embedded Chat Panel** | CP-T020 | In progress — panel shell in development |
-| **Provider and Model Manager write path** | CP-T022 | Phase 3 — read-only provider status already shipped (CP-T034/CP-T046) |
-| **CLI Setup Wizard** (`iranti setup`) | CP-T023 | In progress |
-| **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Upstream PR pending — enables live Attendant + Resolutionist events |
+| **Embedded Chat Panel** | CP-T020 | Complete — live Iranti chat, all 12 ACs |
+| **Conflict and Escalation Review** | CP-T021 | Complete — review and resolve Resolutionist escalations |
+| **Provider and Model Manager** | CP-T022 | Complete — read-only view; write path is Phase 3 |
+| **CLI Setup Wizard** (`iranti setup`) | CP-T023 | Complete — 10 ACs, macOS verified |
+| **Command Palette** | CP-T024 / CP-T042 | Complete — Cmd+K navigation, inline shortcuts help |
+| **Native Staff Emitter Injection** (Attendant + Resolutionist events) | CP-T025 | Upstream PR submitted — enables full 4-component coverage |
+| **Entity Detail + Temporal History** | CP-T036 | Complete |
+| **Staff Activity Stream Live Mode** | CP-T037 | Complete — velocity counter, hover-pause, Live/Paused badge |
+| **Integration Repair Actions** | CP-T033 | Complete |
+| **Provider Credit and Quota Visibility** | CP-T034 | Complete |
+| **Getting Started / First-Run Onboarding** | CP-T035 | Complete |
+| **Entity Relationship Graph** | CP-T032 | Complete — SVG radial graph |
+| **Provider Manager** | CP-T046 | Complete — `/providers` view, warning thresholds |
 
-**Note on the Staff Activity Stream:** The live mode UI (status badge, velocity counter, hover-pause) has shipped in Phase 2 (CP-T037). Event coverage for all four Staff components remains partial: Librarian and Archivist events are emitted; Attendant and Resolutionist events will not appear until native emitter injection ships (CP-T025). The stream UI labels this limitation explicitly.
+**Note on the Staff Activity Stream:** Event coverage for all four Staff components remains partial until CP-T025 (native emitter injection) is accepted upstream. Librarian and Archivist events are live; Attendant and Resolutionist events are labeled as "Phase 2 upstream" in the stream UI.
 
-**v0.1.0 shipped 2026-03-20.** The column naming defects (CP-D001, CP-D002) identified in QA are resolved in commit `bbdb6ee`. All regression tests pass. Design partner handoff is unblocked.
+---
+
+## Phase 3 — In Progress
+
+Phase 3 advanced operator features began shipping on 2026-03-20.
+
+| Feature | Ticket | Status |
+|---|---|---|
+| **Staff Logs View** | CP-T050 | Complete — persistent, queryable Staff event history with export |
+| **Archivist Decision Transparency** | CP-T049 | Complete — Archivist History per fact, flag for review, restore |
+| **Platform Installer Packages** | CP-T048 | In progress — implementation complete; clean-machine testing (AC-11) pending |
 
 ---
 
