@@ -119,7 +119,7 @@ writeFileSync(resolve(APPDIR, 'iranti-control-plane.desktop'), desktopEntry)
 const appRunScript = `#!/bin/bash
 # AppRun — entry point for the Iranti Control Plane AppImage
 HERE="$(dirname "$(readlink -f "${0}")")"
-export IRANTI_CP_ASSETS_DIR="$HERE/usr/share/iranti-control-plane"
+export IRANTI_CP_ASSETS_DIR="$HERE/usr/share/iranti-control-plane/public/control-plane"
 exec "$HERE/usr/bin/iranti-control-plane" "$@"
 `
 writeFileSync(resolve(APPDIR, 'AppRun'), appRunScript)
@@ -176,11 +176,27 @@ console.log('[build-linux] Step 5: Building .deb...')
 
 mkdirSync(resolve(DEB_STAGING, 'DEBIAN'), { recursive: true })
 mkdirSync(resolve(DEB_STAGING, 'usr/local/bin'), { recursive: true })
+mkdirSync(resolve(DEB_STAGING, 'usr/share/iranti-control-plane/bin'), { recursive: true })
 mkdirSync(resolve(DEB_STAGING, 'usr/share/iranti-control-plane/public/control-plane'), { recursive: true })
 mkdirSync(resolve(DEB_STAGING, 'usr/share/applications'), { recursive: true })
 
-// Copy binary
-cpSync(BINARY_SRC, resolve(DEB_STAGING, 'usr/local/bin/iranti-control-plane'))
+// Copy the SEA binary to /usr/share/.../bin/ (not /usr/local/bin/) so the
+// wrapper launcher can set IRANTI_CP_ASSETS_DIR before exec-replacing itself.
+// If we placed the SEA binary directly at /usr/local/bin/, dirname(process.execPath)
+// would be /usr/local/bin/ — not the share directory where assets live.
+cpSync(BINARY_SRC, resolve(DEB_STAGING, 'usr/share/iranti-control-plane/bin/iranti-cp'))
+chmodSync(resolve(DEB_STAGING, 'usr/share/iranti-control-plane/bin/iranti-cp'), 0o755)
+
+// Shell launcher at /usr/local/bin/ — sets IRANTI_CP_ASSETS_DIR and exec-replaces
+const debLauncherScript = `#!/bin/bash
+export IRANTI_CP_ASSETS_DIR="/usr/share/iranti-control-plane/public/control-plane"
+exec /usr/share/iranti-control-plane/bin/iranti-cp "$@"
+`
+writeFileSync(
+  resolve(DEB_STAGING, 'usr/local/bin/iranti-control-plane'),
+  debLauncherScript,
+  'utf8'
+)
 chmodSync(resolve(DEB_STAGING, 'usr/local/bin/iranti-control-plane'), 0o755)
 
 // Copy sidecar assets
@@ -188,9 +204,10 @@ cpSync(CLIENT_DIST, resolve(DEB_STAGING, 'usr/share/iranti-control-plane/public/
   recursive: true,
 })
 
-// Copy package.json
+// Copy package.json alongside the SEA binary for runtime version detection.
+// In SEA context: dirname(process.execPath) = /usr/share/iranti-control-plane/bin/
 writeFileSync(
-  resolve(DEB_STAGING, 'usr/share/iranti-control-plane/package.json'),
+  resolve(DEB_STAGING, 'usr/share/iranti-control-plane/bin/package.json'),
   readFileSync(resolve(ROOT, 'package.json'), 'utf8')
 )
 

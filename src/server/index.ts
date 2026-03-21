@@ -27,7 +27,12 @@ const __dirname = _isSea
 // In SEA context: assets are in <install-dir>/public/control-plane/
 // In dev/tsc context: assets are at <project-root>/public/control-plane/
 //   (src/server/dist/index.js -> ../../public/control-plane)
-const clientDist = _isSea
+// IRANTI_CP_ASSETS_DIR allows platform-specific launchers (macOS .app wrapper,
+// Linux AppRun) to override the asset path when the binary is inside a bundle
+// where process.execPath does not sit next to the public/ directory.
+const clientDist = process.env.IRANTI_CP_ASSETS_DIR
+  ? resolve(process.env.IRANTI_CP_ASSETS_DIR)
+  : _isSea
   ? resolve(dirname(process.execPath), 'public', 'control-plane')
   : resolve(__dirname, '../../public/control-plane')
 

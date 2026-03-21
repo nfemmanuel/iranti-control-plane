@@ -90,18 +90,36 @@ execFileSync(process.execPath, [resolve(__dirname, 'build-sea.mjs')], {
 // ---- Step 3: Assemble .app bundle ----
 console.log('[build-macos] Step 3: Assembling .app bundle...')
 
-// Copy SEA binary into MacOS/
+// Copy SEA binary into MacOS/ as `iranti-cp` (the actual executable)
 cpSync(BINARY_SRC, resolve(MACOS_DIR, 'iranti-cp'))
 execSync(`chmod +x "${resolve(MACOS_DIR, 'iranti-cp')}"`)
 
-// Copy sidecar assets into Resources/public/control-plane/
-cpSync(CLIENT_DIST, resolve(RESOURCES_DIR, 'public/control-plane'), { recursive: true })
-
-// Copy package.json for runtime version detection
+// Copy package.json alongside the binary for runtime version detection.
+// In SEA context, `process.execPath` is the binary itself, so
+// dirname(process.execPath) = Contents/MacOS/ — package.json must be here.
 writeFileSync(
-  resolve(RESOURCES_DIR, 'package.json'),
+  resolve(MACOS_DIR, 'package.json'),
   readFileSync(resolve(ROOT, 'package.json'), 'utf8')
 )
+
+// Write a shell launcher wrapper as `iranti-control-plane` in Contents/MacOS/.
+// This script is CFBundleExecutable — macOS launches it instead of the SEA
+// binary directly. It sets IRANTI_CP_ASSETS_DIR so the server finds the sidecar
+// assets in Contents/Resources/ (where macOS convention places them), then
+// exec-replaces itself with the actual SEA binary.
+// Without this wrapper, `dirname(process.execPath)` resolves to Contents/MacOS/
+// while assets are at Contents/Resources/ — a path mismatch causing 404s.
+const launcherScript = `#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUNDLE_DIR="$(dirname "$SCRIPT_DIR")"
+export IRANTI_CP_ASSETS_DIR="$BUNDLE_DIR/Resources/public/control-plane"
+exec "$SCRIPT_DIR/iranti-cp" "$@"
+`
+writeFileSync(resolve(MACOS_DIR, 'iranti-control-plane'), launcherScript, 'utf8')
+execSync(`chmod +x "${resolve(MACOS_DIR, 'iranti-control-plane')}"`)
+
+// Copy sidecar assets into Resources/public/control-plane/
+cpSync(CLIENT_DIST, resolve(RESOURCES_DIR, 'public/control-plane'), { recursive: true })
 
 // Write Info.plist
 const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
@@ -121,7 +139,7 @@ const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleExecutable</key>
-  <string>iranti-cp</string>
+  <string>iranti-control-plane</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>LSMinimumSystemVersion</key>
