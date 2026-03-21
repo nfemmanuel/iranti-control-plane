@@ -15,7 +15,7 @@
 
 Phase: 0
 Owner: system_architect, devops_engineer
-Status: In progress
+Status: **COMPLETE — 2026-03-20**
 Tier: Must Have
 Description: Architectural and design foundations for the control plane. Covers Staff event model spec, read API surface spec, instance metadata aggregation design, shell layout and visual direction exploration, and installer concept evaluation. No production code is written in this epic — all outputs are specs, wireframes, and memos. Every Phase 1 epic is blocked until CP-E001 is complete and PM-approved.
 Linked tickets: CP-T001, CP-T002, CP-T003, CP-T004, CP-T005
@@ -26,7 +26,7 @@ Linked tickets: CP-T001, CP-T002, CP-T003, CP-T004, CP-T005
 
 Phase: 1
 Owner: frontend_developer, backend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T010, CP-T013, CP-T036, CP-T032)
 Tier: Must Have
 Description: The primary read surface for Iranti's memory. Users can browse knowledge_base and archive tables with filter and search, view entity detail pages with full temporal history, and explore entity relationships. Powers FR1 and FR2 from the PRD. Blocked on CP-E001 (specifically CP-T001 event model and CP-T002 API spec).
 Linked tickets: TBD
@@ -35,9 +35,9 @@ Linked tickets: TBD
 
 ### CP-E003 — Staff Activity Stream
 
-Phase: 1
+Phase: 1–3
 Owner: backend_developer, frontend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T012, CP-T014, CP-T037, CP-T025, CP-T050)
 Tier: Must Have
 Description: Real-time or near-real-time event feed of Librarian, Attendant, Archivist, and Resolutionist activity. Operators can watch what the Staff is doing, filter by component or event level, and correlate events to specific entities and agents. Powers FR3 from the PRD. Blocked on CP-T001 (Staff event model must be specified before stream can be built).
 Linked tickets: TBD
@@ -48,7 +48,7 @@ Linked tickets: TBD
 
 Phase: 1
 Owner: backend_developer, frontend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T011, CP-T016, CP-T033)
 Tier: Must Have
 Description: A unified view of all Iranti instances and their bound projects. Shows instance runtime metadata, env file state, port configuration, project binding status, and Claude/Codex integration file presence. Powers FR4 from the PRD. Blocked on CP-T003 (metadata aggregation spec must define field sources and aggregation strategy before backend or frontend can build).
 Linked tickets: TBD
@@ -59,7 +59,7 @@ Linked tickets: TBD
 
 Phase: 1
 Owner: backend_developer, frontend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T011, CP-T015, CP-T028, CP-T029, CP-T034)
 Tier: Must Have
 Description: System health summary and diagnostic view. Shows DB connection status, Iranti service status, Staff operational state, and basic error indicators that help an operator diagnose why something isn't working without running raw queries. Powers FR5 from the PRD.
 Linked tickets: TBD
@@ -70,7 +70,7 @@ Linked tickets: TBD
 
 Phase: 1
 Owner: frontend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T017 — Terminals palette, light/dark mode)
 Tier: Must Have
 Description: Deliberate visual design system for the control plane shell. Covers finalized light and dark mode palettes, typography, spacing system, and component foundations. Must be distinctive — not a generic gray/blue admin dashboard. Builds directly on CP-T004 shell design exploration. All Phase 1 UI work depends on this foundation.
 Linked tickets: TBD
@@ -81,7 +81,7 @@ Linked tickets: TBD
 
 Phase: 2
 Owner: frontend_developer, backend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T020)
 Tier: Should Have
 Description: An embedded Iranti chat panel within the control plane shell, allowing operators to interact with Iranti without switching to another tool. Powers FR6 from the PRD. Blocked on Phase 1 completion and stable shell infrastructure.
 Linked tickets: TBD
@@ -92,7 +92,7 @@ Linked tickets: TBD
 
 Phase: 2
 Owner: frontend_developer, backend_developer
-Status: Not started
+Status: **COMPLETE — 2026-03-20** (CP-T021)
 Tier: Should Have
 Description: A UI surface for reviewing and resolving conflicts and escalations surfaced by the Resolutionist. Operators can see active conflicts, understand the source of disagreement, and take resolution actions from the control plane. Powers FR7 from the PRD. Requires Resolutionist integration design.
 Linked tickets: TBD
@@ -103,7 +103,7 @@ Linked tickets: TBD
 
 Phase: 2
 Owner: backend_developer, frontend_developer
-Status: Not started
+Status: **COMPLETE (read-only) — 2026-03-20** (CP-T022, CP-T034, CP-T046). Write path deferred to Phase 3.
 Tier: Should Have
 Description: View and configure active LLM providers and models from the control plane without manually editing env files or config. Covers provider list, active model per Staff component, and basic configuration actions. Powers FR8 from the PRD.
 Linked tickets: TBD
@@ -112,9 +112,9 @@ Linked tickets: TBD
 
 ### CP-E010 — Installation & Onboarding
 
-Phase: 2
+Phase: 2–3
 Owner: devops_engineer, frontend_developer
-Status: Not started
+Status: **Phase 2 COMPLETE — 2026-03-20** (CP-T023 CLI wizard, CP-T035 Getting Started view). Phase 3: CP-T048 platform installers in progress — implementation complete, AC-11 testing pending.
 Tier: Should Have
 Description: A dramatically simpler Iranti installation and first-run experience. Based directly on the CP-T005 concept memo recommendation. Scope — whether a dedicated installer, a guided setup flow embedded in the control plane, or a hybrid — is determined in Phase 0. Must address the top failure points in the current setup path. Powers FR9 and ER5 from the PRD. Tickets for this epic must not be cut until CP-T005 is PM-approved.
 Linked tickets: TBD
@@ -134,11 +134,25 @@ As a [persona], I want [capability] so that [outcome].
 
 Tasks will be assigned per story during sprint planning within each phase.
 
+---
+
+### CP-E011 — Advanced Operator Features (Phase 3)
+
+Phase: 3
+Owner: backend_developer, frontend_developer, devops_engineer
+Status: **IN PROGRESS** — CP-T050 COMPLETE, CP-T049 COMPLETE, CP-T048 implementation complete (AC-11 pending)
+Tier: Should Have
+Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), and platform-native installer packages for zero-Node.js installation on Windows, macOS, and Linux (CP-T048).
+Linked tickets: CP-T050, CP-T049, CP-T048
+
+---
+
 ## Subtasks
 
-- [ ] Phase 0: All 5 tickets (CP-T001 through CP-T005) assigned and accepted by agents
-- [ ] Phase 0: All 5 specs/memos produced and submitted for PM review
-- [ ] Phase 0: All 5 specs/memos PM-approved before Phase 1 tickets are cut
-- [ ] Phase 1: CP-E002 through CP-E006 features decomposed after Phase 0 exit
-- [ ] Phase 2: CP-E007 through CP-E010 features decomposed after Phase 1 exit
-- [ ] Phase 3: Scope defined after Phase 2 retrospective
+- [x] Phase 0: All 5 tickets (CP-T001 through CP-T005) assigned and accepted by agents
+- [x] Phase 0: All 5 specs/memos produced and submitted for PM review
+- [x] Phase 0: All 5 specs/memos PM-approved before Phase 1 tickets are cut
+- [x] Phase 1: CP-E002 through CP-E006 features decomposed and delivered — all PM-accepted 2026-03-20
+- [x] Phase 2: CP-E007 through CP-E010 features decomposed and delivered — all PM-accepted 2026-03-20
+- [x] Phase 3: Scope defined after Phase 2 retrospective — CP-E011 defined, 3 tickets in flight
+- [ ] Phase 3: CP-T048 clean-machine testing (AC-11) — blocked on CI artifact availability
