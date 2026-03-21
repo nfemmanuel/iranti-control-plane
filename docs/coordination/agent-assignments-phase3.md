@@ -1445,18 +1445,23 @@ Returns `{ entityTypes: [{ entityType, factCount, lastUpdatedAt }], total }`.
 
 ## CP-T025 — Carryover: Native Emitter PR Diff Files
 
-**Status:** Carryover from Phase 2 — spec PM-approved; diff files NOT yet produced
+**Status:** DIFF FILES PRODUCED — 2026-03-21 — upstream submission PENDING (repo path unconfirmed)
 **Assigned:** system_architect
 **Priority:** P1 (long-deferred, but critical for full Staff Activity Stream coverage)
 
-**Context:** The CP-T025 spec (`docs/specs/cp-t025-emitter-design.md` — 1,035 lines, PM-approved 2026-03-20) and upstream PR description (`docs/specs/cp-t025-upstream-pr.md` — 298 lines) are complete. The system_architect was assigned to produce actual TypeScript diff files (7 files covering all 4 Staff components) but this was never confirmed complete. The upstream PR remains unsubmitted.
+**Context:** The CP-T025 spec (`docs/specs/cp-t025-emitter-design.md` — 1,035 lines, PM-approved 2026-03-20) and upstream PR description (`docs/specs/cp-t025-upstream-pr.md` — 298 lines) are complete. The system_architect produced 7 TypeScript diff files (2026-03-21) in `docs/specs/cp-t025-diffs/` covering all 4 Staff components — 19 total emit() call sites. The upstream PR has NOT yet been submitted.
 
-**Why this still matters:** Until the upstream PR is merged, the Staff Activity Stream shows Librarian and Archivist events only. Attendant events (handshake, attend, reconvene) and Resolutionist events (resolution filed, escalation deferred) are completely invisible in the control plane — including B11 (attend classifier failure), which v0.2.13 partially fixes but still cannot be observed.
+**Diff files produced (2026-03-21):**
+- `src-lib-staffEventEmitter.ts.diff` — new IStaffEventEmitter interface + implementation
+- `src-lib-staffEventRegistry.ts.diff` — new singleton registry + DI helpers
+- `src-librarian-index.ts.diff` — 7 emit() call sites
+- `src-attendant-AttendantInstance.ts.diff` — 5 emit() call sites
+- `src-archivist-index.ts.diff` — 5 emit() call sites
+- `src-resolutionist-index.ts.diff` — 2 emit() call sites
+- `src-sdk-index.ts.diff` — exports IStaffEventEmitter to public SDK surface
 
-**Action for system_architect:**
-1. Read `docs/specs/cp-t025-emitter-design.md` and `docs/specs/cp-t025-upstream-pr.md`
-2. Confirm or produce the 7 TypeScript diff files
-3. Confirm the target upstream repository and submission path (`nfemmanuel/iranti` on GitHub, based on `docs/specs/cp-t023-wizard-design.md`)
-4. Report back to PM with diff file locations, submission status, and any blockers
+**Open question:** GitHub repo path not confirmed from spec. The spec references the `iranti` npm package at `C:\Users\NF\AppData\Roaming\npm\node_modules\iranti\`. The `docs/specs/cp-t023-wizard-design.md` referenced `nfemmanuel/iranti` as the likely target — but this must be confirmed by the user before PR submission.
 
-**This is not a new ticket** — it is the outstanding Part 2 deliverable from CP-T025. Track in Iranti memory under `ticket/cp-t025`.
+**Next action:** User to confirm the upstream repo org/name, then submit the PR using the diff files and PR description from `docs/specs/cp-t025-upstream-pr.md`. PR title: `feat: add IStaffEventEmitter injection for observability integrations`.
+
+**Why this still matters:** Until the upstream PR is merged, the Staff Activity Stream shows Librarian and Archivist events only. Attendant events (handshake, attend, reconvene) and Resolutionist events (resolution filed, escalation deferred) are completely invisible in the control plane.
