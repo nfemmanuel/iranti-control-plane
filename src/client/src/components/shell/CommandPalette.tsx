@@ -224,6 +224,21 @@ export function CommandPalette({ onClose, onToggleDarkMode }: CommandPaletteProp
         onClose()
       },
     },
+    {
+      type: 'action' as const,
+      id: 'action-run-diagnostics',
+      label: 'Run Diagnostics',
+      icon: '⚕',
+      onActivate: () => {
+        // Navigate to health, then signal the DiagnosticsPanel to start a run
+        navigate('/health')
+        // Dispatch after a frame to allow the HealthDashboard to mount and register its listener
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new CustomEvent('iranti:run-diagnostics'))
+        })
+        onClose()
+      },
+    },
   ], [onToggleDarkMode, navigate, onClose])
 
   // All commands available (nav + actions)

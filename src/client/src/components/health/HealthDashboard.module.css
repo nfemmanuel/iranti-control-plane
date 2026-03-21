@@ -685,3 +685,275 @@
 .providerBannerLink:hover {
   color: var(--color-text-primary);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T059: Interactive Diagnostics Panel
+   ────────────────────────────────────────────────────────────────── */
+
+/* Section wrapper — same structural rhythm as capabilitySection */
+.diagnosticsSection {
+  flex-shrink: 0;
+  padding: 0 var(--section-padding) var(--space-4);
+}
+
+.diagnosticsSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-3);
+}
+
+.diagnosticsSectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Run Diagnostics button — primary-style */
+.runDiagnosticsBtn {
+  height: 30px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.runDiagnosticsBtn:hover:not(:disabled) {
+  background: var(--color-accent-subtle);
+}
+
+.runDiagnosticsBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Loading spinner (CSS-only ring) */
+.diagSpinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-accent-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: diagSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes diagSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error message strip */
+.diagErrorStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  color: var(--color-status-error);
+  margin-top: var(--space-2);
+}
+
+/* ── Summary banner ── */
+
+.diagSummaryBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid;
+  margin-bottom: var(--space-3);
+}
+
+.diagSummaryPass {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+
+.diagSummaryWarn {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+
+.diagSummaryFail {
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+
+/* Collapsible panel */
+.diagPanelToggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.diagPanelToggle:hover {
+  color: var(--color-text-secondary);
+}
+
+/* ── Results table ── */
+
+.diagTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.diagTable thead tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.diagTable th {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-tertiary);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+
+.diagTable th:last-child {
+  text-align: right;
+}
+
+.diagTable td {
+  padding: var(--space-2);
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+
+.diagTable tr:last-child td {
+  border-bottom: none;
+}
+
+.diagCheckName {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+/* Status badge — pass / warn / fail — consistent with existing SeverityBadge pattern */
+.diagStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.diagBadgePass {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+
+.diagBadgeWarn {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+
+.diagBadgeFail {
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+
+/* Duration — right-aligned, monospace */
+.diagDuration {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Message + fix hint cell */
+.diagMessageCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.diagMessage {
+  color: var(--color-text-secondary);
+}
+
+.diagFixHint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
+}
+
+/* Inline monospace for iranti commands in fix hints */
+.diagInlineCode {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-accent-primary);
+  background: var(--color-accent-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: 0 3px;
+}
+
+/* Last-run metadata line */
+.diagLastRunMeta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}
+
+/* Last-run collapsed summary below the button row */
+.diagLastRunCollapsed {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.diagPanelContainer {
+  margin-top: var(--space-3);
+}

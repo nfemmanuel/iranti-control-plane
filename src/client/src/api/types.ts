@@ -482,3 +482,22 @@ export interface AgentsListResponse {
   agents: AgentRecord[]
   total: number
 }
+
+/* ------------------------------------------------------------------ */
+/*  Diagnostics (CP-T059)                                              */
+/* ------------------------------------------------------------------ */
+
+export interface DiagnosticCheckResult {
+  check: string
+  status: 'pass' | 'warn' | 'fail'
+  message: string
+  fixHint: string | null
+  durationMs: number
+}
+
+export interface DiagnosticRunResult {
+  runAt: string
+  overallStatus: 'pass' | 'warn' | 'fail'
+  checks: DiagnosticCheckResult[]
+  totalDurationMs: number
+}

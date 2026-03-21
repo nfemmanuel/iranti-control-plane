@@ -3,11 +3,11 @@
 /* CP-T016 — All 10 health checks, auto-refresh, remediation guidance */
 /* CP-T028 — Four-tier severity taxonomy: CRITICAL / WARNING / INFO / HEALTHY */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
-import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
+import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { ProviderStatusSection } from './ProviderStatus'
@@ -690,12 +690,293 @@ function CapabilityHealthSection({
 }
 
 /* ------------------------------------------------------------------ */
+/*  CP-T059: Diagnostics panel                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Human-friendly labels for the 7 diagnostic checks.
+ * Internal key → display name.
+ */
+const DIAG_CHECK_LABELS: Record<string, string> = {
+  iranti_connectivity: 'Iranti Connectivity',
+  iranti_auth:         'API Key Auth',
+  db_connectivity:     'Database',
+  vector_backend:      'Vector Backend',
+  ingest_roundtrip:    'Memory Round-Trip',
+  attend_check:        'Attendant',
+  vector_search_check: 'Vector Search',
+}
+
+function getDiagCheckLabel(check: string): string {
+  return DIAG_CHECK_LABELS[check] ?? check.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+/**
+ * Render a fix hint string, converting `iranti ...` command tokens into
+ * inline monospace spans. Detects substrings matching /iranti \S+/ pattern.
+ */
+function DiagFixHint({ hint }: { hint: string }) {
+  // Split on `iranti <command>` tokens to inline-highlight them
+  const parts = hint.split(/(iranti\s+\S+(?:\s+\S+)*)/g)
+  return (
+    <span className={styles.diagFixHint}>
+      {parts.map((part, i) =>
+        /^iranti\s/.test(part)
+          ? <code key={i} className={styles.diagInlineCode}>{part}</code>
+          : part
+      )}
+    </span>
+  )
+}
+
+/** Status badge for a diagnostic check — pass/warn/fail */
+function DiagStatusBadge({ status }: { status: DiagnosticCheckResult['status'] }) {
+  const labelMap: Record<DiagnosticCheckResult['status'], string> = {
+    pass: 'Pass',
+    warn: 'Warn',
+    fail: 'Fail',
+  }
+  const classMap: Record<DiagnosticCheckResult['status'], string> = {
+    pass: styles.diagBadgePass,
+    warn: styles.diagBadgeWarn,
+    fail: styles.diagBadgeFail,
+  }
+  return (
+    <span className={`${styles.diagStatusBadge} ${classMap[status]}`} aria-label={`Status: ${labelMap[status]}`}>
+      {labelMap[status]}
+    </span>
+  )
+}
+
+/** Summary banner at top of results panel */
+function DiagSummaryBanner({ result }: { result: DiagnosticRunResult }) {
+  const failCount = result.checks.filter(c => c.status === 'fail').length
+  const warnCount = result.checks.filter(c => c.status === 'warn').length
+
+  if (result.overallStatus === 'pass') {
+    return (
+      <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryPass}`} role="status">
+        <span aria-hidden="true">✓</span>
+        All checks passed
+      </div>
+    )
+  }
+  if (result.overallStatus === 'warn') {
+    return (
+      <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryWarn}`} role="status">
+        <span aria-hidden="true">⚠</span>
+        {warnCount} warning{warnCount !== 1 ? 's' : ''} — system functional but degraded
+      </div>
+    )
+  }
+  return (
+    <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryFail}`} role="alert">
+      <span aria-hidden="true">✗</span>
+      {failCount} failure{failCount !== 1 ? 's' : ''} detected — action required
+    </div>
+  )
+}
+
+/** Full diagnostics results panel — renders when expanded */
+function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
+  return (
+    <div className={styles.diagPanelContainer} aria-label="Diagnostic results">
+      <DiagSummaryBanner result={result} />
+      <table className={styles.diagTable} aria-label="Diagnostic check results">
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Status</th>
+            <th>Message</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.checks.map(check => (
+            <tr key={check.check}>
+              <td className={styles.diagCheckName}>{getDiagCheckLabel(check.check)}</td>
+              <td><DiagStatusBadge status={check.status} /></td>
+              <td>
+                <div className={styles.diagMessageCell}>
+                  <span className={styles.diagMessage}>{check.message}</span>
+                  {check.fixHint && <DiagFixHint hint={check.fixHint} />}
+                </div>
+              </td>
+              <td className={styles.diagDuration}>{check.durationMs}ms</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/**
+ * Interactive Diagnostics Panel — CP-T059.
+ *
+ * Renders:
+ *  - "Run Diagnostics" button (with loading state)
+ *  - Error strip on failure
+ *  - Results panel (collapsible; expanded after a run, collapsed on page load)
+ *  - "Last Run" collapsed summary on page load if a previous result exists
+ *
+ * Accepts an optional `onRunRequest` callback so the command palette can
+ * trigger a run from outside the component via a CustomEvent.
+ */
+function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) {
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<DiagnosticRunResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [lastRun, setLastRun] = useState<DiagnosticRunResult | null>(null)
+  const [lastRunLoaded, setLastRunLoaded] = useState(false)
+  // Track whether the current result came from a user-triggered run (expanded) or page load (collapsed)
+  const [resultIsFromRun, setResultIsFromRun] = useState(false)
+
+  // On mount: fetch last run result; 404 = no previous run (show nothing)
+  useEffect(() => {
+    let cancelled = false
+    const fetchLast = async () => {
+      try {
+        const res = await fetch('/api/control-plane/diagnostics/last')
+        if (res.status === 404) {
+          if (!cancelled) setLastRunLoaded(true)
+          return
+        }
+        if (res.ok) {
+          const data = await res.json() as DiagnosticRunResult
+          if (!cancelled) {
+            setLastRun(data)
+            setLastRunLoaded(true)
+          }
+        } else {
+          if (!cancelled) setLastRunLoaded(true)
+        }
+      } catch {
+        if (!cancelled) setLastRunLoaded(true)
+      }
+    }
+    void fetchLast()
+    return () => { cancelled = true }
+  }, [])
+
+  const runDiagnostics = useCallback(async () => {
+    if (running) return // guard against double-trigger
+    setRunning(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/control-plane/diagnostics/run', { method: 'POST' })
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`)
+      }
+      const data = await res.json() as DiagnosticRunResult
+      setResult(data)
+      setResultIsFromRun(true)
+      setExpanded(true)
+      // Update the last-run record too
+      setLastRun(data)
+    } catch {
+      setError('Diagnostics unavailable. Check that the control plane server is running.')
+    } finally {
+      setRunning(false)
+    }
+  }, [running])
+
+  // Listen for external run signal (command palette)
+  const prevSignalRef = useRef(0)
+  useEffect(() => {
+    if (externalRunSignal > prevSignalRef.current) {
+      prevSignalRef.current = externalRunSignal
+      void runDiagnostics()
+    }
+  }, [externalRunSignal, runDiagnostics])
+
+  // The active result: prefer the live run result; fall back to lastRun for the collapsed last-run UI
+  const activeResult = result ?? (resultIsFromRun ? null : lastRun)
+
+  return (
+    <section className={styles.diagnosticsSection} aria-labelledby="diagnostics-heading">
+      <div className={styles.diagnosticsSectionHeader}>
+        <h2 id="diagnostics-heading" className={styles.diagnosticsSectionTitle}>
+          Diagnostics
+        </h2>
+        <button
+          className={styles.runDiagnosticsBtn}
+          onClick={() => void runDiagnostics()}
+          disabled={running}
+          type="button"
+          aria-label="Run diagnostic checks"
+          aria-busy={running}
+        >
+          {running && <span className={styles.diagSpinner} aria-hidden="true" />}
+          {running ? 'Running diagnostics…' : 'Run Diagnostics'}
+        </button>
+
+        {/* Collapse/expand toggle — only visible when there is a result to show */}
+        {activeResult && (
+          <button
+            className={styles.diagPanelToggle}
+            onClick={() => setExpanded(e => !e)}
+            type="button"
+            aria-expanded={expanded}
+            aria-controls="diag-results-panel"
+          >
+            {expanded ? '▲ Collapse' : '▼ Expand'}
+          </button>
+        )}
+
+        {/* Last-run timestamp metadata */}
+        {lastRun && lastRunLoaded && !running && (
+          <span className={styles.diagLastRunMeta} aria-live="polite">
+            Last run: {new Date(lastRun.runAt).toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+
+      {/* Error state */}
+      {error && (
+        <div className={styles.diagErrorStrip} role="alert">
+          <span aria-hidden="true">✗</span>
+          {error}
+        </div>
+      )}
+
+      {/* Collapsed last-run summary — shown on page load if last run exists and panel is not expanded */}
+      {lastRunLoaded && lastRun && !expanded && !running && (
+        <div className={styles.diagLastRunCollapsed}>
+          <DiagStatusBadge status={lastRun.overallStatus} />
+          <span>
+            {lastRun.overallStatus === 'pass' && 'All checks passed'}
+            {lastRun.overallStatus === 'warn' && `${lastRun.checks.filter(c => c.status === 'warn').length} warning(s)`}
+            {lastRun.overallStatus === 'fail' && `${lastRun.checks.filter(c => c.status === 'fail').length} failure(s) detected`}
+          </span>
+          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
+            {lastRun.totalDurationMs}ms total
+          </span>
+        </div>
+      )}
+
+      {/* Expanded results panel */}
+      {expanded && activeResult && (
+        <div id="diag-results-panel">
+          <DiagResultsPanel result={activeResult} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                      */
 /* ------------------------------------------------------------------ */
 
 export function HealthDashboard() {
   const [refreshingManual, setRefreshingManual] = useState(false)
   const manualRefetchRef = useRef<(() => Promise<unknown>) | null>(null)
+
+  // CP-T059: Signal from command palette to trigger a diagnostics run
+  // Incremented each time the palette fires `iranti:run-diagnostics`
+  const [diagRunSignal, setDiagRunSignal] = useState(0)
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<HealthResponse, Error>({
     queryKey: ['health'],
@@ -718,6 +999,13 @@ export function HealthDashboard() {
   )
 
   manualRefetchRef.current = refetch
+
+  // CP-T059: Listen for `iranti:run-diagnostics` event dispatched by command palette
+  useEffect(() => {
+    const handler = () => setDiagRunSignal(s => s + 1)
+    window.addEventListener('iranti:run-diagnostics', handler)
+    return () => window.removeEventListener('iranti:run-diagnostics', handler)
+  }, [])
 
   const handleManualRefresh = async () => {
     setRefreshingManual(true)
@@ -859,6 +1147,9 @@ export function HealthDashboard() {
           attendant={data.attendant}
         />
       )}
+
+      {/* CP-T059: Interactive Diagnostics Panel */}
+      <DiagnosticsPanel externalRunSignal={diagRunSignal} />
 
       {/* CP-T034: Provider status section — key presence, reachability, models */}
       {!isLoading && <ProviderStatusSection />}

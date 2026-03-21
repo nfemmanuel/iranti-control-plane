@@ -417,10 +417,10 @@ function FilterBar({
         <input
           type="text"
           className={styles.filterInput}
-          placeholder="Created by"
+          placeholder="Written by"
           value={filters.createdBy}
           onChange={setField('createdBy')}
-          aria-label="Filter by creator agent"
+          aria-label="Filter by writer agent"
         />
         <label className={styles.filterToggleLabel}>
           <input
@@ -627,7 +627,13 @@ export function MemoryExplorer() {
     }
   }, [filters])
 
-  const facts = data?.items ?? []
+  // CP-T059 AC-9: Exclude __diagnostics__ probe entities from default browse view.
+  // When the operator explicitly filters by entityType === '__diagnostics__', show them.
+  // This is a UI default filter only — no data is deleted or hidden from the API.
+  const rawFacts = data?.items ?? []
+  const facts = filters.entityType === '__diagnostics__'
+    ? rawFacts
+    : rawFacts.filter(f => f.entityType !== '__diagnostics__')
   const total = data?.total ?? 0
 
   const handleSort = (column: SortColumn) => {
@@ -686,7 +692,7 @@ export function MemoryExplorer() {
               >
                 Source <SortIndicator column="source" sort={sort} />
               </th>
-              <th>Created by</th>
+              <th>Written by</th>
               <th>Valid from</th>
               <th
                 className={styles.thSortable}
