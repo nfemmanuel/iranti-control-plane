@@ -140,9 +140,9 @@ Tasks will be assigned per story during sprint planning within each phase.
 
 Phase: 3
 Owner: backend_developer, frontend_developer, devops_engineer
-Status: **IN PROGRESS** — Wave 1–4 complete; Wave 5 in progress
+Status: **IN PROGRESS** — Wave 1–4 complete; Wave 5 PM-ACCEPTED 2026-03-21
 Tier: Should Have
-Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), platform-native installer packages (CP-T048), Agent Registry View (CP-T051), Health extensions (CP-T052), Memory Explorer field label improvements (CP-T053), temporal asOf query (CP-T056), WhoKnows contributor panel (CP-T057), and operator guidance UX labels (CP-T058).
+Description: Power-user features for operators running Iranti at scale. Persistent Staff event log history (CP-T050), Archivist decision transparency and operator review/restore (CP-T049), platform-native installer packages (CP-T048), Agent Registry View (CP-T051), Health extensions (CP-T052), Memory Explorer field label improvements (CP-T053), temporal asOf query (CP-T056), WhoKnows contributor panel (CP-T057), and operator guidance UX labels (CP-T058). Wave 5 tickets (CP-T056, CP-T057, CP-T058) PM-ACCEPTED 2026-03-21.
 Linked tickets: CP-T050, CP-T049, CP-T048, CP-T051, CP-T052, CP-T053, CP-T056, CP-T057, CP-T058
 
 ---
@@ -153,10 +153,22 @@ Linked tickets: CP-T050, CP-T049, CP-T048, CP-T051, CP-T052, CP-T053, CP-T056, C
 
 Phase: 3
 Owner: backend_developer, frontend_developer
-Status: **OPEN** — scoped 2026-03-21; first ticket CP-T059 issued for Wave 6
+Status: **IN PROGRESS** — backend PM-ACCEPTED 2026-03-21; frontend pending (Wave 6)
 Tier: Should Have
 Description: An active diagnostic surface within the control plane, beyond the passive Health Dashboard. Operators can trigger live connectivity checks, Staff round-trip tests (ingest write/read, attend probe, vector search quality), and receive actionable fix suggestions from within the UI — equivalent to `iranti doctor` but with richer output and operator guidance. Powers a key operator workflow: "something's wrong, diagnose it from the control plane."
 Linked tickets: CP-T059
+
+---
+
+### CP-E013 — Metrics Dashboard (Phase 3)
+
+Phase: 3
+Owner: backend_developer, frontend_developer
+Status: **OPEN** — stub ticket CP-T060 drafted 2026-03-21; scope reviewed and ready for Wave 7 dispatch
+Tier: Nice to Have
+Description: Time-dimension view of Iranti operational signals. KB growth rate, agent write volume, rejection and escalation trends — all derived from the existing `staff_events` table (CP-T039). Completes the "passive → interactive → historical" progression of the Health/Diagnostics surface. Operators can answer "how fast is the KB growing?" and "which agents have been most active this week?" for the first time.
+PM Scope Notes (2026-03-21): SVG-native charts only (no Recharts/Chart.js/canvas). Periods: 7d and 30d at MVP (90d deferred). totalFacts from staff_events WRITE_ACCEPTED accumulation (not live /kb/query). Backend should index staff_events on (timestamp, agent_id, action_type). AC-9 empty state: show if staff_events has 0 rows.
+Linked tickets: CP-T060
 
 ---
 
@@ -170,5 +182,6 @@ Linked tickets: CP-T059
 - [x] Phase 3: Scope defined after Phase 2 retrospective — CP-E011 defined, tickets in flight
 - [x] Phase 3 Wave 4: CP-T051, CP-T052, CP-T053 — PM-ACCEPTED 2026-03-21
 - [ ] Phase 3: CP-T048 clean-machine testing (AC-11) — blocked on CI artifact availability
-- [ ] Phase 3 Wave 5: CP-T056, CP-T057, CP-T058 — open, issued 2026-03-21
-- [ ] Phase 3 Wave 6: CP-T059 (Interactive Diagnostics Panel, CP-E012) — open, issued 2026-03-21
+- [x] Phase 3 Wave 5: CP-T056, CP-T057, CP-T058 — PM-ACCEPTED 2026-03-21
+- [ ] Phase 3 Wave 6: CP-T059 backend PM-ACCEPTED 2026-03-21; CP-T059 frontend pending
+- [ ] Phase 3 Wave 7: CP-T060 (Metrics Dashboard, CP-E013) — stub ready, dispatch pending
