@@ -115,6 +115,19 @@ export interface PaginatedResponse<T> {
   offset: number
 }
 
+// ---------------------------------------------------------------------------
+// asOf point-in-time query result  (CP-T056)
+// ---------------------------------------------------------------------------
+
+export interface AsOfQueryResult {
+  entityType: string
+  entityId: string
+  key: string
+  asOf: string
+  /** The fact that was active at asOf, or null if none existed */
+  fact: HistoryInterval | null
+}
+
 // DB row to camelCase conversion utility
 export function snakeToCamel(row: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(

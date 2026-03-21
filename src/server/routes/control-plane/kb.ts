@@ -19,6 +19,7 @@ import {
   KBFact,
   ArchiveFact,
   HistoryInterval,
+  AsOfQueryResult,
   Relationship,
   createApiError,
   parsePagination,
@@ -731,6 +732,153 @@ kbRouter.get(
         edges: allEdges,
         truncated,
       })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// GET /entities/:entityType/:entityId/query/:key?asOf=<ISO>&includeExpired=true
+//
+// CP-T056 — Point-in-time fact query.
+// Returns the fact (from KB or archive) whose validity interval contained the
+// requested timestamp.  Logic mirrors Iranti's own /kb/query?asOf endpoint:
+//   active candidate  = KB row where validFrom <= asOf AND (validUntil IS NULL OR validUntil > asOf)
+//   archived candidate = archive row where validFrom <= asOf AND validUntil > asOf
+//   (includeExpired is accepted as a param but always treated as true here since
+//    this is an operator point-in-time debug tool)
+//
+// Must be registered before /entities/:entityType/:entityId to avoid prefix capture.
+// ---------------------------------------------------------------------------
+
+kbRouter.get(
+  '/entities/:entityType/:entityId/query/:key',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { entityType, entityId, key } = req.params
+      const asOfRaw = req.query.asOf as string | undefined
+
+      if (!asOfRaw) {
+        throw createApiError('asOf query parameter is required', 'INVALID_PARAM', 400, {
+          field: 'asOf',
+        })
+      }
+
+      const asOfDate = parseIsoDate(asOfRaw, 'asOf')
+      if (!asOfDate) {
+        throw createApiError('asOf must be a valid ISO 8601 timestamp', 'INVALID_PARAM', 400, {
+          field: 'asOf',
+          received: asOfRaw,
+        })
+      }
+
+      const asOfIso = asOfDate.toISOString()
+
+      // Check KB first: a fact is active at asOf if validFrom <= asOf AND
+      // (validUntil IS NULL OR validUntil > asOf).
+      const kbResult = await query(
+        `SELECT
+          id::text                AS id,
+          "valueSummary",
+          "valueRaw",
+          confidence,
+          "createdBy"             AS "agentId",
+          source                  AS "providerSource",
+          "validFrom",
+          "validUntil",
+          "createdAt"
+        FROM knowledge_base
+        WHERE "entityType" = $1
+          AND "entityId"   = $2
+          AND key          = $3
+          AND ("validFrom" IS NULL OR "validFrom" <= $4)
+          AND ("validUntil" IS NULL OR "validUntil" > $4)
+        ORDER BY "validFrom" DESC NULLS LAST
+        LIMIT 1`,
+        [entityType, entityId, key, asOfIso]
+      )
+
+      if (kbResult.rows.length > 0) {
+        const r = kbResult.rows[0] as Record<string, unknown>
+        const fact: HistoryInterval = {
+          id: String(r.id),
+          source: 'kb',
+          valueSummary: (r.valueSummary as string | null) ?? null,
+          valueRaw: serializeFullValueRaw(r.valueRaw),
+          confidence: Number(r.confidence ?? 0),
+          agentId: (r.agentId as string | null) ?? null,
+          providerSource: (r.providerSource as string | null) ?? null,
+          validFrom: toIso(r.validFrom),
+          validUntil: toIso(r.validUntil),
+          archivedAt: null,
+          archivedReason: null,
+          supersededBy: null,
+          resolutionState: null,
+          conflictLog: null,
+          createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+        }
+        const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
+        res.json(result)
+        return
+      }
+
+      // Fallback to archive: find the row whose interval contained asOf.
+      const archiveResult = await query(
+        `SELECT
+          id::text                AS id,
+          "valueSummary",
+          "valueRaw",
+          confidence,
+          "createdBy"             AS "agentId",
+          source                  AS "providerSource",
+          "validFrom",
+          "validUntil",
+          "archivedAt",
+          "archivedReason",
+          "supersededBy"::text    AS "supersededBy",
+          "resolutionState",
+          "conflictLog",
+          "createdAt"
+        FROM archive
+        WHERE "entityType" = $1
+          AND "entityId"   = $2
+          AND key          = $3
+          AND ("validFrom" IS NULL OR "validFrom" <= $4)
+          AND "validUntil" IS NOT NULL
+          AND "validUntil" > $4
+        ORDER BY "validFrom" DESC NULLS LAST
+        LIMIT 1`,
+        [entityType, entityId, key, asOfIso]
+      )
+
+      if (archiveResult.rows.length > 0) {
+        const r = archiveResult.rows[0] as Record<string, unknown>
+        const fact: HistoryInterval = {
+          id: String(r.id),
+          source: 'archive',
+          valueSummary: (r.valueSummary as string | null) ?? null,
+          valueRaw: serializeFullValueRaw(r.valueRaw),
+          confidence: Number(r.confidence ?? 0),
+          agentId: (r.agentId as string | null) ?? null,
+          providerSource: (r.providerSource as string | null) ?? null,
+          validFrom: toIso(r.validFrom),
+          validUntil: toIso(r.validUntil),
+          archivedAt: toIso(r.archivedAt),
+          archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
+          supersededBy: (r.supersededBy as string | null) ?? null,
+          resolutionState: (r.resolutionState as string | null) ?? null,
+          conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
+          createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+        }
+        const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
+        res.json(result)
+        return
+      }
+
+      // No fact existed at this point in time
+      const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact: null }
+      res.json(result)
     } catch (err) {
       next(err)
     }
