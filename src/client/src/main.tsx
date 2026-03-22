@@ -15,6 +15,7 @@ import { GettingStarted } from './components/onboarding/GettingStarted'
 import { ConflictReview } from './components/conflicts/ConflictReview'
 import { ProviderManager } from './components/providers/ProviderManager'
 import { AgentRegistry } from './components/agents/AgentRegistry'
+import { SessionsView } from './components/sessions/SessionsView'
 import { MetricsDashboard } from './components/metrics/MetricsDashboard'
 import { OverviewDashboard } from './components/overview/OverviewDashboard'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
@@ -83,6 +84,7 @@ createRoot(rootEl).render(
                 <Route path="conflicts" element={<ConflictReview />} />
                 <Route path="providers" element={<ProviderManager />} />
                 <Route path="agents" element={<AgentRegistry />} />
+                <Route path="sessions" element={<SessionsView />} />
                 <Route path="settings" element={<PlaceholderView label="Settings — Phase 2" />} />
               </Route>
             </Routes>

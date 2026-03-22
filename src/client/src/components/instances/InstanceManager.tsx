@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { InstanceMetadata, InstanceListResponse, DoctorResponse } from '../../api/types'
+import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { DoctorDrawer } from './DoctorDrawer'
 import styles from './InstanceManager.module.css'
@@ -184,6 +184,179 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
+/* ------------------------------------------------------------------ */
+/*  CP-T072: Runtime Lifecycle section                                  */
+/* ------------------------------------------------------------------ */
+
+function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus }) {
+  switch (runtimeStatus) {
+    case 'running':
+      return (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--color-status-success)',
+          background: 'var(--color-status-success-bg)',
+          border: '1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent)',
+          borderRadius: 'var(--border-radius-sm)',
+          padding: '2px 7px',
+        }}>
+          <span style={{
+            display: 'inline-block',
+            width: '7px',
+            height: '7px',
+            borderRadius: '50%',
+            background: 'var(--color-status-success)',
+            boxShadow: '0 0 4px var(--color-status-success)',
+          }} aria-hidden="true" />
+          RUNNING
+        </span>
+      )
+    case 'stale':
+      return (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--color-status-warning)',
+          background: 'var(--color-status-warning-bg)',
+          border: '1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent)',
+          borderRadius: 'var(--border-radius-sm)',
+          padding: '2px 7px',
+        }}>
+          ⚠ STALE
+        </span>
+      )
+    case 'stopped':
+      return (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--color-text-tertiary)',
+          background: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--border-radius-sm)',
+          padding: '2px 7px',
+        }}>
+          ○ STOPPED
+        </span>
+      )
+    case 'unknown':
+    default:
+      return null
+  }
+}
+
+function RuntimeLifecycleSection({
+  runtime,
+  runtimeStatus,
+}: {
+  runtime: IrantiRuntimeMetadata | null | undefined
+  runtimeStatus: RuntimeStatus | undefined
+}) {
+  // No runtime fields at all means backend hasn't been updated yet — skip section entirely
+  if (runtime === undefined && runtimeStatus === undefined) return null
+
+  if (runtime === null || runtimeStatus === 'unknown') {
+    return (
+      <div style={{
+        fontSize: '12px',
+        color: 'var(--color-text-tertiary)',
+        fontStyle: 'italic',
+        marginTop: '4px',
+      }}>
+        Runtime metadata unavailable — instance started without{' '}
+        <code style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '11px',
+          background: 'var(--color-bg-elevated)',
+          padding: '1px 4px',
+          borderRadius: 'var(--border-radius-sm)',
+          color: 'var(--color-accent-primary)',
+        }}>
+          iranti run
+        </code>
+      </div>
+    )
+  }
+
+  const isStale = runtimeStatus === 'stale'
+  const effectiveStatus: RuntimeStatus = runtimeStatus ?? 'unknown'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* Runtime status badge row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <RuntimeStatusBadge runtimeStatus={effectiveStatus} />
+        {runtime?.version && (
+          <span style={{
+            fontSize: '11px',
+            color: 'var(--color-text-tertiary)',
+            fontFamily: 'var(--font-mono)',
+          }}>
+            v{runtime.version}
+          </span>
+        )}
+      </div>
+
+      {/* PID, started, heartbeat, port metadata row — only shown when runtime object is present */}
+      {runtime && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px 16px',
+          fontSize: '11px',
+          color: 'var(--color-text-secondary)',
+          fontFamily: 'var(--font-mono)',
+        }}>
+          <span>PID: {runtime.pid}</span>
+          <span>started {formatRelativeTime(runtime.startedAt)}</span>
+          <span style={{ color: isStale ? 'var(--color-status-warning)' : 'var(--color-text-secondary)' }}>
+            heartbeat {formatRelativeTime(runtime.lastHeartbeatAt)}
+            {isStale && ' ⚠'}
+          </span>
+          <span>port: {runtime.port}</span>
+        </div>
+      )}
+
+      {/* Stale warning callout */}
+      {isStale && runtime && (
+        <div style={{
+          padding: '8px 12px',
+          background: 'var(--color-status-warning-bg)',
+          border: '1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent)',
+          borderRadius: 'var(--border-radius-md)',
+          fontSize: '12px',
+          color: 'var(--color-status-warning)',
+          lineHeight: 1.5,
+        }}>
+          <strong>Stale runtime signal.</strong>{' '}
+          This instance&apos;s heartbeat has not updated in over 60 seconds — the process may have crashed.
+          Try running{' '}
+          <code style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            background: 'color-mix(in srgb, var(--color-status-warning-bg) 60%, transparent)',
+            padding: '1px 4px',
+            borderRadius: 'var(--border-radius-sm)',
+          }}>
+            iranti run --instance {runtime.instanceName}
+          </code>
+          {' '}to restart.
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RuntimeSection({ instance, onRefresh, isRefreshing }: {
   instance: InstanceMetadata
   onRefresh: () => void
@@ -244,6 +417,16 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
           <span className={styles.stalenessCtaHint}>Probe data is over 10 minutes old</span>
         )}
       </FieldRow>
+
+      {/* CP-T072: Runtime lifecycle — additive section below existing probe fields */}
+      {(instance.runtime !== undefined || instance.runtimeStatus !== undefined) && (
+        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border-subtle)' }}>
+          <RuntimeLifecycleSection
+            runtime={instance.runtime}
+            runtimeStatus={instance.runtimeStatus}
+          />
+        </div>
+      )}
     </section>
   )
 }
@@ -443,6 +626,10 @@ function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor }: {
           <RunningIndicator status={instance.runningStatus} hasConnectionInfo={hasConnectionInfo} />
           <h2 className={styles.detailTitle}>{instance.name}</h2>
           {isActive && <span className={styles.activeBadge}>Active</span>}
+          {/* CP-T072: Runtime lifecycle badge — shown when backend provides runtimeStatus */}
+          {instance.runtimeStatus !== undefined && instance.runtimeStatus !== 'unknown' && (
+            <RuntimeStatusBadge runtimeStatus={instance.runtimeStatus} />
+          )}
         </div>
         <div className={styles.detailActions}>
           <span className={styles.discoveredAt}>

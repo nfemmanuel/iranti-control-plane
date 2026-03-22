@@ -1,0 +1,627 @@
+/* Iranti Control Plane — Sessions View Styles */
+/* Route: /sessions */
+/* CP-T071 — Session Recovery visibility */
+/* Option B: Terminals palette — token-only colors */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Page header
+   ────────────────────────────────────────────────────────────────── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  gap: var(--space-4);
+}
+
+.pageHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pageIcon {
+  font-size: 20px;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.pageTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.pageSubtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 2px 0 0;
+}
+
+.sessionCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   State filter tabs
+   ────────────────────────────────────────────────────────────────── */
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.filterTab {
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+  margin-bottom: -1px;
+}
+
+.filterTab:hover {
+  color: var(--color-text-primary);
+}
+
+.filterTabActive {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Content region
+   ────────────────────────────────────────────────────────────────── */
+
+.contentRegion {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Session table
+   ────────────────────────────────────────────────────────────────── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+  table-layout: fixed;
+}
+
+.table th:nth-child(1) { width: 7%;  }  /* State badge */
+.table th:nth-child(2) { width: 21%; }  /* Session ID */
+.table th:nth-child(3) { width: 16%; }  /* Agent ID */
+.table th:nth-child(4) { width: 28%; }  /* Task preview */
+.table th:nth-child(5) { width: 14%; }  /* Started */
+.table th:nth-child(6) { width: 14%; }  /* Last checkpoint */
+
+.table thead th {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 var(--space-3);
+  height: var(--table-header-height);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Data rows
+   ────────────────────────────────────────────────────────────────── */
+
+.dataRow {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dataRow:hover {
+  background: var(--color-bg-elevated);
+}
+
+.dataRowExpanded {
+  background: var(--color-accent-subtle);
+}
+
+.dataRowExpanded:hover {
+  background: var(--color-accent-subtle);
+}
+
+.table td {
+  height: var(--table-row-height);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   State badge
+   ────────────────────────────────────────────────────────────────── */
+
+.stateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+/* interrupted / checkpointed → amber */
+.stateBadgeAmber {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+}
+
+/* complete → emerald */
+.stateBadgeEmerald {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent);
+}
+
+/* abandoned → muted gray */
+.stateBadgeMuted {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* unknown → rose */
+.stateBadgeRose {
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Cell types
+   ────────────────────────────────────────────────────────────────── */
+
+.cellBadge {
+  padding-left: var(--space-3);
+}
+
+.cellSessionId {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.cellAgentId {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.cellTask {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.cellMeta {
+  font-size: var(--table-meta-font-size);
+  color: var(--color-text-tertiary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Expanded detail row
+   ────────────────────────────────────────────────────────────────── */
+
+.detailRow td {
+  padding: 0;
+  height: auto;
+}
+
+.detailPanel {
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: var(--space-4) var(--section-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Detail panel internals
+   ────────────────────────────────────────────────────────────────── */
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3) var(--space-6);
+}
+
+.detailField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detailLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.detailValue {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.detailValueMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.detailValueMuted {
+  color: var(--color-text-tertiary);
+}
+
+/* Session ID row with copy button */
+.sessionIdRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.copyBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  padding: 1px 5px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.copyBtn:hover {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Task full text
+   ────────────────────────────────────────────────────────────────── */
+
+.taskFull {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2) var(--space-3);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Timeline
+   ────────────────────────────────────────────────────────────────── */
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.timelineStep {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.timelineLabel {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timelineValue {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+}
+
+.timelineArrow {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Checkpoint JSON collapsible
+   ────────────────────────────────────────────────────────────────── */
+
+.checkpointDetails {
+  margin: 0;
+}
+
+.checkpointSummary {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.checkpointSummary::-webkit-details-marker {
+  display: none;
+}
+
+.checkpointSummary::before {
+  content: '▸';
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  transition: transform 0.15s;
+}
+
+.checkpointDetails[open] > .checkpointSummary::before {
+  content: '▾';
+}
+
+.checkpointPre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.6;
+  margin: var(--space-2) 0 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Action buttons (Resume / Abandon)
+   ────────────────────────────────────────────────────────────────── */
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.resumeBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 40%, transparent);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-success);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.resumeBtn:hover {
+  background: color-mix(in srgb, var(--color-status-success-bg) 80%, var(--color-status-success) 20%);
+  border-color: var(--color-status-success);
+}
+
+.resumeBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.abandonBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 40%, transparent);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.abandonBtn:hover {
+  background: color-mix(in srgb, var(--color-status-error-bg) 80%, var(--color-status-error) 20%);
+  border-color: var(--color-status-error);
+}
+
+.abandonBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Inline confirmation */
+.confirmInline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+
+.confirmText {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.confirmYesBtn {
+  padding: 2px var(--space-2);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 40%, transparent);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-success);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.confirmYesBtnDestructive {
+  background: var(--color-status-error-bg);
+  border-color: color-mix(in srgb, var(--color-status-error) 40%, transparent);
+  color: var(--color-status-error);
+}
+
+.confirmNoBtn {
+  padding: 2px var(--space-2);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading skeleton rows
+   ────────────────────────────────────────────────────────────────── */
+
+.skeletonRow td {
+  padding: var(--space-2) var(--space-3);
+}
+
+.skeletonBar {
+  height: 14px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyStateBody {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  max-width: 520px;
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-error-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+  font-size: 12px;
+  color: var(--color-status-error);
+  flex-shrink: 0;
+}
+
+.errorBannerIcon {
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Inline code
+   ────────────────────────────────────────────────────────────────── */
+
+.inlineCode {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-bg-elevated);
+  padding: 1px 4px;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+}

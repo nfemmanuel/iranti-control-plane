@@ -25,6 +25,7 @@ const GO_MODE_ROUTES: Record<string, string> = {
   c: '/conflicts',
   p: '/providers',
   g: '/agents',
+  e: '/sessions',
   s: '/getting-started',
 }
 
@@ -131,5 +132,6 @@ export const VIEW_NAVIGATION_SHORTCUTS: Array<{ keys: string; label: string; rou
   { keys: 'G → C', label: 'Conflicts',          route: '/conflicts'       },
   { keys: 'G → P', label: 'Providers',          route: '/providers'       },
   { keys: 'G → G', label: 'Agent Registry',     route: '/agents'          },
+  { keys: 'G → E', label: 'Sessions',           route: '/sessions'        },
   { keys: 'G → S', label: 'Getting Started',    route: '/getting-started' },
 ]
