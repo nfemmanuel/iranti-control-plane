@@ -410,12 +410,13 @@ async function checkIngestRoundtrip(): Promise<CheckResult> {
 
   const work = async (): Promise<CheckResult> => {
     // Step 1: Write the probe fact via POST /kb/write
+    // Iranti v0.2.21: entity field uses "type/id" slash format; agent is required.
     const writeRes = await fetch(`${baseUrl}/kb/write`, {
       method: 'POST',
       headers: buildIrantiHeaders(),
       body: JSON.stringify({
-        entityType: '__diagnostics__',
-        entityId: '__probe__',
+        entity: '__diagnostics__/__probe__',
+        agent: 'control_plane_operator',
         key: 'probe_timestamp',
         value: probeTimestamp,
         summary: 'Diagnostic probe — safe to delete',
@@ -436,9 +437,9 @@ async function checkIngestRoundtrip(): Promise<CheckResult> {
       }
     }
 
-    // Step 2: Read back via GET /kb/query
+    // Step 2: Read back via GET /kb/search (Iranti v0.2.21 uses /kb/search, not /kb/query)
     const queryRes = await fetch(
-      `${baseUrl}/kb/query?entityType=__diagnostics__&entityId=__probe__&key=probe_timestamp`,
+      `${baseUrl}/kb/search?query=probe_timestamp&limit=5`,
       {
         method: 'GET',
         headers: buildIrantiHeaders(),
@@ -451,14 +452,15 @@ async function checkIngestRoundtrip(): Promise<CheckResult> {
       return {
         check: 'ingest_roundtrip',
         status: 'fail',
-        message: `Read probe failed: GET /kb/query returned HTTP ${queryRes.status}`,
+        message: `Read probe failed: GET /kb/search returned HTTP ${queryRes.status}`,
         fixHint: null,
         durationMs: Date.now() - start,
       }
     }
 
     const queryBody = await queryRes.json() as unknown
-    const readValue = extractProbeValue(queryBody)
+    // Filter search results to only the probe entity (entity is normalized to __diagnostics__/probe)
+    const readValue = extractProbeValueFromSearch(queryBody)
 
     // Step 3: Best-effort delete
     await deleteProbeFact(baseUrl)
@@ -498,28 +500,50 @@ async function checkIngestRoundtrip(): Promise<CheckResult> {
 }
 
 /**
- * Extract the value from whatever shape Iranti's /kb/query returns.
- * Returns null if the probe value is not found.
+ * Extract the probe value from Iranti's /kb/search response.
+ * Filters to items whose entity matches the probe entity before extracting value.
+ * Returns null if the probe entity is not found.
+ */
+function extractProbeValueFromSearch(body: unknown): string | null {
+  if (body === null || typeof body !== 'object') return null
+  const obj = body as Record<string, unknown>
+
+  // /kb/search returns { results: [...] }
+  const items = Array.isArray(obj.results) ? obj.results as unknown[]
+    : Array.isArray(obj.facts) ? obj.facts as unknown[]
+    : Array.isArray(obj.items) ? obj.items as unknown[]
+    : Array.isArray(body) ? body as unknown[]
+    : []
+
+  for (const item of items) {
+    if (item === null || typeof item !== 'object') continue
+    const f = item as Record<string, unknown>
+    // Match probe entity — Iranti normalizes __diagnostics__/__probe__ → __diagnostics__/probe
+    const entityStr = typeof f.entity === 'string' ? f.entity : ''
+    if (!entityStr.startsWith('__diagnostics__')) continue
+    if (f.key !== 'probe_timestamp') continue
+    const val = f.value ?? f.valueRaw ?? f.valueSummary
+    if (val !== null && val !== undefined) return String(val)
+  }
+
+  return null
+}
+
+/**
+ * Extract the value from a generic Iranti KB response body.
+ * Handles multiple response shapes across API versions.
  */
 function extractProbeValue(body: unknown): string | null {
   if (body === null || typeof body !== 'object') return null
   const obj = body as Record<string, unknown>
 
-  // Shape: { value: string } or { valueRaw: string } or { fact: { value/valueRaw } }
-  // or { facts: [...] } or { items: [...] } or an array directly
-  const candidates: unknown[] = []
-
-  if (Array.isArray(body)) {
-    candidates.push(...body)
-  } else if (Array.isArray(obj.facts)) {
-    candidates.push(...(obj.facts as unknown[]))
-  } else if (Array.isArray(obj.items)) {
-    candidates.push(...(obj.items as unknown[]))
-  } else if (obj.fact !== undefined) {
-    candidates.push(obj.fact)
-  } else if (obj.value !== undefined || obj.valueRaw !== undefined || obj.valueSummary !== undefined) {
-    candidates.push(obj)
-  }
+  const candidates: unknown[] = Array.isArray(body) ? body
+    : Array.isArray(obj.results) ? obj.results as unknown[]
+    : Array.isArray(obj.facts) ? obj.facts as unknown[]
+    : Array.isArray(obj.items) ? obj.items as unknown[]
+    : obj.fact !== undefined ? [obj.fact]
+    : (obj.value !== undefined || obj.valueRaw !== undefined) ? [obj]
+    : []
 
   for (const item of candidates) {
     if (item === null || typeof item !== 'object') continue
@@ -540,9 +564,10 @@ async function deleteProbeFact(baseUrl: string): Promise<void> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
     try {
-      // Try the common Iranti delete patterns; failure is acceptable
+      // Best-effort cleanup — no delete endpoint confirmed in Iranti v0.2.21;
+      // probe facts accumulate but are confined to the __diagnostics__ entity namespace.
       await fetch(
-        `${baseUrl}/kb/delete?entityType=__diagnostics__&entityId=__probe__&key=probe_timestamp`,
+        `${baseUrl}/kb/delete?entity=__diagnostics__/__probe__&key=probe_timestamp`,
         {
           method: 'DELETE',
           headers: buildIrantiHeaders(),
@@ -566,11 +591,13 @@ async function checkAttend(): Promise<CheckResult> {
   const baseUrl = getIrantiUrl()
 
   const work = async (): Promise<CheckResult> => {
+    // Iranti v0.2.21: /memory/attend requires agent + query; currentContext is optional.
     const attendRes = await fetch(`${baseUrl}/memory/attend`, {
       method: 'POST',
       headers: buildIrantiHeaders(),
       body: JSON.stringify({
         agent: 'control_plane_operator',
+        query: 'diagnostic probe',
         currentContext: 'diagnostic probe',
       }),
     })
