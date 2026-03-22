@@ -151,6 +151,16 @@ async function main(): Promise<void> {
   const BASE_PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3000', 10)
   const PORT = await findAvailablePort(BASE_PORT, BASE_PORT + 10)
 
+  // Auto-run migrations on startup
+  try {
+    const { run: runMigrations } = await import('./migrations/runner.js')
+    await runMigrations()
+    console.log('[iranti-cp] Migrations up to date.')
+  } catch (err: unknown) {
+    console.warn('[iranti-cp] Migration warning:', (err as Error).message)
+    console.warn('[iranti-cp] Continuing startup — run migrations manually if needed.')
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`[iranti-cp] v${VERSION} running at http://localhost:${PORT}`)
     console.log(`[iranti-cp] API at http://localhost:${PORT}/api/control-plane/`)
@@ -160,8 +170,8 @@ async function main(): Promise<void> {
       console.warn('[adapter] Failed to start:', (err as Error).message)
     })
 
-    // AC-6: auto-open browser when running as a packaged SEA binary
-    if ((process as NodeJS.Process & { isSea?: () => boolean }).isSea?.()) {
+    // Auto-open browser unless suppressed via IRANTI_CP_NO_OPEN=1
+    if (!process.env['IRANTI_CP_NO_OPEN']) {
       import('open').then(({ default: open }) => {
         void open(`http://localhost:${PORT}`)
       }).catch(() => {

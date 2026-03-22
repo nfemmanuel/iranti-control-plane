@@ -1,0 +1,10 @@
+src/
+scripts/
+.github/
+docs/
+dist/sea/
+dist/release/
+dist/iranti-control-plane-*.zip
+*.log
+.env*
+node_modules/

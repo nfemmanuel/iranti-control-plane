@@ -1,22 +1,33 @@
 {
   "name": "iranti-control-plane",
   "version": "0.4.0",
-  "private": true,
+  "description": "Operator control plane for Iranti — local-first agent memory management",
+  "bin": {
+    "iranti-cp": "./dist/server/bundle.cjs"
+  },
+  "files": [
+    "dist/server/bundle.cjs",
+    "public/control-plane/",
+    "migrations/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev:server": "cd src/server && npm run dev",
     "dev:client": "cd src/client && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build:client": "cd src/client && npm run build",
     "build:server": "cd src/server && npm run build",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server && npm run package:bundle",
     "start": "cd src/server && npm start",
     "migrate": "cd src/server && npm run migrate",
     "setup": "node scripts/setup-wizard.js",
     "dev-setup": "npm install --prefix src/server && npm install --prefix src/client",
     "package:bundle": "node scripts/package/bundle.mjs",
-    "package:windows": "node scripts/package/build-windows.mjs",
-    "package:macos": "node scripts/package/build-macos.mjs",
-    "package:linux": "node scripts/package/build-linux.mjs",
+    "package:windows": "node scripts/package/archive/build-windows.mjs",
+    "package:macos": "node scripts/package/archive/build-macos.mjs",
+    "package:linux": "node scripts/package/archive/build-linux.mjs",
     "package:all": "npm run package:bundle && npm run package:windows && npm run package:macos && npm run package:linux"
   },
   "devDependencies": {

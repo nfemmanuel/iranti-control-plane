@@ -48,7 +48,8 @@ mkdirSync(resolve(ROOT, 'dist/server'), { recursive: true })
 
 // import.meta.url polyfill for CJS: any bundled code that references
 // import.meta.url gets the CJS-compatible equivalent via __filename.
-const banner = `const __importmeta_url = require('url').pathToFileURL(__filename).href;`
+// The shebang makes the bundle directly executable as a global npm bin.
+const banner = `#!/usr/bin/env node\nconst __importmeta_url = require('url').pathToFileURL(__filename).href;`
 
 const args = [
   ENTRY,
