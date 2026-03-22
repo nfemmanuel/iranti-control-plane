@@ -1,6 +1,6 @@
 # Resume Prompt — Next PM Session
 
-**Last updated:** 2026-03-21 (Wave 11 dispatched — CP-T071/T072 DONE; T073 in progress; T074/T075 committed)
+**Last updated:** 2026-03-21 (Phase 5 complete — CP-T071/T072/T073 DONE; CP-T074 upstream PR live; CP-T075 QA done)
 **Current branch:** master
 **Phase:** 5 — Session Recovery & Runtime Lifecycle
 
@@ -17,7 +17,7 @@
 | Phase 2 | Interactive Management | v0.2.0-beta | **COMPLETE** |
 | Phase 3 | Advanced Operator Features | v0.3.0 | **PM-ACCEPTED** (all Waves 1–9) |
 | Phase 4 | Iranti Desktop | v0.4.0 | **PM-ACCEPTED 2026-03-21** (Wave 10: CP-T068, CP-T069, CP-T070) |
-| Phase 5 | Session Recovery & Runtime Lifecycle | v0.5.0 | **IN PROGRESS** — Wave 11 dispatched; CP-T071 DONE, CP-T072 DONE, CP-T073 in progress |
+| Phase 5 | Session Recovery & Runtime Lifecycle | v0.5.0 | **IMPLEMENTATION COMPLETE** — CP-T071/T072/T073 DONE (Wave 11+12); CP-T074 upstream PR live; CP-T075 QA done |
 
 ### Release status
 
@@ -60,8 +60,8 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 ## TypeScript Status
 
-- `src/server` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T071/T072)
-- `src/client` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T071/T072)
+- `src/server` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T073)
+- `src/client` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T073)
 
 ---
 
@@ -71,25 +71,29 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 | Item | Ticket | Owner | Notes |
 |------|--------|-------|-------|
-| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Automated assessment done (`docs/qa/ac11-automated-assessment-2026-03-21.md`). Execution guide written (`docs/qa/ac11-execution-guide.md`). Requires human tester on clean machine. |
+| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Automated assessment done (`docs/qa/ac11-automated-assessment-2026-03-21.md`). Execution guide written (`docs/qa/ac11-execution-guide.md`). **Requires human tester on clean Windows machine.** CI must run to build macOS and Linux installers before testing those platforms. |
 
-### Carryover deliverables
+### Carryover deliverables — CLOSED
 
-| Item | Ticket | Owner | Notes |
-|------|--------|-------|-------|
-| CP-T025 upstream PR submission | CP-T074 | system_architect | Branch `feat/staff-event-emitter-injection` created in iranti repo. PR submission in progress (Architect agent running). |
+| Item | Ticket | Status | Notes |
+|------|--------|--------|-------|
+| CP-T025 upstream PR | CP-T074 | **DONE** | PR live at https://github.com/nfemmanuel/iranti/pull/1. Applied to v0.2.16 (SDK, Librarian, Archivist, Attendant, Resolutionist all instrumented). tsc-clean in upstream repo. Awaiting maintainer review. |
 
 ### Phase 5 ticket status
 
 | Ticket | Title | Status | Notes |
 |--------|-------|--------|-------|
-| CP-T071 | Session Recovery Visibility | **DONE** | Sessions backend proxy + Sessions view committed. tsc-clean. |
-| CP-T072 | Runtime Lifecycle Dashboard | **DONE** | Runtime field extracted from /health; per-instance runtimeStatus; InstanceManager RUNNING/STALE/STOPPED badge. tsc-clean. |
-| CP-T073 | Iranti Upgrade Coordination | **IN PROGRESS** | Backend + frontend agents dispatched. Awaiting completion and TypeScript verification. |
-| CP-T074 | Submit CP-T025 Upstream PR | **IN PROGRESS** | Architect agent applying diffs to iranti repo. Awaiting PR URL. |
-| CP-T075 | CP-T048 AC-11 Closure | **DONE (QA portion)** | Assessment + execution guide committed. Human testing required for final closure. |
+| CP-T071 | Session Recovery Visibility | **DONE** | Sessions backend proxy + Sessions view. Commit `cdb71f5`, `f839a73`. tsc-clean. |
+| CP-T072 | Runtime Lifecycle Dashboard | **DONE** | Runtime extraction + per-instance runtimeStatus + InstanceManager badge. Same commits. tsc-clean. |
+| CP-T073 | Iranti Upgrade Coordination | **DONE** | Async job endpoint + UpgradeSection in Instance Manager. Commit `1573cbc`. tsc-clean. |
+| CP-T074 | Submit CP-T025 Upstream PR | **DONE** | PR open at https://github.com/nfemmanuel/iranti/pull/1. |
+| CP-T075 | CP-T048 AC-11 Closure | **DONE (QA portion)** | Assessment + guide committed `8bd9ae2`. Human testing required for final release gate closure. |
 
-**Next PM action:** When CP-T073 and CP-T074 complete — verify tsc-clean, accept Wave 11/12, update tickets to ACCEPTED, update resume-next-session. Then PM-accept Phase 5 when all tickets complete and tsc is clean.
+### Dual-workflow note (ISSUE-2 — resolved)
+
+`release.yml` and `package.yml` both trigger on `v*` tags but do NOT conflict. `release.yml` creates only a source `.tar.gz` CI artifact (explicitly marked "does NOT create a GitHub Release"). `package.yml` owns the GitHub Release. Safe to tag.
+
+**Next PM action:** PM-accept Phase 5. Then the only remaining gate is AC-11 human testing on a clean Windows machine before tagging v0.3.0 and v0.4.0 formally. See `docs/qa/ac11-execution-guide.md`.
 
 ---
 
