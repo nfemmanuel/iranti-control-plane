@@ -53,7 +53,7 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 | B11: attend classifier | `user/main` recovery **RESOLVED** in v0.2.14; edge cases may remain |
 | B12: transaction timeout on LLM-arbitrated writes | **OPEN** — not fixed through v0.2.16 |
 | B4: vectorScore=0 | Improved in v0.2.13 (fallback added); stable |
-| Slash-value retrieval loss | **UNDER VERIFICATION** — not confirmed |
+| Slash-value retrieval loss | **RETRACTED** — v6.0 revalidation: no defect; benchmark harness noise |
 | B9: no MCP read for relationships | **OPEN** — not fixed through v0.2.16 |
 
 ---

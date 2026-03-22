@@ -2,7 +2,7 @@
 
 **Prepared by:** product_manager
 **Date:** 2026-03-21
-**Last revised:** 2026-03-21 — v0.2.16 B6 fix applied
+**Last revised:** 2026-03-21 — v6.0 benchmark revalidation: slash-value RETRACTED; user/main RESOLVED confirmed
 **Project context:** Iranti Control Plane — Phase 3/4
 **Iranti version tested against:** 0.2.12 (audit), 0.2.13–0.2.14 (partial fix to B11), 0.2.16 (B6 confirmed fixed)
 
@@ -13,7 +13,7 @@ These flags are produced from the cross-repo audit (`docs/coordination/cross-rep
 | Item | Previous status | Corrected status | Reason |
 |------|----------------|-----------------|--------|
 | `user/main` noise from `typescript_smoke` | Open — attributed to B11 | **RESOLVED upstream** | Upstream regression tests for this specific pattern pass; `user/main` entity recovery without `entityHints` now works correctly |
-| Slash-value retrieval loss | Claimed confirmed | **UNDER VERIFICATION** | Upstream regressions for slash-bearing values through `query`, `search`, `observe`, and `attend` passed. Benchmark-side signal appears to be entity-extraction parse fallback noise, not a core product bug. Do not cite as confirmed. |
+| Slash-value retrieval loss | Claimed confirmed | **RETRACTED** | v6.0 benchmark revalidation confirmed: `query`, `search`, `observe`, and `attend` all return slash-bearing values correctly. Signal was benchmark harness parse fallback noise. Defect fully retracted — do not cite. |
 | Transaction timeout on LLM-arbitrated writes | Not previously tracked | **NEW — OPEN, HIGH PRIORITY** | Confirmed runtime defect: writes requiring LLM arbitration (conflict resolution path) are timing out at the transaction layer. See B12 below. |
 | B6: ingest contamination | Critical/Unfixed (v0.2.14 and below) | **FIXED in v0.2.16** | `iranti_ingest` prose extraction is now benchmark-confirmed working per v0.2.16 CHANGELOG. Prior behavior where the Librarian extracted from existing KB instead of input text is resolved. |
 
@@ -143,19 +143,19 @@ Add an `iranti_related` MCP tool that maps to `GET /kb/related/:entityType/:enti
 
 ---
 
-## Under Verification — Slash-Value Retrieval Loss
+## ~~Slash-Value Retrieval Loss~~ — RETRACTED
 
-**Severity:** Unconfirmed
-**Status:** UNDER VERIFICATION — do not cite as a confirmed bug.
+**Severity:** N/A — retracted
+**Status:** **RETRACTED** — 2026-03-21 (v6.0 benchmark revalidation)
 **Previously claimed:** Control plane benchmark testing appeared to show that fact values containing slashes (e.g., `http://...`, `file://...`, path strings) were being dropped or truncated by `iranti_query`, `iranti_search`, `iranti_observe`, and `iranti_attend`.
 
-### 2026-03-21 update
+### Final determination — 2026-03-21
 
-Upstream regression tests for slash-bearing values through all four retrieval paths (`query`, `search`, `observe`, `attend`) have **passed**. The signal previously observed in benchmark output is now attributed to entity-extraction parse fallback noise in the benchmark harness itself, not a defect in Iranti core.
+Fresh v6.0 benchmark revalidation confirmed that `query`, `search`, `observe`, and `attend` all return slash-bearing values correctly. The signal previously observed in benchmark output was entity-extraction parse fallback noise in the benchmark harness itself — not a defect in Iranti core.
 
-**Do not cite slash-value retrieval loss as a confirmed defect in upstream bug reports or operator-facing documentation until a clean reproduction outside the benchmark harness is established.**
+**This is not an open defect. Do not cite slash-value retrieval loss in upstream bug reports, operator-facing documentation, or product communications. The defect claim is fully retracted.**
 
-### If investigating further
+### If a regression is suspected in future
 
 - Test with a direct `iranti_write` of a known slash-bearing value followed by `iranti_query` for that exact fact
 - Confirm whether the value is stored correctly in the KB (`knowledge_base.value` column)
@@ -211,5 +211,5 @@ Confirmed by runtime testing 2026-03-21. The transaction timeout occurs specific
 | B11: attend classifier | High | `user/main` recovery **RESOLVED** in v0.2.14; other edge cases may remain | `entityHints` no longer required for `user/main`; CP-T052 notes resolution | Verify classifier fully functional for all entity types without hints |
 | B12: transaction timeout on LLM-arbitrated writes | High | **OPEN** (confirmed 2026-03-21, not fixed through v0.2.16) | Use `iranti_write` with explicit resolved value to manually resolve conflicts | Move LLM arbitration outside DB transaction or extend timeout |
 | B4: vectorScore=0 | Medium | Improved in v0.2.13 (fallback added); no further changes in v0.2.14–v0.2.16 | CP-T052 vector health card | Confirm in-process scoring performance at scale |
-| Slash-value retrieval loss | Unconfirmed | **UNDER VERIFICATION** — upstream regressions pass | None required until confirmed | Establish reproduction outside benchmark harness before filing |
+| Slash-value retrieval loss | N/A | **RETRACTED** — v6.0 revalidation confirmed no defect; benchmark harness noise only | None required | Defect fully retracted — do not cite |
 | B9: no MCP read for relationships | Low | Not fixed through v0.2.16 | Control plane reads REST correctly | Add `iranti_related` MCP tool |
