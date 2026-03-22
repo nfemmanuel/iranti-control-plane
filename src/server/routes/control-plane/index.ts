@@ -16,6 +16,7 @@ import { diagnosticsRouter } from './diagnostics.js'
 import { metricsRouter } from './metrics.js'
 import { overviewRouter } from './overview.js'
 import { sessionsRouter } from './sessions.js'
+import { upgradeRouter } from './upgrade.js'
 
 export const controlPlaneRouter = Router()
 
@@ -47,3 +48,5 @@ controlPlaneRouter.use('/metrics', metricsRouter)
 controlPlaneRouter.use('/overview', overviewRouter)
 // Session Recovery: GET /sessions, POST /sessions/:sessionId/resume, POST /sessions/:sessionId/abandon — CP-T071
 controlPlaneRouter.use('/sessions', sessionsRouter)
+// Upgrade coordination: POST /instances/:name/upgrade, GET /instances/:name/upgrade/:jobId — CP-T073
+controlPlaneRouter.use('/instances', upgradeRouter)

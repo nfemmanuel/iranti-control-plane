@@ -682,6 +682,27 @@ export interface OverviewResponse {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Upgrade Jobs (CP-T073)                                             */
+/* ------------------------------------------------------------------ */
+
+export interface UpgradeJobStarted {
+  jobId: string
+  instanceName: string
+  status: 'started'
+  startedAt: string
+}
+
+export interface UpgradeJobStatus {
+  jobId: string
+  instanceName: string
+  status: 'running' | 'complete' | 'failed'
+  output: string[]
+  exitCode: number | null
+  startedAt: string
+  completedAt: string | null
+}
+
+/* ------------------------------------------------------------------ */
 /*  Sessions (CP-T071)                                                 */
 /* ------------------------------------------------------------------ */
 

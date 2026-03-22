@@ -10,6 +10,7 @@ import { apiFetch } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { DoctorDrawer } from './DoctorDrawer'
+import { UpgradeSection } from './UpgradeSection'
 import styles from './InstanceManager.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -594,11 +595,12 @@ function ProjectsSection({ instance }: { instance: InstanceMetadata }) {
   )
 }
 
-function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor }: {
+function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete }: {
   instance: InstanceMetadata
   onRefresh: () => void
   isRefreshing: boolean
   onRunDoctor: (instanceId: string) => void
+  onUpgradeComplete: () => void
 }) {
   const { setActiveInstance, activeInstance } = useInstanceContext()
   const navigate = useNavigate()
@@ -677,6 +679,11 @@ function DetailPanel({ instance, onRefresh, isRefreshing, onRunDoctor }: {
         <EnvironmentSection instance={instance} />
         <IntegrationsSection instance={instance} />
         <ProjectsSection instance={instance} />
+        <UpgradeSection
+          instanceName={instance.instanceId}
+          runningVersion={instance.runtime?.version ?? null}
+          onUpgradeComplete={onUpgradeComplete}
+        />
       </div>
     </div>
   )
@@ -831,6 +838,7 @@ export function InstanceManager() {
             onRefresh={() => void handleProbeRefresh()}
             isRefreshing={isRefreshing}
             onRunDoctor={instanceId => void handleRunDoctor(instanceId)}
+            onUpgradeComplete={() => void refetch()}
           />
         ) : (
           <div className={styles.noSelection}>

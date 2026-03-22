@@ -120,6 +120,27 @@ export interface IrantiRuntimeMetadata {
 
 export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
 
+// ---------------------------------------------------------------------------
+// CP-T073: Upgrade job response types
+// ---------------------------------------------------------------------------
+
+export interface UpgradeJobStarted {
+  jobId: string
+  instanceName: string
+  status: 'started'
+  startedAt: string
+}
+
+export interface UpgradeJobStatus {
+  jobId: string
+  instanceName: string
+  status: 'running' | 'complete' | 'failed'
+  output: string[]
+  exitCode: number | null
+  startedAt: string
+  completedAt: string | null
+}
+
 export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checks: HealthCheck[]
