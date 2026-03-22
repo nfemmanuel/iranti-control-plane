@@ -238,6 +238,17 @@ async function checkIrantiAuth(): Promise<CheckResult> {
       }
     }
 
+    // 404 = Iranti not running (no route matched at all), not an auth problem
+    if (irantiRes.status === 404) {
+      return {
+        check: 'iranti_auth',
+        status: 'warn',
+        message: 'Iranti /kb/search returned 404 — Iranti is likely not running',
+        fixHint: 'Start Iranti first: iranti run --instance <name>. Auth cannot be verified until Iranti is reachable.',
+        durationMs,
+      }
+    }
+
     return {
       check: 'iranti_auth',
       status: 'warn',
@@ -251,7 +262,7 @@ async function checkIrantiAuth(): Promise<CheckResult> {
     check: 'iranti_auth',
     status: 'fail' as CheckStatus,
     message: String((err as Error)?.message ?? err),
-    fixHint: 'API key missing or insufficient scope. Check IRANTI_API_KEY in your .env.iranti. Required scope: kb:read, kb:write, memory:read, memory:write.',
+    fixHint: 'Iranti may not be running. Start with: iranti run --instance <name>',
     durationMs: Date.now() - start,
   }))
 }
@@ -308,16 +319,16 @@ async function checkVectorBackend(): Promise<CheckResult> {
   // pgvector (default) — verify the extension is installed via DB
   if (backend === '' || backend === 'pgvector') {
     const work = async (): Promise<CheckResult> => {
-      const result = await query<{ installed_version: string | null }>(
-        `SELECT installed_version FROM pg_extension WHERE extname = 'vector' LIMIT 1`
+      const result = await query<{ extversion: string | null }>(
+        `SELECT extversion FROM pg_extension WHERE extname = 'vector' LIMIT 1`
       )
       const durationMs = Date.now() - start
 
-      if (result.rows.length > 0 && result.rows[0].installed_version) {
+      if (result.rows.length > 0 && result.rows[0].extversion) {
         return {
           check: 'vector_backend',
           status: 'pass',
-          message: `pgvector installed (version ${result.rows[0].installed_version})`,
+          message: `pgvector installed (version ${result.rows[0].extversion})`,
           fixHint: null,
           durationMs,
         }
@@ -418,7 +429,9 @@ async function checkIngestRoundtrip(): Promise<CheckResult> {
         check: 'ingest_roundtrip',
         status: 'fail',
         message: `Write probe failed: POST /kb/write returned HTTP ${writeRes.status}`,
-        fixHint: null,
+        fixHint: writeRes.status === 404
+          ? 'Iranti is not running — start it first: iranti run --instance <name>'
+          : 'Check IRANTI_API_KEY scope (requires kb:write) and confirm Iranti is running.',
         durationMs: Date.now() - start,
       }
     }
@@ -565,11 +578,14 @@ async function checkAttend(): Promise<CheckResult> {
     const durationMs = Date.now() - start
 
     if (!attendRes.ok) {
+      const isUnreachable = attendRes.status === 404 || attendRes.status === 503
       return {
         check: 'attend_check',
         status: 'fail',
         message: `POST /memory/attend returned HTTP ${attendRes.status}`,
-        fixHint: 'Attendant classifier returned a parse failure. Memory injection may be non-functional. Known issue in Iranti < 0.2.13. Run: iranti upgrade',
+        fixHint: isUnreachable
+          ? 'Iranti is not running or the Attendant route is unavailable. Start Iranti: iranti run --instance <name>'
+          : 'Attendant endpoint returned an error. Check Iranti logs for details.',
         durationMs,
       }
     }
@@ -589,7 +605,7 @@ async function checkAttend(): Promise<CheckResult> {
         check: 'attend_check',
         status: 'warn',
         message: 'Attendant returned 200 but classifier reported a parse failure',
-        fixHint: 'Attendant classifier returned a parse failure. Memory injection may be non-functional. Known issue in Iranti < 0.2.13. Run: iranti upgrade',
+        fixHint: 'Classification parse failed — memory injection may be unreliable. Provide explicit entityHints to iranti_observe, or use forceInject: true in iranti_attend. Upstream fix is in review (CP-T025 PR #1).',
         durationMs,
       }
     }
@@ -607,7 +623,7 @@ async function checkAttend(): Promise<CheckResult> {
     check: 'attend_check',
     status: 'fail' as CheckStatus,
     message: String((err as Error)?.message ?? err),
-    fixHint: 'Attendant classifier returned a parse failure. Memory injection may be non-functional. Known issue in Iranti < 0.2.13. Run: iranti upgrade',
+    fixHint: 'Iranti may not be running or timed out. Start with: iranti run --instance <name>',
     durationMs: Date.now() - start,
   }))
 }
@@ -636,7 +652,9 @@ async function checkVectorSearch(): Promise<CheckResult> {
         check: 'vector_search_check',
         status: 'fail',
         message: `GET /kb/search returned HTTP ${searchRes.status}`,
-        fixHint: null,
+        fixHint: searchRes.status === 404
+          ? 'Iranti is not running — start it first: iranti run --instance <name>'
+          : 'Check IRANTI_API_KEY scope (requires kb:read) and confirm Iranti is running.',
         durationMs,
       }
     }

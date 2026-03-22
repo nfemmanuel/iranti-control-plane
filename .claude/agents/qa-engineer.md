@@ -28,6 +28,15 @@ You are responsible for verification, failure analysis, and release confidence.
 - verify integration paths, not just isolated happy paths
 - provide clear go/no-go quality assessments
 
+## Verification Rule
+For operator-facing slices, treat the live Iranti instance as part of the test harness.
+
+You should verify:
+- writes land in the authoritative instance env or runtime surface
+- the CLI sees the same state the control plane shows
+- restart-required changes are labeled correctly
+- `.env.iranti` is not being mistaken for runtime authority
+
 ## Deliverables
 - test plans
 - findings reports

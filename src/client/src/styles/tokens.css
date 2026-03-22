@@ -1,37 +1,37 @@
-/* Iranti Control Plane — Visual Token System — Option B: Terminals */
-/* Approved: 2026-03-20 by product_manager */
+/* Iranti Control Plane — Visual Token System */
+/* Migrated: 2026-03-21 — warm ink palette matching iranti-site brand */
 /* Dark mode default. Light mode via [data-theme="light"] on :root */
 /* Source of truth: decision/visual_direction + docs/specs/shell-design-exploration.md */
 
 :root {
   /* === BACKGROUNDS === */
-  --color-bg-base: #0D1117;           /* Main canvas — GitHub-dark-adjacent, very deep cool */
-  --color-bg-surface: #161B22;        /* Cards, panels, sidebar */
-  --color-bg-elevated: #1F2937;       /* Dropdowns, modals, tooltips */
-  --color-bg-sunken: #090D12;         /* Input fields, code blocks */
+  --color-bg-base: #080808;           /* Main canvas — warm near-black ink */
+  --color-bg-surface: #111110;        /* Cards, panels, sidebar */
+  --color-bg-elevated: #1c1c1a;       /* Dropdowns, modals, tooltips */
+  --color-bg-sunken: #0d0d0b;         /* Input fields, code blocks */
 
   /* === BORDERS === */
-  --color-border-subtle: #21262D;     /* Dividers, table rows */
-  --color-border-default: #30363D;    /* Input borders, card outlines */
-  --color-border-strong: #484F58;     /* Active borders, focus rings */
+  --color-border-subtle: #1c1c1a;     /* Dividers, table rows */
+  --color-border-default: #2a2a28;    /* Input borders, card outlines */
+  --color-border-strong: #3d3d3a;     /* Active borders, focus rings */
 
   /* === TEXT === */
-  --color-text-primary: #E6EDF3;      /* Main text — cool off-white */
-  --color-text-secondary: #8B949E;    /* Labels, metadata, timestamps */
-  --color-text-tertiary: #484F58;     /* Placeholder, disabled */
-  --color-text-inverse: #0D1117;      /* Text on accent backgrounds */
+  --color-text-primary: #f5f5f2;      /* Main text — warm off-white */
+  --color-text-secondary: #8a8a85;    /* Labels, metadata, timestamps */
+  --color-text-tertiary: #5c5c58;     /* Placeholder, disabled */
+  --color-text-inverse: #080808;      /* Text on accent backgrounds */
 
-  /* === ACCENT — Emerald/Mint === */
-  --color-accent-primary: #10B981;    /* Primary interactive, active nav — bright emerald on dark */
-  --color-accent-hover: #34D399;      /* Hover state — lighter on hover */
-  --color-accent-subtle: #064E3B;     /* Accent background tint — deep green selected row */
-  --color-accent-border: #065F46;     /* Accent-tinted borders */
+  /* === ACCENT — Amber (brand/interactive) === */
+  --color-accent-primary: #f59e0b;    /* Primary interactive, active nav */
+  --color-accent-hover: #fbbf24;      /* Hover state — lighter on hover */
+  --color-accent-subtle: #1a1200;     /* Accent background tint — deep amber selected row */
+  --color-accent-border: #78350f;     /* Accent-tinted borders */
 
   /* === STATUS === */
-  --color-status-success: #10B981;
-  --color-status-success-bg: #064E3B;
-  --color-status-warning: #F59E0B;
-  --color-status-warning-bg: #1A1400;
+  --color-status-success: #14b8a6;    /* Teal — distinct from amber accent */
+  --color-status-success-bg: #042f2e;
+  --color-status-warning: #f97316;    /* Orange — differentiated from amber accent */
+  --color-status-warning-bg: #1c0a00;
   --color-status-error: #F87171;      /* Lightened red for dark bg contrast */
   --color-status-error-bg: #1A0808;
   --color-status-info: #3B82F6;
@@ -39,14 +39,13 @@
 
   /* === STAFF COMPONENT COLORS (dark) === */
   /* Source: decision/visual_direction key staff_palette — authoritative */
-  --color-staff-librarian: #F59E0B;       /* Amber — writes/ingestion */
+  --color-staff-librarian: #f59e0b;       /* Amber — now same as accent, intentional */
   --color-staff-attendant: #A78BFA;       /* Violet — session presence/reads */
   --color-staff-archivist: #38BDF8;       /* Sky blue — decay and archival */
-  --color-staff-resolutionist: #10B981;   /* Mint — shared with accent — resolution decisions */
+  --color-staff-resolutionist: #14b8a6;   /* Teal — now matches success */
 
   /* === TYPOGRAPHY === */
-  /* Option B: system font stack — no web font load (local-first, zero external dependency) */
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "Fira Code", ui-monospace, monospace;
 
   /* === SPACING (4px base unit) === */
@@ -87,42 +86,42 @@
 
 [data-theme="light"] {
   /* Backgrounds */
-  --color-bg-base: #F4F6F8;           /* Cool near-white canvas */
-  --color-bg-surface: #ECEEF2;        /* Sidebar, panels */
-  --color-bg-elevated: #FFFFFF;       /* Modals, dropdowns */
-  --color-bg-sunken: #E4E7ED;         /* Input fields */
+  --color-bg-base: #f8f6f1;           /* Warm parchment canvas */
+  --color-bg-surface: #f0ede6;        /* Sidebar, panels */
+  --color-bg-elevated: #ffffff;       /* Modals, dropdowns */
+  --color-bg-sunken: #e8e4dc;         /* Input fields */
 
   /* Borders */
-  --color-border-subtle: #DDE1E8;     /* Row dividers */
-  --color-border-default: #C6CDD8;    /* Input outlines, panel edges */
-  --color-border-strong: #9AA3AD;     /* Active borders, focus rings */
+  --color-border-subtle: #e2ddd6;     /* Row dividers */
+  --color-border-default: #d4cfc8;    /* Input outlines, panel edges */
+  --color-border-strong: #b8b3aa;     /* Active borders, focus rings */
 
   /* Text */
-  --color-text-primary: #0F1117;      /* Near-black, cool undertone */
-  --color-text-secondary: #5A6374;    /* Labels, meta */
-  --color-text-tertiary: #8A93A2;     /* Timestamps, disabled */
-  --color-text-inverse: #FFFFFF;      /* Text on accent backgrounds */
+  --color-text-primary: #1a1a18;      /* Near-black, warm undertone */
+  --color-text-secondary: #4a4a46;    /* Labels, meta */
+  --color-text-tertiary: #7a7a76;     /* Timestamps, disabled */
+  --color-text-inverse: #ffffff;      /* Text on accent backgrounds */
 
-  /* Accent */
-  --color-accent-primary: #059669;    /* Sharp emerald-mint — not teal, not lime */
-  --color-accent-hover: #047857;      /* Deeper on hover */
-  --color-accent-subtle: #ECFDF5;     /* Selected row background */
-  --color-accent-border: #A7F3D0;     /* Accent-tinted borders */
+  /* Accent (amber) */
+  --color-accent-primary: #d97706;    /* Amber — primary interactive */
+  --color-accent-hover: #b45309;      /* Deeper on hover */
+  --color-accent-subtle: #fef3c7;     /* Selected row background */
+  --color-accent-border: #fcd34d;     /* Accent-tinted borders */
 
   /* Status */
-  --color-status-success: #059669;
-  --color-status-success-bg: #ECFDF5;
-  --color-status-warning: #D97706;    /* Amber — distinct from accent */
-  --color-status-warning-bg: #FFFBEB;
+  --color-status-success: #0d9488;    /* Teal */
+  --color-status-success-bg: #ccfbf1;
+  --color-status-warning: #ea580c;    /* Orange */
+  --color-status-warning-bg: #fff7ed;
   --color-status-error: #DC2626;      /* Red */
   --color-status-error-bg: #FEF2F2;
   --color-status-info: #2563EB;
   --color-status-info-bg: #EFF6FF;
 
   /* Staff component colors (light) */
-  /* Source: docs/specs/shell-design-exploration.md Option B Light table */
-  --color-staff-librarian: #D97706;       /* Amber */
+  /* Source: docs/specs/shell-design-exploration.md */
+  --color-staff-librarian: #d97706;       /* Amber */
   --color-staff-attendant: #7C3AED;       /* Violet */
   --color-staff-archivist: #0EA5E9;       /* Sky blue */
-  --color-staff-resolutionist: #059669;   /* Mint — shared with accent */
+  --color-staff-resolutionist: #0d9488;   /* Teal */
 }

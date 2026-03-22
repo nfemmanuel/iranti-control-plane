@@ -1,0 +1,365 @@
+/* Iranti Control Plane — Bind Project Form Styles */
+/* CP-T091 — Tab toggle, bind new + rebind existing */
+/* Token-only: no hardcoded hex values */
+
+/* ── Container ─────────────────────────────────────────────────── */
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+}
+
+.formHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+}
+
+.formTitle {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.cancelHeaderBtn {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s;
+}
+
+.cancelHeaderBtn:hover {
+  color: var(--color-text-primary);
+}
+
+/* ── Tab bar ────────────────────────────────────────────────────── */
+
+.tabBar {
+  display: flex;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.tab {
+  flex: 1;
+  height: 36px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.tab:hover {
+  color: var(--color-text-secondary);
+}
+
+.tabActive {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+}
+
+/* ── Tab content ────────────────────────────────────────────────── */
+
+.tabContent {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Field groups ───────────────────────────────────────────────── */
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.fieldGroupRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.required {
+  color: var(--color-status-error);
+}
+
+.input {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  transition: border-color 0.1s;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.inputMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.inputError {
+  border-color: var(--color-status-error);
+}
+
+.select {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.1s;
+}
+
+.select:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.selectMono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.fieldError {
+  font-size: 11px;
+  color: var(--color-status-error);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.fieldHint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Checkbox ───────────────────────────────────────────────────── */
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-accent-primary);
+}
+
+/* ── Notes ──────────────────────────────────────────────────────── */
+
+.inlineCode {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: 1px 4px;
+  color: var(--color-accent-primary);
+}
+
+.emptyNote {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  line-height: 1.5;
+}
+
+.loadingNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: var(--space-3) 0;
+}
+
+/* ── Submit error ───────────────────────────────────────────────── */
+
+.submitError {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── Actions ────────────────────────────────────────────────────── */
+
+.tabActions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: var(--color-accent-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-inverse);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Spinner ────────────────────────────────────────────────────── */
+
+.spinnerSmall {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Success screen ─────────────────────────────────────────────── */
+
+.successScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.successIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  font-size: 18px;
+  border: 1px solid var(--color-status-success);
+}
+
+.successTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.successDetail {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.successPath {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent-primary);
+  margin: 0;
+  word-break: break-all;
+}
+
+.successMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* CP-T091: .env.iranti path callout — shown after successful bind */
+.envIrantiNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-success-bg);
+  border: 1px solid var(--color-status-success);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-success);
+  font-size: 12px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.envIrantiNoteIcon {
+  flex-shrink: 0;
+  font-size: 13px;
+}

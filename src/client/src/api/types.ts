@@ -439,6 +439,57 @@ export interface ProviderStatus {
 export interface ProvidersResponse {
   providers: ProviderStatus[]
   checkedAt: string
+  /** Canonical default provider (LLM_PROVIDER env var), or null if not set */
+  defaultProvider: string | null
+  /** Ordered fallback chain (LLM_PROVIDER_FALLBACK env var), empty if not set */
+  fallbackChain: string[]
+  /**
+   * CP-T087: current task-model routing overrides.
+   * Key = task type, value = env var override (null = use provider default).
+   * Task types: classification, relevance_filtering, conflict_resolution,
+   * summarization, task_inference, extraction
+   */
+  taskRouting: Record<string, string | null>
+}
+
+/* ------------------------------------------------------------------ */
+/*  Task-model routing (CP-T087)                                       */
+/* ------------------------------------------------------------------ */
+
+export interface RoutingDefaultsResponse {
+  provider: string
+  /** Default model for each task type given this provider */
+  defaults: Record<string, string>
+}
+
+export interface TaskRoutingUpdateResult {
+  ok: boolean
+  written: Record<string, string | null>
+  warnings: string[]
+  /** Always true — Iranti reads these vars at startup */
+  restartRequired: boolean
+  taskRouting: Record<string, string | null>
+}
+
+/* ------------------------------------------------------------------ */
+/*  Provider write path (CP-T085, CP-T086)                             */
+/* ------------------------------------------------------------------ */
+
+export interface ProviderWriteKeyResult {
+  ok: boolean
+  provider: string
+  envVar: string
+  keyMasked: string | null
+}
+
+export interface ProviderSetDefaultResult {
+  ok: boolean
+  provider: string | null
+}
+
+export interface ProviderFallbackResult {
+  ok: boolean
+  chain: string[]
 }
 
 export interface ProviderModelEntry {
@@ -736,4 +787,240 @@ export interface SessionActionResponse {
   sessionId: string
   message?: string
   error?: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Version Sync (CP-T078)                                             */
+/* ------------------------------------------------------------------ */
+
+export interface VersionSyncResult {
+  installedVersion: string | null
+  latestVersion: string | null
+  upToDate: boolean | null
+  releaseUrl: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Install State (CP-T079)                                            */
+/* ------------------------------------------------------------------ */
+
+export interface InstallStateResult {
+  installed: boolean
+  version: string | null         // semver string e.g. "0.2.16", null if not installed
+  executablePath: string | null  // absolute path from `which`/`where`
+  checkedAt: string              // ISO timestamp
+}
+
+/* ------------------------------------------------------------------ */
+/*  Process Lifecycle (CP-T080)                                        */
+/* ------------------------------------------------------------------ */
+
+export interface StartInstanceResult {
+  instanceName?: string
+  instance?: string
+  pid?: number
+  status?: 'started'
+  startedAt?: string
+  started?: boolean
+  reason?: string
+  /** Present on error paths */
+  error?: string
+  code?: string
+}
+
+export interface StopInstanceResult {
+  instanceName: string
+  pid: number | null
+  status: 'stopped'
+  stoppedAt: string
+  /** Present on error paths (404) */
+  error?: string
+  code?: string
+}
+
+export interface ProcessStatusResult {
+  managed: boolean
+  pid: number | null
+  alive: boolean | null
+}
+
+/* ------------------------------------------------------------------ */
+/*  Open File (CP-T084)                                                */
+/* ------------------------------------------------------------------ */
+
+export interface OpenFileResult {
+  opened: boolean
+  path: string
+  reason?: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Auth Key Manager (CP-T088)                                         */
+/* ------------------------------------------------------------------ */
+
+export interface AuthKey {
+  keyId:        string
+  owner:        string
+  scopes:       string[]
+  description:  string | null
+  createdAt:    string
+  updatedAt:    string
+  revoked:      boolean
+  revokedAt:    string | null
+}
+
+export interface AuthKeysListResponse {
+  keys: AuthKey[]
+}
+
+export interface AuthKeyCreateResult {
+  ok:       boolean
+  keyId:    string
+  /** Full token — shown once only, must be copied before leaving the page */
+  token:    string
+  scopes:   string[]
+  /** Non-fatal warning (e.g. syncToProject failed after successful creation) */
+  warning?: string
+}
+
+export interface AuthKeyRevokeResult {
+  ok:    boolean
+  keyId: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Instance Create (CP-T089)                                          */
+/* ------------------------------------------------------------------ */
+
+export interface CreateInstanceResult {
+  ok: boolean
+  name: string
+  instanceDir: string
+  envFile: string
+  port: number
+  provider: string
+  note: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Instance Configure (CP-T090)                                       */
+/* ------------------------------------------------------------------ */
+
+export interface ConfigureInstanceResult {
+  ok: boolean
+  name: string
+  restartRequired: boolean
+  changed: string[]
+}
+
+/* ------------------------------------------------------------------ */
+/*  Project Bindings (CP-T091)                                         */
+/* ------------------------------------------------------------------ */
+
+export interface BoundProject {
+  projectPath: string
+  agentId: string
+  memoryEntity: string
+  mode: 'isolated' | 'shared'
+  boundAt: string
+}
+
+export interface ProjectsListResponse {
+  instanceName: string
+  projects: BoundProject[]
+}
+
+export interface BindProjectResult {
+  ok: boolean
+  projectPath: string
+  envIrantiPath: string
+  instanceName: string
+  agentId: string
+  memoryEntity: string
+  mode: string
+}
+
+export interface RebindProjectResult {
+  ok: boolean
+  projectPath: string
+  changed: string[]
+}
+
+/* ------------------------------------------------------------------ */
+/*  Claude Code Integration (CP-T092, CP-T093)                        */
+/* ------------------------------------------------------------------ */
+
+export interface ClaudeIntegrationStatus {
+  projectPath: string
+  mcpJson: Record<string, unknown> | null
+  mcpJsonPath: string | null
+  hooksJson: Record<string, unknown> | null
+  hooksJsonPath: string | null
+  irantiMcpEntry: { command: string; args: string[]; env?: Record<string, string> } | null
+  irantiHooks: { sessionStart: string | null; userPromptSubmit: string | null }
+  issues: string[]
+}
+
+export interface ScaffoldResult {
+  ok: boolean
+  written: string[]
+  output?: string
+  error?: string
+}
+
+export interface IntegrationSummaryItem {
+  projectPath: string
+  mcpPresent: boolean
+  irantiMcpRegistered: boolean
+  hooksPresent: boolean
+  irantiHooksCount: number
+  issues: string[]
+}
+
+export interface IntegrationSummaryResponse {
+  instanceName: string
+  projects: IntegrationSummaryItem[]
+}
+
+/* ------------------------------------------------------------------ */
+/*  Codex Integration (CP-T095)                                        */
+/* ------------------------------------------------------------------ */
+
+export interface CodexIntegrationStatus {
+  codexInstalled: boolean
+  irantiRegistered: boolean
+  registeredConfig: Record<string, unknown> | null
+  issues: string[]
+}
+
+export interface CodexSetupResult {
+  ok: boolean
+  output: string
+  error?: string
+}
+
+export interface CodexRemoveResult {
+  ok: boolean
+  output?: string
+  error?: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Attendant Debug Tools (CP-T096)                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Iranti returns a variable-shape handshake brief.
+ * The control plane passes the response body through as-is.
+ */
+export interface HandshakeResult {
+  [key: string]: unknown
+}
+
+/**
+ * Iranti returns a variable-shape attend result.
+ * The control plane passes the response body through as-is.
+ */
+export interface AttendResult {
+  [key: string]: unknown
 }

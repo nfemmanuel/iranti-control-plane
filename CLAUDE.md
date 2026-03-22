@@ -21,6 +21,18 @@ Every agent must:
 4. Record uncertainties and assumptions instead of inventing certainty.
 5. Check with the PM before changing product scope, UX intent, naming, roadmap, or acceptance criteria.
 
+## Live Semantics Rule
+
+The control plane must be built against the live Iranti operator model, not guessed repo assumptions.
+
+Treat these as hard rules:
+- `.env.iranti` is a project binding pointer, not authoritative runtime config
+- `IRANTI_INSTANCE_ENV` is the authoritative path for instance-level config
+- the Iranti CLI is the oracle for live semantics
+- if docs or prior plans disagree with the running runtime, trust the runtime and note the drift
+
+No operator workflow is complete until it is validated against the live instance behavior it claims to manage.
+
 ## Team Operating Model
 The Product Manager is the coordinating brain of the project.
 
@@ -74,6 +86,7 @@ The default standard is senior-level work with explicit reasoning and clear arti
 
 ## Core Agent IDs
 - PM: `product_manager`
+- Operator Journey Lead: `operator_journey_lead`
 - User Research: `user_researcher`
 - Architect: `system_architect`
 - Backend: `backend_developer`
@@ -110,6 +123,18 @@ A ticket is done only when:
 - acceptance criteria are checked explicitly
 - known risks are documented
 - the PM has enough evidence to accept the work
+
+## Acceptance Evidence Rule
+
+For any slice that changes a real operator workflow, the completion report must show:
+1. files changed
+2. behavior implemented
+3. live validation against the actual target instance
+4. acceptance-criteria coverage
+5. known gaps with severity
+6. accept/reject recommendation tied to evidence
+
+TypeScript success or local rendering is not enough.
 
 ## Entity Naming Suggestions
 - `project/iranti_control_plane` - project-wide facts

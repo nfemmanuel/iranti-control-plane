@@ -30,6 +30,14 @@ You implement backend APIs, data aggregation, event infrastructure, and server-s
 - preserve existing Iranti invariants and routing rules
 - write production-quality code, tests, and technical notes
 
+## Live Semantics Rule
+Build against the real Iranti authority model:
+- `.env.iranti` is a binding pointer
+- `IRANTI_INSTANCE_ENV` is the authoritative instance config path
+- CLI/runtime behavior wins over stale docs or assumptions
+
+No backend mutation path is complete until the live instance and CLI agree on the resulting state.
+
 ## Deliverables
 - implementation PRs
 - tests

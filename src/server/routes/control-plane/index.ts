@@ -17,6 +17,16 @@ import { metricsRouter } from './metrics.js'
 import { overviewRouter } from './overview.js'
 import { sessionsRouter } from './sessions.js'
 import { upgradeRouter } from './upgrade.js'
+import { versionSyncRouter } from './version-sync.js'
+import { installStateRouter } from './install-state.js'
+import { lifecycleRouter } from './lifecycle.js'
+import { openFileRouter } from './open-file.js'
+import { authKeysRouter } from './auth-keys.js'
+import { instanceLifecycleRouter } from './instance-lifecycle.js'
+import { projectBindingsRouter } from './project-bindings.js'
+import { claudeIntegrationRouter } from './claude-integration.js'
+import { codexIntegrationRouter } from './codex-integration.js'
+import { attendantDebugRouter } from './attendant-debug.js'
 
 export const controlPlaneRouter = Router()
 
@@ -25,6 +35,12 @@ controlPlaneRouter.use('/', archivistRouter)
 controlPlaneRouter.use('/', kbRouter)
 // WhoKnows proxy: GET /kb/whoknows/:entityType/:entityId → proxies /memory/whoknows/... on Iranti
 controlPlaneRouter.use('/', whoknowsRouter)
+// Project bindings: POST/PATCH/GET /instances/:instanceName/projects — CP-T091
+// Mounted BEFORE instancesRouter so the specific /projects routes shadow the Phase-1 stub
+controlPlaneRouter.use('/instances', projectBindingsRouter)
+// Claude Code integration: GET/POST .../projects/:projectId/claude-integration — CP-T092/T093
+// Mounted AFTER projectBindingsRouter (more specific routes win in Express)
+controlPlaneRouter.use('/instances', claudeIntegrationRouter)
 controlPlaneRouter.use('/instances', instancesRouter)
 controlPlaneRouter.use('/instances', setupRouter)
 controlPlaneRouter.use('/instances', repairRouter)
@@ -50,3 +66,19 @@ controlPlaneRouter.use('/overview', overviewRouter)
 controlPlaneRouter.use('/sessions', sessionsRouter)
 // Upgrade coordination: POST /instances/:name/upgrade, GET /instances/:name/upgrade/:jobId — CP-T073
 controlPlaneRouter.use('/instances', upgradeRouter)
+// Version sync: GET /version-sync — CP-T078
+controlPlaneRouter.use('/version-sync', versionSyncRouter)
+// Install state: GET /install-state — CP-T079
+controlPlaneRouter.use('/install-state', installStateRouter)
+// Lifecycle controls: POST /instances/:name/start, POST /instances/:name/stop, GET /instances/:name/process-status — CP-T080
+controlPlaneRouter.use('/instances', lifecycleRouter)
+// Open local file in system editor: POST /open-file — CP-T084
+controlPlaneRouter.use('/open-file', openFileRouter)
+// Auth Key Manager: GET/POST /auth-keys, DELETE /auth-keys/:keyId — CP-T088
+controlPlaneRouter.use('/auth-keys', authKeysRouter)
+// Instance Create & Configure: POST /instances, PATCH /instances/:name — CP-T089/T090
+controlPlaneRouter.use('/', instanceLifecycleRouter)
+// Codex Integration Manager: GET/POST/DELETE /integrations/codex — CP-T095
+controlPlaneRouter.use('/integrations', codexIntegrationRouter)
+// Attendant Debug Tools: POST /debug/handshake, POST /debug/attend — CP-T096
+controlPlaneRouter.use('/debug', attendantDebugRouter)

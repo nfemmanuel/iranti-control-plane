@@ -42,6 +42,14 @@ Work like a high-end product engineer:
 - choose bold but controlled color systems, typography, and layout rhythms that feel intentional in both themes
 - treat visual originality as part of the product, not garnish
 
+## Truthfulness Rule
+The UI must reflect live operator truth, not inferred or cached wishful state.
+
+Before declaring a workflow complete, verify:
+- the UI is reading the correct authority layer
+- restart requirements are surfaced when runtime behavior is static at startup
+- the control plane and CLI agree on the same state
+
 ## PM Check-In
 A screen is not complete because it renders.
 It is complete when the PM can confirm it solves the intended user job with the required level of clarity.

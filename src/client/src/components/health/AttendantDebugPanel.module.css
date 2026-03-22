@@ -1,0 +1,307 @@
+/* Iranti Control Plane — Attendant Debug Panel Styles */
+/* CP-T096 — Same visual language as HealthDashboard.module.css */
+
+/* ──────────────────────────────────────────────────────────────────
+   Section wrapper (mirrors .diagnosticsSection rhythm)
+   ────────────────────────────────────────────────────────────────── */
+
+.section {
+  flex-shrink: 0;
+  padding: 0 var(--section-padding) var(--space-4);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   <details> collapsible wrapper — native element, no JS toggle needed
+   ────────────────────────────────────────────────────────────────── */
+
+.details {
+  border-top: 1px solid var(--color-border-subtle);
+  margin: 0 var(--section-padding);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+
+/* Remove default marker in Firefox */
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:hover {
+  color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Panel heading area — title + note + warning chip
+   ────────────────────────────────────────────────────────────────── */
+
+.panelHeader {
+  padding: var(--space-3) 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.panelTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panelNote {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.warningChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  align-self: flex-start;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Two-tool grid — side by side on wide, stacked on narrow
+   ────────────────────────────────────────────────────────────────── */
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--space-4);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Individual tool card
+   ────────────────────────────────────────────────────────────────── */
+
+.toolCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  border-left: 3px solid var(--color-staff-attendant);
+}
+
+.toolTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.toolSubtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  line-height: 1.5;
+  margin-top: -6px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Form fields
+   ────────────────────────────────────────────────────────────────── */
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.labelOptional {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.1s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--color-border-strong);
+}
+
+.input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.textarea {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+  transition: border-color 0.1s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.textareaSmall {
+  min-height: 52px;
+}
+
+.textarea:focus {
+  border-color: var(--color-border-strong);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Action row — button + error
+   ────────────────────────────────────────────────────────────────── */
+
+.actionRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.runBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-staff-attendant);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-staff-attendant);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background 0.1s, color 0.1s;
+  align-self: flex-start;
+}
+
+.runBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-staff-attendant) 12%, transparent);
+}
+
+.runBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Loading spinner — matches .diagSpinner in HealthDashboard */
+.spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--color-staff-attendant);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: debugSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes debugSpin {
+  to { transform: rotate(360deg); }
+}
+
+.errorMsg {
+  font-size: 12px;
+  color: var(--color-status-error);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Result block — scrollable JSON pre
+   ────────────────────────────────────────────────────────────────── */
+
+.resultBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.resultLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-tertiary);
+}
+
+.resultPre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 320px;
+  line-height: 1.6;
+  white-space: pre;
+  word-break: normal;
+}

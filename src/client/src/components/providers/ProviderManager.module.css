@@ -871,39 +871,218 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
-   CP-T058 AC-1 (M4) — Read-only guidance note
-   Uses info/blue tone — not a warning or error. Not dismissible.
+   CP-T085/T086 — Provider write forms
    ────────────────────────────────────────────────────────────────── */
 
-.readOnlyNote {
+/* Key write form — inline within detail panel API Key section */
+.keyWriteForm {
+  margin-top: var(--space-2);
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-2) var(--section-padding);
-  background: var(--color-status-info-bg);
-  border-bottom: 1px solid var(--color-status-info);
-  flex-shrink: 0;
 }
 
-.readOnlyNoteIcon {
-  font-size: 13px;
-  color: var(--color-status-info);
-  flex-shrink: 0;
-  margin-top: 1px;
+.writeFormRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
-.readOnlyNoteText {
-  font-size: 12px;
-  color: var(--color-status-info);
-  margin: 0;
-  line-height: 1.6;
-}
-
-.readOnlyNoteCode {
+.writeInput {
+  flex: 1;
+  min-width: 180px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
   font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.1s;
+}
+
+.writeInput:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.writeInput::placeholder {
+  color: var(--color-text-quaternary);
+  font-family: var(--font-sans);
+}
+
+.writeBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-accent-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-bg-base);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+
+.writeBtn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.writeBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.writeBtnSecondary {
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.writeBtnSecondary:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.writeBtnSecondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.writeBtnDanger {
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.writeBtnDanger:hover:not(:disabled) {
+  background: var(--color-status-error);
+  color: var(--color-bg-base);
+}
+
+.writeBtnDanger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.writeSuccess {
+  font-size: 12px;
+  color: var(--color-status-ok);
+  margin: 0;
+}
+
+.writeError {
+  font-size: 12px;
+  color: var(--color-status-error);
+  margin: 0;
+}
+
+/* Global config section — default provider + fallback chain */
+.configSection {
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.configSectionTitle {
   font-size: 11px;
-  background: var(--color-bg-elevated);
-  padding: 1px var(--space-1);
-  border-radius: 3px;
-  color: var(--color-status-info);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.configRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.configLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  min-width: 110px;
+}
+
+.configSelect {
+  flex: 1;
+  min-width: 120px;
+  max-width: 200px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.configSelect:focus {
+  border-color: var(--color-accent-primary);
+}
+
+/* Fallback chain */
+.fallbackChainList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fallbackChainItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fallbackChainIndex {
+  font-size: 11px;
+  color: var(--color-text-quaternary);
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.fallbackChainItemName {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  flex: 1;
+}
+
+.fallbackChainEmpty {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  margin: 0;
+}
+
+.fallbackAddRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }

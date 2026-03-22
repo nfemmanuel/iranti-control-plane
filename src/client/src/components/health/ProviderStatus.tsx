@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse } from '../../api/types'
+import { OpenFileButton } from '../ui/OpenFileButton'
 import styles from './ProviderStatus.module.css'
 
 // ---------------------------------------------------------------------------
@@ -184,6 +185,8 @@ function EmptyState() {
         Set <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or{' '}
         <code>OLLAMA_BASE_URL</code> in your <code>.env.iranti</code> file to connect a provider.
       </p>
+      {/* CP-T084: Open .env.iranti directly in the system editor */}
+      <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
     </div>
   )
 }

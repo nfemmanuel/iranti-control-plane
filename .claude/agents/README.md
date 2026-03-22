@@ -22,6 +22,9 @@ Every agent should be able to:
 4. Use templates when they exist instead of inventing inconsistent structures.
 5. Tie recommendations to the PRD and the active ticket hierarchy.
 6. Check back with the PM when work affects product direction, scope, naming, UX, or acceptance criteria.
+7. Treat `.env.iranti` as a binding pointer only; treat `IRANTI_INSTANCE_ENV` as runtime authority.
+8. Use the CLI as the oracle for live operator semantics.
+9. Do not recommend acceptance without live validation against the running instance.
 
 ## Common Deliverables
 - structured findings
@@ -29,6 +32,16 @@ Every agent should be able to:
 - concrete next actions
 - risks and open questions
 - acceptance-criteria mapping
+- evidence-backed acceptance reports for operator-facing slices
+
+## Acceptance Report Shape
+For slices that change real operator behavior, reports should include:
+1. files changed
+2. behavior implemented
+3. live validation
+4. acceptance-criteria coverage
+5. known gaps with severity
+6. accept/reject recommendation
 
 ---
 

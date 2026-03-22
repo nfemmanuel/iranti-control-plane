@@ -14,10 +14,126 @@
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { createHash } from 'crypto'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { homedir } from 'os'
 import { env } from '../../db.js'
 import { ApiError } from '../../types.js'
 
 export const providersRouter = Router()
+
+// ---------------------------------------------------------------------------
+// Provider → env var mapping (aligned with Iranti CLI spec)
+// ---------------------------------------------------------------------------
+
+const PROVIDER_KEY_VARS: Record<string, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai:    'OPENAI_API_KEY',
+  gemini:    'GEMINI_API_KEY',
+  groq:      'GROQ_API_KEY',
+  mistral:   'MISTRAL_API_KEY',
+  together:  'TOGETHER_API_KEY',
+  ollama:    'OLLAMA_BASE_URL',
+}
+
+/** Providers with no key concept — reject add/update/remove */
+const NO_KEY_PROVIDERS = new Set(['mock'])
+
+/** Patterns that indicate a placeholder rather than a real key */
+const PLACEHOLDER_PATTERNS = [
+  /^sk-xxx/i,
+  /^replace[_-]?me$/i,
+  /^your[_-]?api[_-]?key/i,
+  /^<[^>]+>$/,
+  /^test[_-]?key$/i,
+  /^dummy/i,
+]
+
+function isPlaceholderKey(val: string): boolean {
+  return PLACEHOLDER_PATTERNS.some(p => p.test(val.trim()))
+}
+
+// ---------------------------------------------------------------------------
+// Env file write path — mirrors loadEnv() candidate list from db.ts
+// ---------------------------------------------------------------------------
+
+function findEnvFilePath(): string | null {
+  const isSea =
+    typeof (process as NodeJS.Process & { isSea?: () => boolean }).isSea === 'function' &&
+    (process as NodeJS.Process & { isSea?: () => boolean }).isSea!()
+
+  const candidates = [
+    ...(isSea ? [resolve(dirname(process.execPath), '.env.iranti')] : []),
+    resolve(process.cwd(), '.env.iranti'),
+    resolve(homedir(), '.iranti', '.env.iranti'),
+    resolve(homedir(), '.iranti', 'instances', 'local', '.env'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+function getPreferredEnvFilePath(): string {
+  // Prefer the explicitly-pointed instance env — this is where `iranti` CLI writes
+  // provider keys. The control plane `.env.iranti` is a project binding file, not
+  // the live instance env.
+  const instanceEnvPath = env['IRANTI_INSTANCE_ENV']
+  if (instanceEnvPath && existsSync(instanceEnvPath)) {
+    return instanceEnvPath
+  }
+  // No pointer: fall back to the discovered file (local dev, custom setups)
+  return findEnvFilePath() ?? resolve(process.cwd(), '.env.iranti')
+}
+
+/**
+ * Write or delete a key in the active .env.iranti file.
+ * Preserves comments and unrelated keys.
+ * Updates the in-memory env object so subsequent reads reflect the change immediately.
+ */
+function writeEnvVar(key: string, value: string | null): void {
+  const filePath = getPreferredEnvFilePath()
+  let rawLines: string[] = []
+  if (existsSync(filePath)) {
+    rawLines = readFileSync(filePath, 'utf8').split('\n')
+  }
+
+  let found = false
+  const updated: string[] = []
+
+  for (const line of rawLines) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('#') && trimmed.indexOf('=') !== -1) {
+      const lineKey = trimmed.slice(0, trimmed.indexOf('=')).trim()
+      if (lineKey === key) {
+        found = true
+        if (value !== null) {
+          updated.push(`${key}=${value}`)
+        }
+        // value === null → skip line (delete the key)
+        continue
+      }
+    }
+    updated.push(line)
+  }
+
+  if (!found && value !== null) {
+    // Append: ensure there's a trailing newline separator before the new entry
+    if (updated.length > 0 && updated[updated.length - 1] !== '') {
+      updated.push('')
+    }
+    updated.push(`${key}=${value}`)
+  }
+
+  writeFileSync(filePath, updated.join('\n'), 'utf8')
+
+  // Sync in-memory env object so getEnvVar() reflects the change without restart
+  if (value !== null) {
+    env[key] = value
+  } else {
+    delete env[key]
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Instance ID derivation
@@ -99,11 +215,88 @@ function getGroqKey(): string {
 }
 
 function getDefaultProvider(): string | null {
+  // LLM_PROVIDER is the Iranti CLI canonical var (written by iranti add api-key --set-default)
+  // IRANTI_DEFAULT_PROVIDER / DEFAULT_PROVIDER are legacy CP-specific vars — kept for compat
   const val =
+    getEnvVar('LLM_PROVIDER') ||
     getEnvVar('IRANTI_DEFAULT_PROVIDER') ||
     getEnvVar('DEFAULT_PROVIDER') ||
     ''
   return val.trim() || null
+}
+
+function getFallbackChain(): string[] {
+  const val = getEnvVar('LLM_PROVIDER_FALLBACK')
+  if (!val.trim()) return []
+  return val.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+// ---------------------------------------------------------------------------
+// Task-model routing — CP-T087
+// Aligned with Iranti src/lib/router.ts buildModelProfiles() + modelForTask()
+// ---------------------------------------------------------------------------
+
+const TASK_TYPES = [
+  'classification',
+  'relevance_filtering',
+  'conflict_resolution',
+  'summarization',
+  'task_inference',
+  'extraction',
+] as const
+
+type RoutingTaskType = typeof TASK_TYPES[number]
+
+const TASK_ROUTING_VARS: Record<RoutingTaskType, string> = {
+  classification:      'CLASSIFICATION_MODEL',
+  relevance_filtering: 'RELEVANCE_MODEL',
+  conflict_resolution: 'CONFLICT_MODEL',
+  summarization:       'SUMMARIZATION_MODEL',
+  task_inference:      'TASK_INFERENCE_MODEL',
+  extraction:          'EXTRACTION_MODEL',
+}
+
+/** Default model for a task+provider pair — mirrors router.ts defaultModelForProvider() */
+function defaultModelForTask(taskType: RoutingTaskType, provider: string): string {
+  switch (provider) {
+    case 'openai':
+      return taskType === 'conflict_resolution' ? 'gpt-5' : 'gpt-5-mini'
+    case 'groq':
+      return 'meta-llama/llama-4-scout-17b-16e-instruct'
+    case 'mistral':
+      return 'mistral-small-latest'
+    case 'ollama':
+      return 'llama3.2'
+    case 'claude':
+    case 'anthropic':
+      return taskType === 'conflict_resolution' ? 'claude-sonnet-4' : 'claude-3-5-haiku-latest'
+    case 'mock':
+      return 'mock'
+    case 'gemini':
+    default:
+      return taskType === 'conflict_resolution' ? 'gemini-2.5-pro' : 'gemini-2.5-flash'
+  }
+}
+
+/** Mirror of router.ts isLikelyCompatible() — warns but does not hard-block */
+function isCompatibleWithProvider(provider: string, model: string): boolean {
+  const m = model.toLowerCase()
+  if (provider === 'mock') return true
+  if (provider === 'openai') return !(m.startsWith('gemini') || m.startsWith('claude') || m.startsWith('mistral') || m.startsWith('llama'))
+  if (provider === 'gemini') return !m.startsWith('gpt') && !m.startsWith('claude') && !m.startsWith('mistral') && !m.startsWith('llama')
+  if (provider === 'claude' || provider === 'anthropic') return m.startsWith('claude')
+  if (provider === 'mistral') return m.startsWith('mistral')
+  return true
+}
+
+/** Current task routing state: the override value from env (null = use provider default) */
+function getTaskRouting(): Record<string, string | null> {
+  const result: Record<string, string | null> = {}
+  for (const task of TASK_TYPES) {
+    const val = getEnvVar(TASK_ROUTING_VARS[task])
+    result[task] = val.trim() || null
+  }
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +536,13 @@ providersRouter.get(
         scopeType: 'unknown' as ScopeType,
       }))
 
-      res.json({ providers, checkedAt })
+      res.json({
+        providers,
+        checkedAt,
+        defaultProvider: computedDefault,
+        fallbackChain: getFallbackChain(),
+        taskRouting: getTaskRouting(),
+      })
     } catch (err) {
       next(err)
     }
@@ -890,6 +1089,284 @@ providersRouter.get(
       }
 
       res.json(result)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// PUT /providers/:providerId/key  — set or update a provider API key
+// Body: { key: string }
+// ---------------------------------------------------------------------------
+
+providersRouter.put(
+  '/providers/:providerId/key',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params
+
+      if (NO_KEY_PROVIDERS.has(providerId)) {
+        return res.status(400).json({
+          error: `Provider '${providerId}' does not support API key management`,
+          code: 'PROVIDER_NO_KEY',
+        })
+      }
+
+      const envVar = PROVIDER_KEY_VARS[providerId]
+      if (!envVar) {
+        return res.status(404).json({ error: `Unknown provider: ${providerId}`, code: 'PROVIDER_NOT_FOUND' })
+      }
+
+      const body = req.body as { key?: unknown }
+      const key = typeof body.key === 'string' ? body.key.trim() : ''
+      if (!key) {
+        return res.status(400).json({ error: 'key is required and must be a non-empty string', code: 'VALIDATION_ERROR' })
+      }
+      if (isPlaceholderKey(key)) {
+        return res.status(400).json({ error: 'Key value looks like a placeholder. Provide the real API key.', code: 'PLACEHOLDER_KEY' })
+      }
+
+      writeEnvVar(envVar, key)
+      reachabilityCache.delete(providerId)
+
+      return res.json({ ok: true, provider: providerId, envVar, keyMasked: maskKey(key) })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// DELETE /providers/:providerId/key  — remove a provider API key
+// ---------------------------------------------------------------------------
+
+providersRouter.delete(
+  '/providers/:providerId/key',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params
+
+      if (NO_KEY_PROVIDERS.has(providerId)) {
+        return res.status(400).json({
+          error: `Provider '${providerId}' does not support API key management`,
+          code: 'PROVIDER_NO_KEY',
+        })
+      }
+
+      const envVar = PROVIDER_KEY_VARS[providerId]
+      if (!envVar) {
+        return res.status(404).json({ error: `Unknown provider: ${providerId}`, code: 'PROVIDER_NOT_FOUND' })
+      }
+
+      writeEnvVar(envVar, null)
+      reachabilityCache.delete(providerId)
+
+      return res.json({ ok: true, provider: providerId, envVar, keyMasked: null })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// PUT /providers/default  — set the default provider
+// Body: { provider: string }
+// NOTE: must be declared before PUT /providers/:providerId/key — different segment count so no conflict
+// ---------------------------------------------------------------------------
+
+providersRouter.put(
+  '/providers/default',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as { provider?: unknown }
+      const provider = typeof body.provider === 'string' ? body.provider.trim() : ''
+      if (!provider) {
+        return res.status(400).json({ error: 'provider is required', code: 'VALIDATION_ERROR' })
+      }
+
+      const allKnownProviders = new Set([...Object.keys(PROVIDER_KEY_VARS), ...NO_KEY_PROVIDERS])
+      if (!allKnownProviders.has(provider)) {
+        return res.status(400).json({ error: `Unknown provider: ${provider}`, code: 'PROVIDER_NOT_FOUND' })
+      }
+
+      writeEnvVar('LLM_PROVIDER', provider)
+
+      return res.json({ ok: true, provider })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// DELETE /providers/default  — clear the default provider
+// ---------------------------------------------------------------------------
+
+providersRouter.delete(
+  '/providers/default',
+  (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      writeEnvVar('LLM_PROVIDER', null)
+      return res.json({ ok: true, provider: null })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// PUT /providers/fallback  — set the provider fallback chain
+// Body: { chain: string[] }
+// ---------------------------------------------------------------------------
+
+providersRouter.put(
+  '/providers/fallback',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as { chain?: unknown }
+      if (!Array.isArray(body.chain)) {
+        return res.status(400).json({ error: 'chain must be an array of provider IDs', code: 'VALIDATION_ERROR' })
+      }
+
+      const allKnownProviders = new Set([...Object.keys(PROVIDER_KEY_VARS), ...NO_KEY_PROVIDERS])
+      for (const p of body.chain) {
+        if (typeof p !== 'string' || !allKnownProviders.has(p)) {
+          return res.status(400).json({
+            error: `Invalid provider in chain: ${String(p)}`,
+            code: 'VALIDATION_ERROR',
+          })
+        }
+      }
+
+      const chain = body.chain as string[]
+      if (chain.length === 0) {
+        writeEnvVar('LLM_PROVIDER_FALLBACK', null)
+      } else {
+        writeEnvVar('LLM_PROVIDER_FALLBACK', chain.join(','))
+      }
+
+      return res.json({ ok: true, chain })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// DELETE /providers/fallback  — clear the fallback chain
+// ---------------------------------------------------------------------------
+
+providersRouter.delete(
+  '/providers/fallback',
+  (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      writeEnvVar('LLM_PROVIDER_FALLBACK', null)
+      return res.json({ ok: true, chain: [] })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// PUT /providers/task-routing  — set task-model overrides (CP-T087)
+// Body: { overrides: Record<string, string | null> }
+//   null value = clear the override for that task (revert to provider default)
+// Mirrors Iranti router.ts semantics: incompatible model warns but is not blocked.
+// All vars are read at Iranti startup — operator must restart Iranti for changes to take effect.
+// ---------------------------------------------------------------------------
+
+providersRouter.put(
+  '/providers/task-routing',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as { overrides?: unknown }
+      if (typeof body.overrides !== 'object' || body.overrides === null || Array.isArray(body.overrides)) {
+        return res.status(400).json({ error: 'overrides must be an object mapping task types to model strings or null', code: 'VALIDATION_ERROR' })
+      }
+
+      const overrides = body.overrides as Record<string, unknown>
+      const activeProvider = getDefaultProvider() ?? 'mock'
+      const written: Record<string, string | null> = {}
+      const warnings: string[] = []
+
+      for (const [task, model] of Object.entries(overrides)) {
+        if (!(TASK_TYPES as readonly string[]).includes(task)) {
+          return res.status(400).json({ error: `Unknown task type: ${task}`, code: 'VALIDATION_ERROR' })
+        }
+
+        const envVar = TASK_ROUTING_VARS[task as RoutingTaskType]
+
+        if (model === null) {
+          writeEnvVar(envVar, null)
+          written[task] = null
+          continue
+        }
+
+        if (typeof model !== 'string' || !model.trim()) {
+          return res.status(400).json({ error: `Model for task '${task}' must be a non-empty string or null`, code: 'VALIDATION_ERROR' })
+        }
+
+        const modelTrimmed = model.trim()
+
+        // Warn (not block) if the model looks incompatible with the active provider —
+        // mirrors router.ts isLikelyCompatible() behavior exactly.
+        if (!isCompatibleWithProvider(activeProvider, modelTrimmed)) {
+          warnings.push(`Model '${modelTrimmed}' may be incompatible with provider '${activeProvider}' for task '${task}'. Iranti will warn at runtime and use the provider default instead.`)
+        }
+
+        writeEnvVar(envVar, modelTrimmed)
+        written[task] = modelTrimmed
+      }
+
+      return res.json({
+        ok: true,
+        written,
+        warnings,
+        restartRequired: true,
+        taskRouting: getTaskRouting(),
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// DELETE /providers/task-routing  — reset all task-model overrides (CP-T087)
+// Clears all 6 task-model env vars; Iranti will use provider defaults for all tasks.
+// ---------------------------------------------------------------------------
+
+providersRouter.delete(
+  '/providers/task-routing',
+  (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      for (const task of TASK_TYPES) {
+        writeEnvVar(TASK_ROUTING_VARS[task], null)
+      }
+      return res.json({ ok: true, taskRouting: getTaskRouting(), restartRequired: true })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// GET /providers/routing-defaults  — resolved defaults for the active provider (CP-T087)
+// Returns the model each task would use by default if no override is set.
+// ---------------------------------------------------------------------------
+
+providersRouter.get(
+  '/providers/routing-defaults',
+  (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const provider = (req.query['provider'] as string | undefined) ?? getDefaultProvider() ?? 'mock'
+      const defaults: Record<string, string> = {}
+      for (const task of TASK_TYPES) {
+        defaults[task] = defaultModelForTask(task, provider)
+      }
+      return res.json({ provider, defaults })
     } catch (err) {
       next(err)
     }

@@ -56,6 +56,38 @@
   white-space: nowrap;
 }
 
+/* CP-T078: Version sync status line */
+
+.versionStatus {
+  font-size: 11px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.versionPrefix {
+  color: var(--color-text-tertiary);
+}
+
+.versionUpToDate {
+  color: var(--color-status-success);
+}
+
+.versionUpdateAvailable {
+  color: var(--color-status-warning);
+}
+
+.versionReleaseLink {
+  color: var(--color-status-warning);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.versionReleaseLink:hover {
+  color: var(--color-text-primary);
+}
+
 /* CP-T028: Overall status badge — uses severity taxonomy labels */
 
 .overallBadge {
@@ -216,12 +248,21 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────
+   Scroll container — wraps grid + all sections below the banners
+   ────────────────────────────────────────────────────────────────── */
+
+.scrollContainer {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────────────────────────────────────────────────────────
    Card grid
    ────────────────────────────────────────────────────────────────── */
 
 .grid {
-  flex: 1;
-  overflow-y: auto;
   padding: var(--space-4) var(--section-padding);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -956,4 +997,54 @@
 
 .diagPanelContainer {
   margin-top: var(--space-3);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CP-T082: Contextual repair action buttons on health check cards
+   ────────────────────────────────────────────────────────────────── */
+
+.repairActionRow {
+  padding-left: 28px;
+  margin-top: var(--space-1);
+}
+
+.repairActionBtn {
+  height: 24px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.repairActionBtn:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.repairActionBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.repairActionSpinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: repairSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes repairSpin {
+  to { transform: rotate(360deg); }
 }

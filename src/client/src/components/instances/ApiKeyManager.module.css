@@ -1,0 +1,659 @@
+/* Iranti Control Plane — API Key Manager Styles */
+/* CP-T088 — Registry-backed API key management */
+/* Follows tokens.css variables and InstanceManager/ProviderStatus conventions */
+
+/* ──────────────────────────────────────────────────────────────────
+   Section shell
+   ────────────────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Create button
+   ────────────────────────────────────────────────────────────────── */
+
+.createBtn {
+  height: 26px;
+  padding: 0 var(--space-3);
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.createBtn:hover {
+  background: var(--color-accent-hover);
+}
+
+.createBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Keys table
+   ────────────────────────────────────────────────────────────────── */
+
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size);
+}
+
+.table thead tr {
+  height: var(--table-header-height);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.table th {
+  padding: 0 var(--space-3);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.table tbody tr {
+  height: var(--table-row-height);
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background 0.08s;
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--color-bg-elevated);
+}
+
+.table tbody tr.rowRevoked {
+  opacity: 0.5;
+}
+
+.table td {
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Cell content pieces
+   ────────────────────────────────────────────────────────────────── */
+
+.keyIdCell {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.ownerCell {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.scopesCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.scopeTag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-accent-primary);
+  white-space: nowrap;
+}
+
+.scopeTagEmpty {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.timestampCell {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Status badges
+   ────────────────────────────────────────────────────────────────── */
+
+.badgeActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent);
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+.badgeRevoked {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+.activeIndicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-status-success);
+  box-shadow: 0 0 4px var(--color-status-success);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Revoke button
+   ────────────────────────────────────────────────────────────────── */
+
+.revokeBtn {
+  height: 24px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  color: var(--color-status-error);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 40%, transparent);
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.revokeBtn:hover {
+  background: var(--color-status-error-bg);
+  border-color: var(--color-status-error);
+}
+
+.revokeBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Create key form
+   ────────────────────────────────────────────────────────────────── */
+
+.formPanel {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.formTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.formLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.formInput {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.1s;
+}
+
+.formInput:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.formInput::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Scope checkboxes
+   ────────────────────────────────────────────────────────────────── */
+
+.scopeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scopeCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+  user-select: none;
+}
+
+.scopeCheckLabel:hover {
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-primary);
+}
+
+.scopeCheckLabel.scopeChecked {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-primary);
+}
+
+.scopeCheckbox {
+  accent-color: var(--color-accent-primary);
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   syncToProject dropdown
+   ────────────────────────────────────────────────────────────────── */
+
+.formSelect {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.1s;
+  cursor: pointer;
+}
+
+.formSelect:focus {
+  border-color: var(--color-accent-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Form actions row
+   ────────────────────────────────────────────────────────────────── */
+
+.formActions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.formSubmitBtn {
+  height: 30px;
+  padding: 0 var(--space-4);
+  background: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.formSubmitBtn:hover {
+  background: var(--color-accent-hover);
+}
+
+.formSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.formCancelBtn {
+  height: 30px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.formCancelBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.formError {
+  font-size: 12px;
+  color: var(--color-status-error);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+  border-radius: var(--border-radius-sm);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Token reveal panel (shown once after create)
+   ────────────────────────────────────────────────────────────────── */
+
+.tokenReveal {
+  background: var(--color-status-warning-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 40%, transparent);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.tokenWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-status-warning);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.tokenWarningIcon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.tokenRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tokenInput {
+  flex: 1;
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+  cursor: text;
+}
+
+.copyBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.copyBtn:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.copyBtnCopied {
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+
+.tokenDismissBtn {
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.tokenDismissBtn:hover {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-default);
+}
+
+.tokenSyncNote {
+  font-size: 11px;
+  color: var(--color-status-success);
+  font-style: italic;
+}
+
+.tokenWarnNote {
+  font-size: 11px;
+  color: var(--color-status-warning);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Revoke confirmation modal
+   ────────────────────────────────────────────────────────────────── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 8, 8, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modalBox {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-5) var(--space-5);
+  width: 380px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+.modalTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.modalBody {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.modalKeyId {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent-primary);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.modalCancelBtn {
+  height: 30px;
+  padding: 0 var(--space-4);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.modalCancelBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.modalRevokeBtn {
+  height: 30px;
+  padding: 0 var(--space-4);
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 40%, transparent);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.modalRevokeBtn:hover {
+  background: color-mix(in srgb, var(--color-status-error-bg) 80%, var(--color-status-error) 20%);
+  border-color: var(--color-status-error);
+}
+
+.modalRevokeBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading / error inline states
+   ────────────────────────────────────────────────────────────────── */
+
+.loadingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  padding: var(--space-3) 0;
+}
+
+.errorRow {
+  font-size: 12px;
+  color: var(--color-status-error);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+  border-radius: var(--border-radius-sm);
+}
+
+.spinnerSmall {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

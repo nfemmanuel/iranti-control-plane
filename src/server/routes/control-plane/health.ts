@@ -199,11 +199,11 @@ async function checkDbSchemaVersion(): Promise<HealthCheck> {
 
 async function checkVectorBackend(): Promise<HealthCheck> {
   try {
-    const result = await query<{ installed_version: string | null }>(
-      `SELECT installed_version FROM pg_extension WHERE extname = 'vector' LIMIT 1`
+    const result = await query<{ extversion: string | null }>(
+      `SELECT extversion FROM pg_extension WHERE extname = 'vector' LIMIT 1`
     )
 
-    if (result.rows.length === 0 || !result.rows[0].installed_version) {
+    if (result.rows.length === 0 || !result.rows[0].extversion) {
       return {
         name: 'vector_backend',
         status: 'warn',
@@ -215,8 +215,8 @@ async function checkVectorBackend(): Promise<HealthCheck> {
     return {
       name: 'vector_backend',
       status: 'ok',
-      message: `pgvector installed (version ${result.rows[0].installed_version})`,
-      detail: { version: result.rows[0].installed_version },
+      message: `pgvector installed (version ${result.rows[0].extversion})`,
+      detail: { version: result.rows[0].extversion },
     }
   } catch (err) {
     return {
@@ -532,8 +532,8 @@ function buildAttendantStatus(): AttendantStatus {
   return {
     status: 'informational',
     message:
-      'Attendant automatic injection has known reliability limitations without native emitter injection (CP-T025). Iranti v0.2.13 improved classification accuracy. If injection appears unreliable, provide explicit entityHints to iranti_observe.',
-    upstreamPRRequired: 'CP-T025',
+      'Attendant automatic injection has known reliability limitations without native emitter injection. A PR to add native Staff event emission is submitted upstream (CP-T025, PR #1) and awaiting merge. Until merged, use forceInject: true or provide explicit entityHints to iranti_observe.',
+    upstreamPRRequired: 'CP-T025 — PR #1 submitted, awaiting merge',
   }
 }
 

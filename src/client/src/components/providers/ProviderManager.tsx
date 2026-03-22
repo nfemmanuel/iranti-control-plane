@@ -3,11 +3,12 @@
 /* CP-T046: Standalone provider view, warning threshold, detail panel */
 
 import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '../../api/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, setProviderKey, removeProviderKey, setDefaultProvider, clearDefaultProvider, setFallbackChain, clearFallbackChain } from '../../api/client'
 import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse, ProviderScopeType } from '../../api/types'
 import styles from './ProviderManager.module.css'
 import { Spinner } from '../ui/Spinner'
+import { RoutingEditor } from './RoutingEditor'
 
 // ---------------------------------------------------------------------------
 // localStorage helpers for warning thresholds
@@ -194,6 +195,337 @@ function FullModelList({ providerId, reachable }: { providerId: string; reachabl
 }
 
 // ---------------------------------------------------------------------------
+// Key write form — inline within the API Key section of DetailPanel
+// ---------------------------------------------------------------------------
+
+interface KeyWriteFormProps {
+  provider: ProviderStatus
+  onSuccess: () => void
+}
+
+function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
+  const [keyInput, setKeyInput] = useState('')
+  const [showInput, setShowInput] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  const clearFeedback = () => setFeedback(null)
+
+  const handleSet = async () => {
+    if (!keyInput.trim()) return
+    setPending(true)
+    clearFeedback()
+    try {
+      await setProviderKey(provider.id, keyInput.trim())
+      setKeyInput('')
+      setShowInput(false)
+      setFeedback({ kind: 'ok', msg: 'Key saved.' })
+      onSuccess()
+    } catch (e) {
+      setFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to save key.' })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!window.confirm(`Remove the API key for ${provider.name}? This will clear ${provider.keyEnvVar} from .env.iranti.`)) return
+    setPending(true)
+    clearFeedback()
+    try {
+      await removeProviderKey(provider.id)
+      setFeedback({ kind: 'ok', msg: 'Key removed.' })
+      onSuccess()
+    } catch (e) {
+      setFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to remove key.' })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') void handleSet()
+    if (e.key === 'Escape') { setShowInput(false); setKeyInput('') }
+  }
+
+  return (
+    <div className={styles.keyWriteForm}>
+      {provider.keyPresent && !showInput && (
+        <div className={styles.writeFormRow}>
+          <button
+            type="button"
+            className={styles.writeBtnSecondary}
+            onClick={() => { setShowInput(true); clearFeedback() }}
+            disabled={pending}
+          >
+            Update key
+          </button>
+          <button
+            type="button"
+            className={styles.writeBtnDanger}
+            onClick={() => void handleRemove()}
+            disabled={pending}
+          >
+            Remove key
+          </button>
+        </div>
+      )}
+
+      {(!provider.keyPresent || showInput) && (
+        <div className={styles.writeFormRow}>
+          <input
+            type="password"
+            className={styles.writeInput}
+            placeholder={`Paste ${provider.keyEnvVar}…`}
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className={styles.writeBtn}
+            onClick={() => void handleSet()}
+            disabled={pending || !keyInput.trim()}
+          >
+            {pending ? 'Saving…' : provider.keyPresent ? 'Update' : 'Save key'}
+          </button>
+          {showInput && (
+            <button
+              type="button"
+              className={styles.writeBtnSecondary}
+              onClick={() => { setShowInput(false); setKeyInput(''); clearFeedback() }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+
+      {feedback && (
+        <p className={feedback.kind === 'ok' ? styles.writeSuccess : styles.writeError}>
+          {feedback.msg}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Global config panel — default provider + fallback chain
+// ---------------------------------------------------------------------------
+
+const ALL_CONFIGURABLE_PROVIDERS = Object.keys({
+  anthropic: true, openai: true, gemini: true, groq: true, mistral: true, together: true, ollama: true, mock: true,
+})
+
+interface GlobalConfigProps {
+  defaultProvider: string | null
+  fallbackChain: string[]
+  onSuccess: () => void
+}
+
+function GlobalConfigPanel({ defaultProvider, fallbackChain, onSuccess }: GlobalConfigProps) {
+  const [selectedDefault, setSelectedDefault] = useState(defaultProvider ?? '')
+  const [chain, setChain] = useState<string[]>(fallbackChain)
+  const [addProvider, setAddProvider] = useState('')
+  const [defaultPending, setDefaultPending] = useState(false)
+  const [defaultFeedback, setDefaultFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [chainPending, setChainPending] = useState(false)
+  const [chainFeedback, setChainFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  // Sync when parent data refreshes
+  useEffect(() => { setSelectedDefault(defaultProvider ?? '') }, [defaultProvider])
+  useEffect(() => { setChain(fallbackChain) }, [fallbackChain])
+
+  const handleSetDefault = async () => {
+    setDefaultPending(true)
+    setDefaultFeedback(null)
+    try {
+      if (selectedDefault) {
+        await setDefaultProvider(selectedDefault)
+      } else {
+        await clearDefaultProvider()
+      }
+      setDefaultFeedback({ kind: 'ok', msg: 'Default provider saved.' })
+      onSuccess()
+    } catch (e) {
+      setDefaultFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to update default.' })
+    } finally {
+      setDefaultPending(false)
+    }
+  }
+
+  const handleAddChainItem = () => {
+    if (!addProvider || chain.includes(addProvider)) return
+    setChain(prev => [...prev, addProvider])
+    setAddProvider('')
+  }
+
+  const handleRemoveChainItem = (idx: number) => {
+    setChain(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleMoveUp = (idx: number) => {
+    if (idx === 0) return
+    setChain(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
+
+  const handleMoveDown = (idx: number) => {
+    setChain(prev => {
+      if (idx === prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
+  }
+
+  const handleSaveChain = async () => {
+    setChainPending(true)
+    setChainFeedback(null)
+    try {
+      if (chain.length === 0) {
+        await clearFallbackChain()
+      } else {
+        await setFallbackChain(chain)
+      }
+      setChainFeedback({ kind: 'ok', msg: 'Fallback chain saved.' })
+      onSuccess()
+    } catch (e) {
+      setChainFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to update fallback chain.' })
+    } finally {
+      setChainPending(false)
+    }
+  }
+
+  const availableToAdd = ALL_CONFIGURABLE_PROVIDERS.filter(p => !chain.includes(p))
+
+  return (
+    <div className={styles.configSection}>
+      <h2 className={styles.configSectionTitle}>Instance Configuration</h2>
+
+      {/* Default provider */}
+      <div className={styles.configRow}>
+        <label className={styles.configLabel} htmlFor="default-provider-select">
+          Default provider
+        </label>
+        <select
+          id="default-provider-select"
+          className={styles.configSelect}
+          value={selectedDefault}
+          onChange={e => setSelectedDefault(e.target.value)}
+          disabled={defaultPending}
+        >
+          <option value="">(none — auto-detect)</option>
+          {ALL_CONFIGURABLE_PROVIDERS.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className={styles.writeBtn}
+          onClick={() => void handleSetDefault()}
+          disabled={defaultPending}
+        >
+          {defaultPending ? 'Saving…' : 'Save'}
+        </button>
+        {defaultFeedback && (
+          <span className={defaultFeedback.kind === 'ok' ? styles.writeSuccess : styles.writeError}>
+            {defaultFeedback.msg}
+          </span>
+        )}
+      </div>
+
+      {/* Fallback chain */}
+      <div>
+        <div className={styles.configRow} style={{ marginBottom: 'var(--space-1)' }}>
+          <span className={styles.configLabel}>Fallback chain</span>
+          {chain.length > 0 && (
+            <ul className={styles.fallbackChainList}>
+              {chain.map((p, i) => (
+                <li key={p} className={styles.fallbackChainItem}>
+                  <span className={styles.fallbackChainIndex}>{i + 1}.</span>
+                  <span className={styles.fallbackChainItemName}>{p}</span>
+                  <button
+                    type="button"
+                    className={styles.writeBtnSecondary}
+                    onClick={() => handleMoveUp(i)}
+                    disabled={chainPending || i === 0}
+                    aria-label={`Move ${p} up`}
+                    title="Move up"
+                  >↑</button>
+                  <button
+                    type="button"
+                    className={styles.writeBtnSecondary}
+                    onClick={() => handleMoveDown(i)}
+                    disabled={chainPending || i === chain.length - 1}
+                    aria-label={`Move ${p} down`}
+                    title="Move down"
+                  >↓</button>
+                  <button
+                    type="button"
+                    className={styles.writeBtnDanger}
+                    onClick={() => handleRemoveChainItem(i)}
+                    disabled={chainPending}
+                    aria-label={`Remove ${p} from fallback chain`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {chain.length === 0 && (
+            <p className={styles.fallbackChainEmpty}>No fallback chain configured (LLM_PROVIDER_FALLBACK not set)</p>
+          )}
+        </div>
+        <div className={styles.fallbackAddRow}>
+          <select
+            className={styles.configSelect}
+            value={addProvider}
+            onChange={e => setAddProvider(e.target.value)}
+            disabled={chainPending}
+            aria-label="Select provider to add to fallback chain"
+          >
+            <option value="">Add provider…</option>
+            {availableToAdd.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={styles.writeBtnSecondary}
+            onClick={handleAddChainItem}
+            disabled={!addProvider || chainPending}
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            className={styles.writeBtn}
+            onClick={() => void handleSaveChain()}
+            disabled={chainPending}
+          >
+            {chainPending ? 'Saving…' : 'Save chain'}
+          </button>
+          {chainFeedback && (
+            <span className={chainFeedback.kind === 'ok' ? styles.writeSuccess : styles.writeError}>
+              {chainFeedback.msg}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Provider Detail Panel (right-side)
 // ---------------------------------------------------------------------------
 
@@ -204,6 +536,7 @@ interface DetailPanelProps {
   onThresholdChange: (providerId: string, value: number) => void
   onRefresh: () => void
   isRefreshing: boolean
+  onKeyChange: () => void
 }
 
 function DetailPanel({
@@ -213,6 +546,7 @@ function DetailPanel({
   onThresholdChange,
   onRefresh,
   isRefreshing,
+  onKeyChange,
 }: DetailPanelProps) {
   const state = resolveReachabilityState(provider)
   const showThreshold = QUOTA_SUPPORTED_PROVIDERS.has(provider.id)
@@ -286,7 +620,7 @@ function DetailPanel({
         </button>
       </div>
 
-      {/* Key info */}
+      {/* Key info + write form */}
       <section className={styles.detailSection}>
         <h3 className={styles.detailSectionTitle}>API Key</h3>
         {provider.keyPresent && provider.keyMasked ? (
@@ -296,7 +630,10 @@ function DetailPanel({
             <span className={styles.keyPresent}>✓ Present</span>
           </div>
         ) : (
-          <p className={styles.keyAbsent}>No key configured — set <code>{provider.keyEnvVar}</code> in <code>.env.iranti</code>.</p>
+          <p className={styles.keyAbsent}>No key configured — set <code>{provider.keyEnvVar}</code> in <code>.env.iranti</code> or use the form below.</p>
+        )}
+        {provider.id !== 'mock' && (
+          <KeyWriteForm provider={provider} onSuccess={onKeyChange} />
         )}
       </section>
 
@@ -472,6 +809,7 @@ function ProviderCard({ provider, isSelected, onClick }: ProviderCardProps) {
 // ---------------------------------------------------------------------------
 
 export function ProviderManager() {
+  const queryClient = useQueryClient()
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [thresholds, setThresholds] = useState<Record<string, number>>(loadThresholds)
   const [reachabilityHistory, setReachabilityHistory] = useState<ReachabilityHistory>({})
@@ -505,6 +843,11 @@ export function ProviderManager() {
   const handleDetailRefresh = () => {
     // Invalidates the reachability cache on next call via forced refetch
     void refetch()
+  }
+
+  const handleWriteSuccess = () => {
+    // Invalidate the providers query so the list + config panel reflect the change
+    void queryClient.invalidateQueries({ queryKey: ['providers'] })
   }
 
   const selectedProvider = data?.providers.find(p => p.id === selectedProviderId) ?? null
@@ -551,14 +894,23 @@ export function ProviderManager() {
         </button>
       </div>
 
-      {/* CP-T058 AC-1 (M4) — read-only guidance note */}
-      <div className={styles.readOnlyNote} role="note" aria-label="Provider configuration guidance">
-        <span className={styles.readOnlyNoteIcon} aria-hidden="true">ℹ</span>
-        <p className={styles.readOnlyNoteText}>
-          Provider and model configuration is read-only. To change providers or models, run{' '}
-          <code className={styles.readOnlyNoteCode}>iranti setup</code> in your project directory.
-        </p>
-      </div>
+      {/* Global config: default provider + fallback chain */}
+      {!isLoading && data && (
+        <GlobalConfigPanel
+          defaultProvider={data.defaultProvider}
+          fallbackChain={data.fallbackChain}
+          onSuccess={handleWriteSuccess}
+        />
+      )}
+
+      {/* CP-T087: Task-model routing editor */}
+      {!isLoading && data && (
+        <RoutingEditor
+          taskRouting={data.taskRouting}
+          activeProvider={data.defaultProvider}
+          onSuccess={handleWriteSuccess}
+        />
+      )}
 
       {/* Main content: provider list + detail panel */}
       <div className={styles.layout}>
@@ -609,6 +961,7 @@ export function ProviderManager() {
               onThresholdChange={handleThresholdChange}
               onRefresh={handleDetailRefresh}
               isRefreshing={isFetching}
+              onKeyChange={handleWriteSuccess}
             />
           )}
         </div>

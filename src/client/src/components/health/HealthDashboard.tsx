@@ -5,12 +5,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { apiFetch } from '../../api/client'
-import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult } from '../../api/types'
+import { Link, useNavigate } from 'react-router-dom'
+import { apiFetch, fetchVersionSync, startInstance } from '../../api/client'
+import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult, VersionSyncResult } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { ProviderStatusSection } from './ProviderStatus'
+import { AttendantDebugPanel } from './AttendantDebugPanel'
+import { OpenFileButton } from '../ui/OpenFileButton'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './HealthDashboard.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -170,6 +173,27 @@ interface RepairResult {
   data: RepairMcpJsonResponse | RepairClaudeMdResponse
 }
 
+/* ------------------------------------------------------------------ */
+/*  CP-T082: Contextual repair action map                              */
+/* ------------------------------------------------------------------ */
+
+interface RepairActionSpec {
+  label: string
+  action: 'navigate' | 'trigger'
+  target: string
+}
+
+const REPAIR_ACTIONS: Record<string, RepairActionSpec> = {
+  iranti_connectivity: { label: 'Start Iranti',          action: 'trigger',   target: 'start-iranti' },
+  iranti_auth:         { label: 'Configure API Key',     action: 'navigate',  target: '/providers' },
+  db_connectivity:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  db_reachability:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  vector_backend:      { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  ingest_roundtrip:    { label: 'Run diagnostics',       action: 'trigger',   target: 'run-diagnostics' },
+  attend_check:        { label: 'View Attendant logs',   action: 'navigate',  target: '/logs?component=attendant' },
+  vector_search_check: { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+}
+
 /** Sort key: CRITICAL first, then WARNING, then INFO, then HEALTHY */
 function severitySortKey(severity: Severity): number {
   switch (severity) {
@@ -285,7 +309,13 @@ function SeverityBadge({ severity }: { severity: Severity }) {
   )
 }
 
-function HealthCard({ check }: { check: HealthCheck }) {
+function HealthCard({
+  check,
+  onRunDiagnostics,
+}: {
+  check: HealthCheck
+  onRunDiagnostics?: () => void
+}) {
   const severity = classifyCheckSeverity(check)
   const remediation = getRemediation(check.name, check.status)
   const normalization = severity === 'INFO' ? getInfoNormalization(check.name) : null
@@ -297,6 +327,44 @@ function HealthCard({ check }: { check: HealthCheck }) {
   const [repairLoading, setRepairLoading] = useState(false)
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null)
   const [repairError, setRepairError] = useState<string | null>(null)
+
+  // CP-T082: Contextual repair action state
+  const navigate = useNavigate()
+  const { activeInstance } = useInstanceContext()
+  const repairAction = REPAIR_ACTIONS[check.name]
+  const showRepairAction = (severity === 'CRITICAL' || severity === 'WARNING') && repairAction !== undefined
+  const [repairActionInFlight, setRepairActionInFlight] = useState(false)
+  const [repairActionFeedback, setRepairActionFeedback] = useState<string | null>(null)
+
+  const handleRepairAction = useCallback(async () => {
+    if (!repairAction) return
+    if (repairAction.action === 'navigate') {
+      navigate(repairAction.target)
+      return
+    }
+    // trigger actions
+    if (repairAction.target === 'run-diagnostics') {
+      onRunDiagnostics?.()
+      setRepairActionFeedback('Running…')
+      setTimeout(() => setRepairActionFeedback(null), 3000)
+      return
+    }
+    if (repairAction.target === 'start-iranti') {
+      const instanceName = activeInstance?.name ?? 'local'
+      setRepairActionInFlight(true)
+      setRepairActionFeedback('Starting…')
+      try {
+        await startInstance(instanceName)
+        setRepairActionFeedback('Started — checking connectivity…')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to start'
+        setRepairActionFeedback(msg)
+      } finally {
+        setRepairActionInFlight(false)
+        setTimeout(() => setRepairActionFeedback(null), 3000)
+      }
+    }
+  }, [repairAction, navigate, onRunDiagnostics, activeInstance])
 
   const handleRepairConfirm = async () => {
     if (!repairInfo) return
@@ -410,6 +478,28 @@ function HealthCard({ check }: { check: HealthCheck }) {
             {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
           </span>
           <p className={styles.remediationText}>{remediation}</p>
+          {/* CP-T084: Open .env.iranti in system editor when the remediation mentions it */}
+          {remediation.includes('.env.iranti') && (
+            <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
+          )}
+        </div>
+      )}
+
+      {/* CP-T082: Contextual repair action button */}
+      {showRepairAction && repairAction && (
+        <div className={styles.repairActionRow}>
+          <button
+            className={styles.repairActionBtn}
+            type="button"
+            disabled={repairActionInFlight}
+            onClick={() => void handleRepairAction()}
+            aria-label={repairAction.label}
+          >
+            {repairActionInFlight && (
+              <span className={styles.repairActionSpinner} aria-hidden="true" />
+            )}
+            {repairActionFeedback ?? repairAction.label}
+          </button>
         </div>
       )}
 
@@ -639,11 +729,12 @@ function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
         </div>
       </dl>
 
-      {/* Workaround callout — always shown; operators need this regardless of Attendant state */}
+      {/* Workaround callout — shown until CP-T025 upstream PR is merged */}
       <div className={styles.normalization}>
         <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
         <p className={styles.normalizationText}>
-          Workaround: call <code className={styles.capabilityInlineCode}>iranti_attend</code> with{' '}
+          Upstream PR submitted — awaiting merge.{' '}
+          Until merged, call <code className={styles.capabilityInlineCode}>iranti_attend</code> with{' '}
           <code className={styles.capabilityInlineCode}>forceInject: true</code> to bypass the classifier and always inject working memory.
         </p>
       </div>
@@ -652,6 +743,8 @@ function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
   "currentContext": "...",
   "forceInject": true
 }`}</pre>
+      {/* CP-T084: Quick access to the iranti config file */}
+      <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
     </div>
   )
 }
@@ -800,6 +893,10 @@ function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
                 <div className={styles.diagMessageCell}>
                   <span className={styles.diagMessage}>{check.message}</span>
                   {check.fixHint && <DiagFixHint hint={check.fixHint} />}
+                  {/* CP-T084: Open .env.iranti when the fix hint references it */}
+                  {check.fixHint && check.fixHint.includes('.env.iranti') && (
+                    <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
+                  )}
                 </div>
               </td>
               <td className={styles.diagDuration}>{check.durationMs}ms</td>
@@ -993,6 +1090,15 @@ export function HealthDashboard() {
     refetchInterval: 5 * 60 * 1000,
   })
 
+  // CP-T078: Version sync — compare installed vs npm latest
+  // Version changes rarely; 5-minute refetch interval is sufficient.
+  const { data: versionSync } = useQuery<VersionSyncResult, Error>({
+    queryKey: ['version-sync'],
+    queryFn: fetchVersionSync,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
+
   // Configured providers that have a key but are not reachable
   const unreachableProviders = (providersData?.providers ?? []).filter(
     p => p.keyPresent && !p.reachable
@@ -1064,6 +1170,30 @@ export function HealthDashboard() {
                 }
               </span>
             )}
+            {/* CP-T078: Version sync status — shown only when data is available */}
+            {versionSync && versionSync.installedVersion !== null && (
+              <span className={styles.versionStatus}>
+                <span className={styles.versionPrefix}>Iranti</span>
+                {' '}
+                {versionSync.upToDate === true ? (
+                  <span className={styles.versionUpToDate}>
+                    v{versionSync.installedVersion} — up to date
+                  </span>
+                ) : versionSync.upToDate === false ? (
+                  <span className={styles.versionUpdateAvailable}>
+                    v{versionSync.installedVersion} — update available:{' '}
+                    <a
+                      href={versionSync.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.versionReleaseLink}
+                    >
+                      v{versionSync.latestVersion}
+                    </a>
+                  </span>
+                ) : null}
+              </span>
+            )}
           </div>
         </div>
         <div className={styles.headerRight}>
@@ -1119,40 +1249,50 @@ export function HealthDashboard() {
         </div>
       )}
 
-      {/* Loading state */}
-      {isLoading && (
-        <div
-          style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}
-          aria-busy="true"
-          aria-label="Loading health checks"
-        >
-          <Spinner size="md" label="Loading health checks" />
-        </div>
-      )}
+      {/* Scrollable content area — grid + all sections below banners */}
+      <div className={styles.scrollContainer}>
+        {/* Loading state */}
+        {isLoading && (
+          <div
+            style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}
+            aria-busy="true"
+            aria-label="Loading health checks"
+          >
+            <Spinner size="md" label="Loading health checks" />
+          </div>
+        )}
 
-      {/* Health check cards */}
-      {!isLoading && data && (
-        <div className={styles.grid}>
-          {sortedChecks.map(check => (
-            <HealthCard key={check.name} check={check} />
-          ))}
-        </div>
-      )}
+        {/* Health check cards */}
+        {!isLoading && data && (
+          <div className={styles.grid}>
+            {sortedChecks.map(check => (
+              <HealthCard
+                key={check.name}
+                check={check}
+                onRunDiagnostics={() => setDiagRunSignal(s => s + 1)}
+              />
+            ))}
+          </div>
+        )}
 
-      {/* CP-T052: Capability Health section — Decay, Vector Backend, Attendant */}
-      {!isLoading && data && (
-        <CapabilityHealthSection
-          decay={data.decay}
-          vectorBackend={data.vectorBackend}
-          attendant={data.attendant}
-        />
-      )}
+        {/* CP-T052: Capability Health section — Decay, Vector Backend, Attendant */}
+        {!isLoading && data && (
+          <CapabilityHealthSection
+            decay={data.decay}
+            vectorBackend={data.vectorBackend}
+            attendant={data.attendant}
+          />
+        )}
 
-      {/* CP-T059: Interactive Diagnostics Panel */}
-      <DiagnosticsPanel externalRunSignal={diagRunSignal} />
+        {/* CP-T059: Interactive Diagnostics Panel */}
+        <DiagnosticsPanel externalRunSignal={diagRunSignal} />
 
-      {/* CP-T034: Provider status section — key presence, reachability, models */}
-      {!isLoading && <ProviderStatusSection />}
+        {/* CP-T034: Provider status section — key presence, reachability, models */}
+        {!isLoading && <ProviderStatusSection />}
+
+        {/* CP-T096: Attendant Debug Tools — collapsed by default */}
+        <AttendantDebugPanel />
+      </div>
     </div>
   )
 }

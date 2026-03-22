@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Phase 5 scoped — v0.4.0 RC declared; Wave 11 ready to dispatch)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051–CP-T053, CP-T056–CP-T060, CP-T061–CP-T067). Phase 4 **COMPLETE (2026-03-21)** — Wave 10 PM-ACCEPTED: CP-T068 (Home Overview Dashboard), CP-T069 (Proactive Health Alerts), CP-T070 (Keyboard Navigation Hotkeys). **v0.4.0: Release Candidate** — pending CP-T048 AC-11 clean-machine validation (CP-T075). **Phase 5 scoped 2026-03-21:** CP-T071 (Session Recovery), CP-T072 (Runtime Lifecycle), CP-T073 (Upgrade Coordination), CP-T074 (CP-T025 PR submission), CP-T075 (AC-11 Closure). Iranti upstream: v0.2.16. B6 (ingest contamination): FIXED in v0.2.16.
+> **Last updated: 2026-03-22 (Phase 7 COMPLETE — v0.7.0 RC)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED. Phase 4 **COMPLETE (2026-03-21)** — Wave 10 PM-ACCEPTED. Phase 5 **PM-ACCEPTED 2026-03-22** — v0.5.0 Release Candidate. Phase 6 **PM-ACCEPTED 2026-03-22** — v0.6.0 Release Candidate. Phase 7 **COMPLETE (2026-03-22)** — all 12 tickets PM-ACCEPTED; v0.7.0 Release Candidate. Iranti upstream: v0.2.16. B6 (ingest contamination): FIXED in v0.2.16.
 
 ## Horizon
 
@@ -393,7 +393,7 @@ User feedback driving this phase: *"you know how the Docker Desktop control pane
 
 ## Phase 5 — Session Recovery & Runtime Lifecycle
 
-**Status: SCOPED — Wave 11 ready to dispatch**
+**Status: COMPLETE (2026-03-22) — v0.5.0 PM-ACCEPTED**
 **Target:** v0.5.0
 **Prerequisite:** Phase 4 complete — **MET** 2026-03-21 (Wave 10 PM-ACCEPTED: CP-T068, CP-T069, CP-T070)
 **Upstream driver:** Iranti v0.2.16 (released 2026-03-21) — session recovery routes, runtime lifecycle tracking, upgrade coordination
@@ -415,30 +415,198 @@ User feedback driving this phase: *"you know how the Docker Desktop control pane
 
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
-| CP-T075 | CP-T048 AC-11 Closure: Clean-Machine Installer Validation | qa_engineer | P0 | OPEN |
-| CP-T074 | Submit CP-T025 Upstream PR | system_architect | P1 | OPEN |
-| CP-T071 | Session Recovery Visibility | backend_developer + frontend_developer | P1 | OPEN |
-| CP-T072 | Runtime Lifecycle Dashboard | backend_developer + frontend_developer | P2 | OPEN |
+| CP-T075 | CP-T048 AC-11 Closure: Clean-Machine Installer Validation | qa_engineer | P0 | **PM-ACCEPTED 2026-03-22** |
+| CP-T074 | Submit CP-T025 Upstream PR | system_architect | P1 | **PM-ACCEPTED 2026-03-22** (PR live at https://github.com/nfemmanuel/iranti/pull/1) |
+| CP-T071 | Session Recovery Visibility | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T072 | Runtime Lifecycle Dashboard | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
 
 ### Wave 12 — Phase 5 Completion
 
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
-| CP-T073 | Iranti Upgrade Coordination | backend_developer + frontend_developer | P2 | OPEN — depends on CP-T072 |
+| CP-T073 | Iranti Upgrade Coordination | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
 
 ### Phase 5 Exit Criteria
 
-- [ ] CP-T075: AC-11 clean-machine test run; PM receives pass/fail table and release recommendation
-- [ ] CP-T074: Upstream PR submitted to `nfemmanuel/iranti`; PR URL recorded in docs/specs and shared memory
-- [ ] CP-T071: Sessions view at `/sessions` with state filter, detail panel, resume/abandon actions; tsc clean
-- [ ] CP-T072: Runtime status badge (running/stale/stopped) in Instance Manager; staleness detection; tsc clean
-- [ ] CP-T073: Upgrade action in Instance Manager; confirmation modal; live output streaming; audit log; tsc clean
-- [ ] tsc --noEmit exits 0 in both `src/server` and `src/client`
-- [ ] No regressions against v0.4.0 surfaces
-- [ ] v0.5.0 release notes written
+- [x] CP-T075: AC-11 clean-machine test run; PM receives pass/fail table and release recommendation — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T074: Upstream PR submitted to `nfemmanuel/iranti`; PR URL recorded in docs/specs and shared memory — **PM-ACCEPTED 2026-03-22** (PR live at https://github.com/nfemmanuel/iranti/pull/1)
+- [x] CP-T071: Sessions view at `/sessions` with state filter, detail panel, resume/abandon actions; tsc clean — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T072: Runtime status badge (running/stale/stopped) in Instance Manager; staleness detection; tsc clean — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T073: Upgrade action in Instance Manager; confirmation modal; live output streaming; audit log; tsc clean — **PM-ACCEPTED 2026-03-22**
+- [x] tsc --noEmit exits 0 in both `src/server` and `src/client` — CLEAN (verified 2026-03-22)
+- [x] No regressions against v0.4.0 surfaces — confirmed
+- [ ] v0.5.0 release notes written — **PENDING** (required before GitHub Release tag)
 
 **Primary agents:** backend_developer, frontend_developer, qa_engineer, system_architect
 **Epic:** CP-E016 (Session Recovery & Runtime Lifecycle)
+
+---
+
+## Phase 6 — Actionable Control Plane
+
+**Status: COMPLETE (2026-03-22) — v0.6.0 PM-ACCEPTED**
+**Target:** v0.6.0
+**Prerequisite:** Phase 5 PM-accepted — **MET 2026-03-22**
+**Theme:** The shift from a dashboard that reports problems to one that resolves them — plus brand alignment with iranti-site.
+
+**Goal**: Transform the control plane from a reporting surface into an operational one. Operators can start, stop, install, and upgrade Iranti directly from the UI — Docker Desktop-style lifecycle management. Simultaneously, align the visual design with the iranti-site amber + teal + warm-ink palette so both products look like they belong to the same brand.
+
+User feedback driving this phase: *"Can we start and stop Iranti from the control plane? And can it look like the iranti-site?"* (2026-03-21, after Phase 5 planning)
+
+### Phase 6 Success Metrics
+
+- Operator opens the control plane on a fresh machine and is guided through installing Iranti, creating an instance, starting it, and configuring an API key — without ever touching the CLI
+- Operator sees a failing health check and has a clear, one-click action to address it — not just a red badge
+- Operator can start and stop Iranti instances from the Instance Manager
+- Operator can see whether their Iranti installation is up to date and trigger an upgrade from the UI
+- The control plane visual design matches the iranti-site amber + teal + warm-ink palette — both products look like Iranti
+- v0.6.0 tsc clean, no regressions against v0.5.0
+
+### Wave 13 — Brand Alignment (CP-E017)
+
+**Recommended dispatch order:** CP-T076 first (palette foundation), CP-T077 is already DONE.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T076 | Palette Migration: Amber + Teal + Warm Ink | frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T077 | Logo Mark: IrantiMark SVG Component | frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** (shipped 2026-03-21) |
+
+### Wave 14 — Version Intelligence (CP-E018)
+
+**Dispatch:** After CP-T076 is accepted (palette must be in place for version UI to render correctly).
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T078 | Iranti Version Sync | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
+
+### Wave 15 — Lifecycle Management (CP-E019)
+
+**Dispatch:** After CP-T078 is accepted (version sync is the trigger condition for CP-T081).
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T079 | Iranti Install Detection | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T080 | Process Lifecycle Controls | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T081 | Iranti Upgrade From UI | frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
+
+### Wave 16 — Repair Actions (CP-E020)
+
+**Dispatch:** After CP-T079 and CP-T080 are accepted (wizard depends on both).
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T082 | Health Card Repair Actions | frontend_developer + backend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
+| CP-T083 | Guided Setup Wizard | frontend_developer + backend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+
+### Phase 6 Exit Criteria
+
+- [x] CP-T076: tokens.css migrated to amber + teal + warm ink; no hardcoded hex in components; tsc clean; dark and light mode both pass visual review — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T077: IrantiMark SVG component in AppShell — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T078: version-sync endpoint with npm registry + installed version; Health Dashboard version status; graceful fallback if either source unavailable — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T079: install detection endpoint (which/where); version extraction; Instance Manager install state display; copy button — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T080: Start endpoint spawns `iranti run --instance` detached; Stop endpoint sends SIGTERM to tracked PID; Start/Stop buttons in Instance Manager with re-poll — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T081: Upgrade button in Instance Manager header when update available; connects to CP-T073 endpoint; progress inline — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T082: All 7 health check cards show contextual action buttons when failing; actions navigate or trigger correctly; no action shown when passing — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T083: Wizard shown when iranti not installed or no instance reachable; 4-step flow with auto-detection; dismissible; wizard does not appear again after completion — **PM-ACCEPTED 2026-03-22**
+- [x] tsc --noEmit exits 0 in both `src/server` and `src/client` — CLEAN (verified 2026-03-22)
+- [x] No regressions against v0.5.0 surfaces — confirmed
+- [ ] v0.6.0 release notes written — **PENDING** (required before GitHub Release tag)
+
+**Primary agents:** frontend_developer, backend_developer
+**Epics:** CP-E017 (Brand Alignment), CP-E018 (Version Intelligence), CP-E019 (Lifecycle Management), CP-E020 (Repair Actions)
+
+---
+
+---
+
+## Phase 7 — Operator Configuration Management
+
+**Status: COMPLETE (2026-03-22) — v0.7.0 Release Candidate**
+**Target:** v0.7.0
+**Prerequisite:** Phase 5 + Phase 6 PM-accepted — **MET 2026-03-22**
+**Audit source:** `docs/audits/operator-surface-audit-2026-03-22.md`
+
+**Goal**: Complete the operator promise. The control plane should let operators manage their entire Iranti configuration without the terminal. Phase 7 closes the critical write-path gaps identified in the 2026-03-22 operator-surface audit: provider key management, Iranti client API key management, instance creation, project binding, Claude Code integration scaffolding, and MCP/hook visibility.
+
+**Background**: Phases 1–6 built a world-class observability and lifecycle surface. But operators still must use the terminal for: rotating provider API keys, creating Iranti client keys for new projects, creating new instances, binding new projects, and scaffolding Claude Code integrations. Phase 7 closes all of these gaps.
+
+### Phase 7 Success Metrics
+
+- Operator can add, update, and remove upstream provider API keys (Anthropic, OpenAI, Gemini, Groq, Mistral) from the Provider Manager without the terminal
+- Operator can list, create, and revoke Iranti client API keys for any instance from the control plane
+- Operator can create a new Iranti instance from the Instance Manager
+- Operator can bind a new project to an instance and rebind an existing project to a different instance
+- Operator can scaffold or repair Claude Code integration files (`.mcp.json`, hooks) from the control plane
+- Operator can see MCP server registrations and hook configurations per project without opening files manually
+- v0.7.0 tsc clean, no regressions against v0.6.0
+
+### Wave 17 — Provider Configuration (CP-E021)
+
+**Dispatch:** First. Provider key management is the highest-impact gap. Do in one wave so the Provider Manager refactor is coherent.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T085 | Provider Key Write Path — add, update, remove via UI | backend_developer + frontend_developer | P0 | **PM-ACCEPTED 2026-03-22** |
+| CP-T086 | Provider Default + Fallback Chain Configuration | backend_developer + frontend_developer | P0 | **PM-ACCEPTED 2026-03-22** |
+| CP-T087 | Provider Task-Model Routing Editor | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+
+### Wave 18 — Auth Key Management (CP-E021)
+
+**Dispatch:** After Wave 17 accepted. Independent backend concern.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T088 | Iranti Client API Key Manager — list, create, revoke | backend_developer + frontend_developer | P0 | **PM-ACCEPTED 2026-03-22** |
+
+### Wave 19 — Instance + Project Lifecycle (CP-E021)
+
+**Dispatch:** After Wave 18 accepted. Instance create enables project binding.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T089 | Instance Create — full creation form from CP | backend_developer + frontend_developer | P0 | **PM-ACCEPTED 2026-03-22** |
+| CP-T090 | Instance Configure — edit env settings per existing instance | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T091 | Project Binding Create + Rebind | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+
+### Wave 20 — Integration Management (CP-E021)
+
+**Dispatch:** After Wave 19 accepted. Project binding enables integration scaffolding.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T092 | Claude Code Integration Manager — view + scaffold | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T093 | MCP and Hook Visibility | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-22** |
+| CP-T094 | Session Recovery Actions — verify + wire resume/abandon | backend_developer + frontend_developer + qa_engineer | P1 | **PM-ACCEPTED 2026-03-22** (investigation confirmed: fully implemented in CP-T071 — resume + abandon in SessionsView.tsx + sessions.ts) |
+
+### Wave 21 — Power User Tools (CP-E021)
+
+**Dispatch:** After Wave 20 accepted.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T095 | Codex Integration Manager | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
+| CP-T096 | Attendant Debug Tools — manual handshake/attend from UI | backend_developer + frontend_developer | P2 | **PM-ACCEPTED 2026-03-22** |
+
+### Phase 7 Exit Criteria
+
+- [x] CP-T085: Provider key add/update/remove; "Set as Default" action; write paths for all remote providers — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T086: Default provider selector; fallback chain editor; reads + writes LLM_PROVIDER + LLM_PROVIDER_FALLBACK — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T087: Task routing editor; per-task model dropdowns; provider compatibility validation — **PM-ACCEPTED 2026-03-22** (operator_journey_lead review: W2 anthropic/claude ID drift filed as separate bug)
+- [x] CP-T088: Auth key list/create/revoke; scoped key creation; token shown once; sync-to-project option — **PM-ACCEPTED 2026-03-22** (registry stored as JSON blob in knowledge_base — crypto matches Iranti exactly)
+- [x] CP-T089: Instance creation form; name/port/db-url/provider; port conflict detection; instance appears after create — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T090: Instance configure panel; editable port/db-url/provider; restart warning if running — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T091: Project bind form; rebind action; .env.iranti written correctly — **PM-ACCEPTED 2026-03-22** (rebind dropdown doesn't pre-select path — non-blocking)
+- [x] CP-T092: Claude integration panel per project; mcp.json + hooks view; scaffold action — **PM-ACCEPTED 2026-03-22** (claude-integration.ts backend + ClaudeIntegrationPanel.tsx; 6 diagnostic issues; direct file-write scaffold; tsc clean)
+- [x] CP-T093: Aggregated MCP/hook visibility view; per-project integration health; quick-fix actions — **PM-ACCEPTED 2026-03-22** (GET /instances/:name/integration-summary endpoint; aggregated view in InstanceManager.tsx)
+- [x] CP-T094: Session abandon action wired; session state correct after action — **PM-ACCEPTED 2026-03-22** (investigation confirmed done in CP-T071; no additional work required)
+- [x] CP-T095: Codex integration status + scaffold + remove; machine-level panel in InstanceManager — **PM-ACCEPTED 2026-03-22**
+- [x] CP-T096: Attendant debug panel in HealthDashboard; handshake + attend tools; X-Iranti-Key auth; currentContext field — **PM-ACCEPTED 2026-03-22** (two live-semantics corrections applied by PM review)
+- [x] tsc --noEmit exits 0 in both `src/server` and `src/client` — **verified 2026-03-22 after Wave 21**
+- [ ] No regressions against v0.6.0 surfaces
+- [ ] v0.7.0 release notes written
+
+**Primary agents:** backend_developer, frontend_developer
+**Epic:** CP-E021 (Operator Configuration Management)
 
 ---
 

@@ -8,6 +8,22 @@ const { Pool } = pg
 // Load .env.iranti from the exe directory (SEA), cwd, or home directory.
 // When double-clicking a Windows exe, process.cwd() is not reliably the
 // exe's own directory — so we check process.execPath first in SEA context.
+
+function parseEnvFile(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  const lines = readFileSync(filePath, 'utf8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const idx = trimmed.indexOf('=')
+    if (idx === -1) continue
+    const key = trimmed.slice(0, idx).trim()
+    const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
+    result[key] = val
+  }
+  return result
+}
+
 function loadEnv(): Record<string, string> {
   const isSea =
     typeof (process as NodeJS.Process & { isSea?: () => boolean }).isSea === 'function' &&
@@ -22,18 +38,20 @@ function loadEnv(): Record<string, string> {
   ]
   for (const p of candidates) {
     if (existsSync(p)) {
-      const lines = readFileSync(p, 'utf8').split('\n')
-      const env: Record<string, string> = {}
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || trimmed.startsWith('#')) continue
-        const idx = trimmed.indexOf('=')
-        if (idx === -1) continue
-        const key = trimmed.slice(0, idx).trim()
-        const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
-        env[key] = val
+      const binding = parseEnvFile(p)
+
+      // If the binding file contains an IRANTI_INSTANCE_ENV pointer, merge the
+      // instance env on top. The instance env is the authoritative source for
+      // DATABASE_URL, LLM_PROVIDER, provider API keys, and all runtime config.
+      // The binding file only provides the CP's own connector vars (IRANTI_URL,
+      // IRANTI_API_KEY, etc.) — it is not the live instance env.
+      const instanceEnvPath = binding['IRANTI_INSTANCE_ENV']
+      if (instanceEnvPath && existsSync(instanceEnvPath)) {
+        const instanceVars = parseEnvFile(instanceEnvPath)
+        return { ...binding, ...instanceVars }
       }
-      return env
+
+      return binding
     }
   }
   return {}

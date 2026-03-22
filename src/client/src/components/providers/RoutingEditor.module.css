@@ -1,0 +1,273 @@
+/* Iranti Control Plane — Task-Model Routing Editor */
+/* CP-T087 */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--section-padding);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.editorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.editorTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-1) 0;
+}
+
+.editorSubtitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.editorSubtitle code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-bg-elevated);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+}
+
+.editorActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.saveBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-accent-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-bg-base);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.saveBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.resetAllBtn {
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.resetAllBtn:hover:not(:disabled) {
+  background: var(--color-status-error);
+  color: var(--color-bg-base);
+}
+
+.resetAllBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Restart notice */
+
+.restartNotice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.restartIcon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+/* Table */
+
+.routingTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.routingTable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.thTask    { width: 30%; }
+.thDefault { width: 22%; }
+.thOverride { width: 38%; }
+.thClear   { width: 10%; }
+
+.taskRow {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.taskRow:last-child {
+  border-bottom: none;
+}
+
+.taskRow td {
+  padding: var(--space-2);
+  vertical-align: middle;
+}
+
+.taskRowIncompatible {
+  background: color-mix(in srgb, var(--color-status-warning) 8%, transparent);
+}
+
+.taskCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taskLabel {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.taskDesc {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.defaultCell {
+  /* table cell — vertically centered via td style */
+}
+
+.defaultModel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+}
+
+.overrideCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.overrideSelect {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.overrideSelect:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.overrideInput {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.overrideInput:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.incompatibleWarning {
+  font-size: 11px;
+  color: var(--color-status-warning);
+  flex-shrink: 0;
+}
+
+.clearBtn {
+  padding: 2px var(--space-2);
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.clearBtn:hover:not(:disabled) {
+  border-color: var(--color-status-error);
+  color: var(--color-status-error);
+}
+
+.clearBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Feedback */
+
+.feedbackOk {
+  font-size: 12px;
+  color: var(--color-status-ok);
+  padding: var(--space-1) 0;
+}
+
+.feedbackErr {
+  font-size: 12px;
+  color: var(--color-status-error);
+  padding: var(--space-1) 0;
+}
+
+.warningList {
+  margin: var(--space-1) 0 0 var(--space-3);
+  padding: 0;
+  color: var(--color-status-warning);
+  font-size: 11px;
+}
+
+.warningList li {
+  margin-bottom: 2px;
+}

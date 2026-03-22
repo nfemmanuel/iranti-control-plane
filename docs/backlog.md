@@ -209,6 +209,20 @@ Linked tickets: CP-T071, CP-T072, CP-T073, CP-T074, CP-T075
 
 ---
 
+---
+
+### CP-E021 — Operator Configuration Management (Phase 7)
+
+Phase: 7
+Owner: backend_developer, frontend_developer
+Status: **SCOPED — 2026-03-22 (audit-driven)**
+Tier: Must Have
+Description: Close the critical write-path gaps identified in the 2026-03-22 operator-surface audit. Operators must currently use the terminal to: rotate provider API keys, create Iranti client API keys, create new instances, bind new projects, and scaffold Claude Code integrations. This epic closes all of these gaps and completes the operator promise: you can manage your entire Iranti setup from the control plane without dropping to a terminal.
+Audit source: `docs/audits/operator-surface-audit-2026-03-22.md`
+Linked tickets: CP-T085, CP-T086, CP-T087, CP-T088, CP-T089, CP-T090, CP-T091, CP-T092, CP-T093, CP-T094, CP-T095, CP-T096
+
+---
+
 ## Subtasks
 
 - [x] Phase 0: All 5 tickets (CP-T001 through CP-T005) assigned and accepted by agents

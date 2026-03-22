@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSetupStatus } from '../onboarding/GettingStarted'
 import { CommandPalette, useCommandPalette } from './CommandPalette'
@@ -12,7 +13,11 @@ import { ChatPanel, ChatToggleButton, loadPanelOpen } from '../chat/ChatPanel'
 import { ToastContainer } from '../ui/ToastContainer'
 import { useToasts } from '../../hooks/useToasts'
 import { useViewNavigationShortcuts } from '../../hooks/useViewNavigationShortcuts'
+import { fetchInstallState } from '../../api/client'
+import type { InstallStateResult } from '../../api/types'
+import { SetupWizard, shouldShowWizard } from '../setup/SetupWizard'
 import styles from './AppShell.module.css'
+import { IrantiMark } from './IrantiMark'
 
 /* ------------------------------------------------------------------ */
 /*  Navigation definition                                               */
@@ -423,13 +428,32 @@ export function AppShell() {
   // CP-T070: Global G+key navigation shortcuts
   const { goModeActive } = useViewNavigationShortcuts()
 
+  // CP-T083: Guided Setup Wizard — install state check
+  const { data: installState } = useQuery<InstallStateResult>({
+    queryKey: ['install-state'],
+    queryFn: fetchInstallState,
+    staleTime: 10_000,
+  })
+  const [wizardDismissed, setWizardDismissed] = useState(false)
+
+  const handleWizardDismiss = useCallback(() => {
+    setWizardDismissed(true)
+  }, [])
+
+  const showWizard = !wizardDismissed && shouldShowWizard(installState)
+
+  // If wizard should show, render it full-screen instead of the shell
+  if (showWizard) {
+    return <SetupWizard onDismiss={handleWizardDismiss} />
+  }
+
   return (
     <div className={styles.shell}>
       {/* ── Sidebar ──────────────────────────────────────────────── */}
       <aside className={styles.sidebar} aria-label="Main navigation">
         {/* Logo */}
         <div className={styles.logo}>
-          <span className={styles.logoMark} aria-hidden="true">⬡</span>
+          <IrantiMark size={22} />
           <span className={styles.logoText}>iranti</span>
         </div>
 

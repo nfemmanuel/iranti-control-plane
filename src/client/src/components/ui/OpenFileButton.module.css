@@ -1,0 +1,60 @@
+/* Iranti Control Plane — OpenFileButton styles */
+/* CP-T084: Small inline button for opening local config files in the system editor */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 8px;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+  color: var(--color-text-primary);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* State: loading — slight opacity reduction while the OS command is in flight */
+.btn.loading {
+  opacity: 0.7;
+}
+
+/* State: success — text turns green-ish to match the accent token */
+.btn.success {
+  border-color: var(--color-status-ok, #4ade80);
+  color: var(--color-status-ok, #4ade80);
+}
+
+/* State: error / not-found */
+.btn.error {
+  border-color: var(--color-status-warn, #f59e0b);
+  color: var(--color-status-warn, #f59e0b);
+}
+
+/* Inline feedback message rendered below the button */
+.feedback {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.feedback.feedbackError {
+  color: var(--color-status-warn, #f59e0b);
+  font-style: normal;
+}
