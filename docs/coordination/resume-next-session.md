@@ -71,7 +71,7 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 | Item | Ticket | Owner | Notes |
 |------|--------|-------|-------|
-| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Automated assessment done (`docs/qa/ac11-automated-assessment-2026-03-21.md`). Execution guide written (`docs/qa/ac11-execution-guide.md`). **Requires human tester on clean Windows machine.** CI must run to build macOS and Linux installers before testing those platforms. |
+| ~~CP-T048 AC-11 — clean-machine installer validation~~ | CP-T075 | qa_engineer | **RETIRED** — SEA binary distribution dropped in favour of `npm install -g iranti-control-plane`. No clean-machine gate required. |
 
 ### Carryover deliverables — CLOSED
 
@@ -93,7 +93,7 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 `release.yml` and `package.yml` both trigger on `v*` tags but do NOT conflict. `release.yml` creates only a source `.tar.gz` CI artifact (explicitly marked "does NOT create a GitHub Release"). `package.yml` owns the GitHub Release. Safe to tag.
 
-**Next PM action:** PM-accept Phase 5. Then the only remaining gate is AC-11 human testing on a clean Windows machine before tagging v0.3.0 and v0.4.0 formally. See `docs/qa/ac11-execution-guide.md`.
+**Next PM action:** Accept Phase 5. Then tag v0.3.0 and v0.4.0, run npm publish, create GitHub Releases. Distribution is now `npm install -g iranti-control-plane` — AC-11 clean-machine gate is retired (SEA binary approach dropped).
 
 ---
 
