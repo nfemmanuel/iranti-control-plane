@@ -2,72 +2,56 @@
 
 **Prepared by:** product_manager
 **Date:** 2026-03-21
-**Last revised:** 2026-03-21 — upstream reality correction applied
-**Project context:** Iranti Control Plane — Phase 3
-**Iranti version tested against:** 0.2.12 (audit), 0.2.13–0.2.14 (partial fix to B11)
+**Last revised:** 2026-03-21 — v0.2.16 B6 fix applied
+**Project context:** Iranti Control Plane — Phase 3/4
+**Iranti version tested against:** 0.2.12 (audit), 0.2.13–0.2.14 (partial fix to B11), 0.2.16 (B6 confirmed fixed)
 
 These flags are produced from the cross-repo audit (`docs/coordination/cross-repo-audit-2026-03-21.md`) and subsequent agent testing. They document confirmed Iranti bugs that affect control plane operators. The control plane team cannot fix these — they require changes to Iranti core.
 
 ### Revision notes — 2026-03-21
-
-Three defect claims have been corrected based on updated upstream verification:
 
 | Item | Previous status | Corrected status | Reason |
 |------|----------------|-----------------|--------|
 | `user/main` noise from `typescript_smoke` | Open — attributed to B11 | **RESOLVED upstream** | Upstream regression tests for this specific pattern pass; `user/main` entity recovery without `entityHints` now works correctly |
 | Slash-value retrieval loss | Claimed confirmed | **UNDER VERIFICATION** | Upstream regressions for slash-bearing values through `query`, `search`, `observe`, and `attend` passed. Benchmark-side signal appears to be entity-extraction parse fallback noise, not a core product bug. Do not cite as confirmed. |
 | Transaction timeout on LLM-arbitrated writes | Not previously tracked | **NEW — OPEN, HIGH PRIORITY** | Confirmed runtime defect: writes requiring LLM arbitration (conflict resolution path) are timing out at the transaction layer. See B12 below. |
+| B6: ingest contamination | Critical/Unfixed (v0.2.14 and below) | **FIXED in v0.2.16** | `iranti_ingest` prose extraction is now benchmark-confirmed working per v0.2.16 CHANGELOG. Prior behavior where the Librarian extracted from existing KB instead of input text is resolved. |
 
 ---
 
 ## B6 — `iranti_ingest` Contamination: Librarian Extracts from Existing KB, Not Input Text
 
-**Severity:** Critical (production data integrity risk)
-**Status:** Confirmed by QA agent benchmark testing (2026-03-21). Partially confirmed by cross-repo audit.
-**Iranti versions affected:** At least v0.2.9 through v0.2.12. Not listed as fixed in v0.2.13 or v0.2.14 CHANGELOG.
+**Severity:** ~~Critical~~ — **FIXED in v0.2.16**
+**Status:** **FIXED in v0.2.16** — `iranti_ingest` prose extraction is now benchmark-confirmed working (v0.2.16 CHANGELOG). Prior behavior where the Librarian extracted from existing KB instead of input text is resolved.
+**Iranti versions affected:** v0.2.9 through v0.2.15. Fixed in v0.2.16.
 
-### What is broken
+> **Note for operators on v0.2.16+:** You can now use `iranti_ingest` for critical fact population. The `iranti_write` workaround documented in earlier versions is no longer required. Upgrade to v0.2.16 to get the fix.
 
-When an operator calls `iranti_ingest` with free-text input (e.g., "The user prefers Python and dislikes JavaScript"), the Librarian is supposed to extract structured facts from the input text and write them to the knowledge base.
+### What was broken (v0.2.15 and earlier)
 
-Instead, the Librarian extracts facts from **existing KB entries** for the target entity, not from the input text provided. This means:
-- Ingest calls produce writes that duplicate or re-affirm existing facts rather than ingesting new information
-- New facts from the input text are silently dropped
-- Operators who have used `iranti_ingest` extensively may have KB state that does not reflect what they ingested
+When an operator called `iranti_ingest` with free-text input (e.g., "The user prefers Python and dislikes JavaScript"), the Librarian was supposed to extract structured facts from the input text and write them to the knowledge base.
+
+Instead, the Librarian extracted facts from **existing KB entries** for the target entity, not from the input text provided. This meant:
+- Ingest calls produced writes that duplicated or re-affirmed existing facts rather than ingesting new information
+- New facts from the input text were silently dropped
+- Operators who used `iranti_ingest` extensively may have KB state that does not reflect what they ingested
 
 ### Evidence
 
-From QA agent benchmarking (2026-03-21):
+From QA agent benchmarking (2026-03-21, against v0.2.12):
 - 2/3 ingest test cases extracted values from existing KB, not from the test text
 - 1/3 produced a correct extraction coincidentally because the KB already had a matching seed fact
 - When the KB was empty and ingest was called, the extracted facts did not match the input text
 
-### Reproduction
+### Fix (v0.2.16)
 
-```bash
-# Ensure entity has no facts (or clear them)
-# Call iranti_ingest with text that contains a novel fact
-# Check knowledge_base: the written fact is NOT from the input text
-# It is either from existing KB or a hallucination
-```
+The v0.2.16 CHANGELOG states: "`iranti_ingest` prose extraction is now benchmark-confirmed working in v0.2.16." Benchmark rerun validation across ingest, relationships, search, observe, attend, persistence, and exact lookup was performed as part of the v0.2.16 release.
 
-### Operator impact
+### Control plane team position
 
-- Any agent workflow that uses `iranti_ingest` to populate memory is unreliable
-- Memory may appear populated while actually containing stale or incorrect data
-- Operators have no visibility into this failure — ingest calls return 200 and appear successful
-
-### Suggested investigation areas
-
-- The Librarian's chunker/extractor step receives the ingest input text and should pass it to the LLM for extraction
-- The LLM prompt for extraction may be accidentally receiving the KB context (existing facts) as the "input" instead of the raw text
-- Check `src/staff/librarian.ts` or equivalent — the extraction step likely prepends KB context for enrichment and the prompt boundary may be wrong
-
-### Control plane team workaround
-
-- CP-T052 AC-4: the Health Dashboard's Attendant card surfaces this limitation informally
-- Operators are advised to use `iranti_write` directly rather than `iranti_ingest` for critical fact population
-- Documentation note added to `docs/guides/getting-started.md`
+- The `iranti_write` workaround documented in v0.3.0 release notes is **no longer required** for operators running Iranti v0.2.16+
+- The Getting Started guide note about this limitation should be updated to reflect the fix — Phase 5 documentation pass should include this
+- Operators on v0.2.15 or earlier should upgrade to v0.2.16 to get reliable ingest behavior
 
 ---
 
@@ -221,11 +205,11 @@ Confirmed by runtime testing 2026-03-21. The transaction timeout occurs specific
 
 ## Summary Table
 
-| Bug | Severity | v0.2.14 status | Control plane workaround | Upstream action needed |
-|-----|----------|----------------|--------------------------|----------------------|
-| B6: ingest contamination | Critical | Not fixed | Use `iranti_write` directly | Investigate Librarian extraction prompt boundary |
-| B11: attend classifier | High | `user/main` recovery **RESOLVED**; other edge cases may remain | `entityHints` no longer required for `user/main`; CP-T052 notes resolution | Verify classifier fully functional for all entity types without hints |
-| B12: transaction timeout on LLM-arbitrated writes | High | **OPEN** (new, confirmed 2026-03-21) | Use `iranti_write` with explicit resolved value to manually resolve conflicts | Move LLM arbitration outside DB transaction or extend timeout |
-| B4: vectorScore=0 | Medium | Improved (fallback added in v0.2.13) | CP-T052 vector health card | Confirm in-process scoring performance at scale |
+| Bug | Severity | Latest status | Control plane workaround | Upstream action needed |
+|-----|----------|---------------|--------------------------|----------------------|
+| B6: ingest contamination | ~~Critical~~ | **Fixed in v0.2.16** | `iranti_write` workaround no longer required on v0.2.16+ | None — resolved |
+| B11: attend classifier | High | `user/main` recovery **RESOLVED** in v0.2.14; other edge cases may remain | `entityHints` no longer required for `user/main`; CP-T052 notes resolution | Verify classifier fully functional for all entity types without hints |
+| B12: transaction timeout on LLM-arbitrated writes | High | **OPEN** (confirmed 2026-03-21, not fixed through v0.2.16) | Use `iranti_write` with explicit resolved value to manually resolve conflicts | Move LLM arbitration outside DB transaction or extend timeout |
+| B4: vectorScore=0 | Medium | Improved in v0.2.13 (fallback added); no further changes in v0.2.14–v0.2.16 | CP-T052 vector health card | Confirm in-process scoring performance at scale |
 | Slash-value retrieval loss | Unconfirmed | **UNDER VERIFICATION** — upstream regressions pass | None required until confirmed | Establish reproduction outside benchmark harness before filing |
-| B9: no MCP read for relationships | Low | Not fixed | Control plane reads REST correctly | Add `iranti_related` MCP tool |
+| B9: no MCP read for relationships | Low | Not fixed through v0.2.16 | Control plane reads REST correctly | Add `iranti_related` MCP tool |

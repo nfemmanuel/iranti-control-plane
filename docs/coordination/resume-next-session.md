@@ -1,142 +1,127 @@
 # Resume Prompt — Next PM Session
 
-**Last updated:** 2026-03-21 (Wave 9 dispatched — CP-T065 PM-ACCEPTED, CP-T066/T067 OPEN)
+**Last updated:** 2026-03-21 (Wave 10 PM-ACCEPTED — v0.4.0 RC declared; Phase 5 scoped)
 **Current branch:** master
-**Phase:** 3 — Advanced Operator Features
+**Phase:** 5 — Session Recovery & Runtime Lifecycle
 
 ---
 
-## Immediate Status
+## Current State Summary
 
-### Wave 3 — CP-T048 (Platform Installer Packages)
-- **State:** Implementation complete. AC-11 (clean-machine validation) is the only remaining gate.
-- **Blocked on:** Physical/VM clean-machine testing. Cannot be automated. QA engineer (or user) must run the test plan.
-- **AC-11 gate:** Windows, macOS, Linux clean-machine pass table required before PM can accept.
-- **Test plan:** `docs/qa/cp-t048-clean-machine-test-plan.md`
+### Phase / Wave status
 
-### Waves 4–8 — ALL PM-ACCEPTED 2026-03-21
-- CP-T051 (Agent Registry View) — PM-ACCEPTED
-- CP-T052 (Health: Decay + Vector + Attend) — PM-ACCEPTED
-- CP-T053 (Memory Explorer: ConflictLog + Labels) — PM-ACCEPTED
-- CP-T056 (Temporal History asOf Query) — PM-ACCEPTED
-- CP-T057 (WhoKnows Contributor Panel) — PM-ACCEPTED
-- CP-T058 (UX Guidance Labels M4/M5/H8) — PM-ACCEPTED
-- CP-T059 (Interactive Diagnostics Panel) — PM-ACCEPTED
-- CP-T060 (Metrics Dashboard) — PM-ACCEPTED
-- CP-T061 backend (Entity Alias Proxy) — PM-ACCEPTED
-- CP-T062 (Relationship Graph B9 note) — PM-ACCEPTED
-- CP-T063 (API Key Scope Audit View) — PM-ACCEPTED
-- CP-T064 (Documentation Update) — PM-ACCEPTED
+| Phase | Waves | Version | Status |
+|-------|-------|---------|--------|
+| Phase 0 | Foundation | — | **COMPLETE** |
+| Phase 1 | Operability MVP | v0.1.0 | **SHIPPED** |
+| Phase 2 | Interactive Management | v0.2.0-beta | **COMPLETE** |
+| Phase 3 | Advanced Operator Features | v0.3.0 | **PM-ACCEPTED** (all Waves 1–9) |
+| Phase 4 | Iranti Desktop | v0.4.0 | **PM-ACCEPTED 2026-03-21** (Wave 10: CP-T068, CP-T069, CP-T070) |
+| Phase 5 | Session Recovery & Runtime Lifecycle | v0.5.0 | **SCOPED** — tickets CP-T071–CP-T075 written |
 
-### Wave 9 — IN PROGRESS
+### Release status
 
-| Ticket | Title | Assignees | Priority | State |
-|--------|-------|-----------|----------|-------|
-| CP-T065 | Entity Alias Panel: Rewrite for Real Iranti Shape | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
-| CP-T066 | KB Full-Text/Semantic Search Surface | backend_developer + frontend_developer | P2 | **OPEN — Wave 9** |
-| CP-T067 | Entity Type Browser | backend_developer + frontend_developer | P3 | **OPEN — Wave 9** |
+| Version | Status | Blocker |
+|---------|--------|---------|
+| v0.1.0 | Shipped | — |
+| v0.2.0-beta | Shipped | — |
+| v0.3.0 | **Release Candidate** | CP-T048 AC-11 clean-machine validation pending (CP-T075) |
+| v0.4.0 | **Release Candidate** | CP-T048 AC-11 (same gate); no GitHub Release tag pushed |
+
+Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary builds exist in dist/. The release gate is CP-T048 AC-11.
 
 ---
 
-## CP-T065 PM Acceptance Summary — 2026-03-21
+## Iranti Upstream State
 
-All 6 ACs verified. Types correct (flat token alias shape). AliasRow renders `<code>` token, muted source, ConfidenceBar, relative createdAt. CreateAliasForm single-field with correct POST body `{ canonicalEntity, alias }`. Empty state unchanged. tsc --noEmit CLEAN (0 errors, both server and client). CP-T061 is now fully accepted (backend was accepted 2026-03-21; frontend accepted via CP-T065 2026-03-21).
-
----
-
-## Wave 9 Scope — Why CP-T066 and CP-T067
-
-### CP-T066 — KB Full-Text/Semantic Search (P2)
-
-`GET /kb/search` is Iranti's hybrid lexical+vector search endpoint. It is already called internally by the diagnostics module (`iranti_auth` probe and `vector_search_check` probe) — confirming the proxy path works. But no operator-facing search surface exists. Memory Explorer uses ILIKE substring filtering on entityType/entityId only. Operators cannot answer "which entities mention Project Iris?" without knowing the entity type first.
-
-CP-T066 adds a search input to the Memory Explorer that calls `GET /api/control-plane/kb/search`, shows ranked results (entity+key+summary+score), and surfaces scope errors clearly. This is the highest-value KB feature not yet in the control plane.
-
-Endpoint spec: `docs/coordination/cross-repo-audit-2026-03-21.md` line 41. Requires global-scope `kb:read` API key.
-
-### CP-T067 — Entity Type Browser (P3)
-
-New operators navigating an unfamiliar Iranti instance cannot discover what entity types exist without prior knowledge. The Memory Explorer requires an entity type to be specified before browsing. CP-T067 adds an initial landing view that shows all distinct entity types from a simple GROUP BY aggregation on the local `knowledge_base` table — no new Iranti API call needed. Each card links to filtered browse.
+- **Current Iranti version:** 0.2.16 (released 2026-03-21)
+- **Last cross-repo audit:** v0.2.16 — `docs/coordination/cross-repo-audit-v0216-2026-03-21.md`
+- **Key v0.2.16 additions:**
+  - Durable interrupted-session recovery: `/memory/checkpoint`, `/memory/resume`, `/memory/complete`, `/memory/abandon` routes
+  - Runtime lifecycle tracking: `runtime.json` per instance, `GET /health` now includes `runtime` field with `InstanceRuntimeState`
+  - `iranti upgrade --restart --instance <name>` — coordinates restart for named running instance
+  - `iranti_ingest` prose extraction benchmark-confirmed working (B6 fixed)
+  - Relationship traversal confirmed working end-to-end (write → read → depth traversal)
 
 ---
 
-## Outstanding Carryover: CP-T025 Native Emitter PR
+## Bug Flag Status (upstream-bug-flags-2026-03-21.md)
 
-- **State:** Spec PM-approved (2026-03-20). Upstream PR description complete (`docs/specs/cp-t025-upstream-pr.md`). Actual TypeScript diff files NOT confirmed produced.
-- **Impact:** Without this PR merged upstream, Staff Activity Stream shows Librarian + Archivist only. Attendant and Resolutionist events (including B11 attend classifier failures) are invisible.
-- **Action:** Dispatch `system_architect` to confirm diff file status and submission path. Not a new ticket — carryover deliverable from CP-T025.
-- **Iranti repo:** `nfemmanuel/iranti` (confirmed from `docs/specs/cp-t023-wizard-design.md`).
-
----
-
-## v0.3.0 Release Readiness
-
-**Gate:** CP-T048 AC-11 clean-machine validation is the only hard blocker for v0.3.0.
-
-**Current picture:**
-- TypeScript: CLEAN on both server and client (verified 2026-03-21 post-CP-T065)
-- All Phase 3 Waves 1–9 (except CP-T066/T067 open): PM-ACCEPTED
-- CP-T048: implementation complete, AC-11 pending VM testing
-- No known regressions against Phase 1 or Phase 2 acceptance criteria
-
-**Recommendation:** Once CP-T066 and CP-T067 are accepted, declare v0.3.0 candidate, gate final release on CP-T048 AC-11. If AC-11 cannot be run in the near term, consider declaring v0.3.0 with a known-issue note on clean-machine installer validation.
+| Bug | Status as of 2026-03-21 |
+|-----|-------------------------|
+| B6: ingest contamination | **FIXED in v0.2.16** — `iranti_write` workaround no longer required |
+| B11: attend classifier | `user/main` recovery **RESOLVED** in v0.2.14; edge cases may remain |
+| B12: transaction timeout on LLM-arbitrated writes | **OPEN** — not fixed through v0.2.16 |
+| B4: vectorScore=0 | Improved in v0.2.13 (fallback added); stable |
+| Slash-value retrieval loss | **UNDER VERIFICATION** — not confirmed |
+| B9: no MCP read for relationships | **OPEN** — not fixed through v0.2.16 |
 
 ---
 
-## "Written by" Label — CONFIRMED FIXED
+## TypeScript Status
 
-The resume-next-session note from the prior session referenced a stale issue with the "Created by"/"Written by" inconsistency in MemoryExplorer.tsx. Verified 2026-03-21: both the filter placeholder (line 420) and the column header (line 695) already read "Written by". No patch needed.
-
----
-
-## Open Gaps (Wave 10+ candidates)
-
-### Medium priority
-- **Full-text search (CP-T066)** — in Wave 9
-- **Entity Type Browser (CP-T067)** — in Wave 9
-- **CP-T025 native emitter PR submission** — system_architect carryover; submission unconfirmed
-- **Multi-instance comparison view** — high value for operators with multiple Iranti instances
-- **Staff Logs export end-to-end verification** — JSONL/CSV export included in CP-T050; confirm it's working in a test session
-
-### Low priority
-- Agent Registry sidebar badge — CP-T051 AC-10 stretch (badge for high-escalation inactive agents) not implemented; acceptable at MVP
-- Command palette search/recent items — deferred from CP-T024; full search not implemented
-- Force-write / operator override path for C2 conflict limitation — needs UX scoping
-- Site integration — iranti.dev has no mention of the control plane (cross-repo ticket needed)
-- 90d period option for Metrics Dashboard — deferred from CP-T060
+- `src/server` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T070)
+- `src/client` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T070)
 
 ---
 
-## CP-T048 PM Position
+## Open Items
 
-AC-11 (clean-machine validation) is a hard gate. Cannot accept without a real pass table from clean-machine tests. The implementation is solid. Recommendation: run `docs/qa/cp-t048-clean-machine-test-plan.md` when a VM is available.
+### Hard blockers
+
+| Item | Ticket | Owner | Notes |
+|------|--------|-------|-------|
+| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Required to formally release v0.3.0 and v0.4.0. Test plan: `docs/qa/cp-t048-clean-machine-test-plan.md` |
+
+### Carryover deliverables
+
+| Item | Ticket | Owner | Notes |
+|------|--------|-------|-------|
+| CP-T025 upstream PR submission | CP-T074 | system_architect | Diff files exist in `docs/specs/cp-t025-diffs/`. PR not yet submitted to `nfemmanuel/iranti`. CP-T074 is the Phase 5 ticket to complete this. |
+
+### Phase 5 tickets (written, not yet dispatched)
+
+| Ticket | Title | Owner | Priority |
+|--------|-------|-------|----------|
+| CP-T071 | Session Recovery Visibility | backend_developer + frontend_developer | P1 |
+| CP-T072 | Runtime Lifecycle Dashboard | backend_developer + frontend_developer | P2 |
+| CP-T073 | Iranti Upgrade Coordination | backend_developer + frontend_developer | P2 |
+| CP-T074 | Submit CP-T025 Upstream PR | system_architect | P1 |
+| CP-T075 | CP-T048 AC-11 Closure | qa_engineer | P0 |
+
+**Next PM action:** Dispatch Phase 5 Wave 11. Recommended sequencing:
+1. CP-T075 and CP-T074 immediately (unblock release + close CP-T025 carryover)
+2. CP-T071 (Session Recovery Visibility) — highest user value from v0.2.16
+3. CP-T072 (Runtime Lifecycle Dashboard) — pairs with CP-T073 in Wave 12
+
+---
+
+## Phase 4 Wave 10 Acceptance Summary — 2026-03-21
+
+All three tickets PM-ACCEPTED 2026-03-21. Full notes in `docs/releases/v0.4.0-release-notes.md`.
+
+- **CP-T068** (Home Overview Dashboard): `GET /api/control-plane/overview` endpoint, 5-card landing dashboard, alert banner, quick actions. `/` now redirects to `/overview`. Home nav item added.
+- **CP-T069** (Proactive Health Alert Toasts): Health poller at 60s, state-transition-only toasts (warn/error/info), deduplicated, bottom-right corner.
+- **CP-T070** (Global Keyboard Shortcuts): `G + key` navigation, go mode chip, all 12 views covered, palette integration.
+
+---
+
+## Phase 5 Direction
+
+Phase 5 is driven by Iranti v0.2.16 new capabilities that the control plane has no surface for. Three feature areas:
+
+1. **Session recovery surface** — Iranti now tracks interrupted, checkpointed, abandoned, and complete sessions via `/memory/checkpoint`, `/memory/resume`, `/memory/complete`, `/memory/abandon`. The control plane shows no session state. Operators cannot see which sessions are interrupted or resume/abandon them from the UI.
+
+2. **Runtime lifecycle visibility** — Iranti instances now emit runtime metadata (`runtime.json`, `GET /health` runtime field). The Instance Manager shows instances but does not distinguish live processes from stale metadata. Operators need running vs stale status.
+
+3. **Upgrade coordination** — `iranti upgrade --restart --instance <name>` is a new CLI flow. Operators should be able to trigger this from the Instance Manager without a terminal.
+
+Additionally: CP-T025 upstream PR submission and CP-T048 AC-11 closure are Phase 5 deliverables (not features).
 
 ---
 
 ## Iranti Version Context
 
-- **Current Iranti version:** 0.2.15 (Unreleased — "Pending release notes")
-- **Last audited:** 0.2.12 (cross-repo audit 2026-03-21)
-- **Key changes since audit:**
-  - v0.2.13: Hybrid search fallback to deterministic semantic scoring; attend() classifier improvement; Python smoke fixes
-  - v0.2.14: Windows updater EBUSY race condition fixed (no API changes)
-  - v0.2.15: Unreleased — changelog placeholder only; alias API confirmed real (flat string tokens)
-- **Next drift check:** When Iranti reaches v0.2.16 or when v0.2.15 is formally released with full release notes.
-- **Confirmed Iranti bugs (upstream flags sent):** B6 (ingest contamination), B11 (attend classifier — partial fix in v0.2.13), B4 (vector scoring — improved in v0.2.13), B9 (no MCP read tool for relationships — CP-T062 adds UI note).
-
----
-
-## TypeScript Status (2026-03-21 post-CP-T065)
-
-- `src/server` — tsc --noEmit: **CLEAN** (0 errors)
-- `src/client` — tsc --noEmit: **CLEAN** (0 errors)
-
----
-
-## Open Tickets Summary
-
-| Ticket | Title | Assignee | Priority |
-|--------|-------|----------|----------|
-| CP-T048 | Platform Installers | devops_engineer | P2 — AC-11 pending |
-| CP-T066 | KB Full-Text/Semantic Search | backend_developer + frontend_developer | P2 — OPEN (Wave 9) |
-| CP-T067 | Entity Type Browser | backend_developer + frontend_developer | P3 — OPEN (Wave 9) |
+- **Current upstream version:** 0.2.16 (released 2026-03-21)
+- **Next drift check:** When Iranti reaches v0.2.17 or PM initiates Phase 5 kickoff
+- **Cross-repo audit:** `docs/coordination/cross-repo-audit-v0216-2026-03-21.md`
