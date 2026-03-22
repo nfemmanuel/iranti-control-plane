@@ -1,6 +1,6 @@
 # Resume Prompt — Next PM Session
 
-**Last updated:** 2026-03-21 (Wave 10 PM-ACCEPTED — v0.4.0 RC declared; Phase 5 scoped)
+**Last updated:** 2026-03-21 (Wave 11 dispatched — CP-T071/T072 DONE; T073 in progress; T074/T075 committed)
 **Current branch:** master
 **Phase:** 5 — Session Recovery & Runtime Lifecycle
 
@@ -17,7 +17,7 @@
 | Phase 2 | Interactive Management | v0.2.0-beta | **COMPLETE** |
 | Phase 3 | Advanced Operator Features | v0.3.0 | **PM-ACCEPTED** (all Waves 1–9) |
 | Phase 4 | Iranti Desktop | v0.4.0 | **PM-ACCEPTED 2026-03-21** (Wave 10: CP-T068, CP-T069, CP-T070) |
-| Phase 5 | Session Recovery & Runtime Lifecycle | v0.5.0 | **SCOPED** — tickets CP-T071–CP-T075 written |
+| Phase 5 | Session Recovery & Runtime Lifecycle | v0.5.0 | **IN PROGRESS** — Wave 11 dispatched; CP-T071 DONE, CP-T072 DONE, CP-T073 in progress |
 
 ### Release status
 
@@ -60,8 +60,8 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 ## TypeScript Status
 
-- `src/server` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T070)
-- `src/client` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T070)
+- `src/server` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T071/T072)
+- `src/client` — tsc --noEmit: **CLEAN** (0 errors, post-CP-T071/T072)
 
 ---
 
@@ -71,28 +71,25 @@ Neither v0.3.0 nor v0.4.0 has a formal GitHub Release or pushed tag. The binary 
 
 | Item | Ticket | Owner | Notes |
 |------|--------|-------|-------|
-| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Required to formally release v0.3.0 and v0.4.0. Test plan: `docs/qa/cp-t048-clean-machine-test-plan.md` |
+| CP-T048 AC-11 — clean-machine installer validation | CP-T075 | qa_engineer | Automated assessment done (`docs/qa/ac11-automated-assessment-2026-03-21.md`). Execution guide written (`docs/qa/ac11-execution-guide.md`). Requires human tester on clean machine. |
 
 ### Carryover deliverables
 
 | Item | Ticket | Owner | Notes |
 |------|--------|-------|-------|
-| CP-T025 upstream PR submission | CP-T074 | system_architect | Diff files exist in `docs/specs/cp-t025-diffs/`. PR not yet submitted to `nfemmanuel/iranti`. CP-T074 is the Phase 5 ticket to complete this. |
+| CP-T025 upstream PR submission | CP-T074 | system_architect | Branch `feat/staff-event-emitter-injection` created in iranti repo. PR submission in progress (Architect agent running). |
 
-### Phase 5 tickets (written, not yet dispatched)
+### Phase 5 ticket status
 
-| Ticket | Title | Owner | Priority |
-|--------|-------|-------|----------|
-| CP-T071 | Session Recovery Visibility | backend_developer + frontend_developer | P1 |
-| CP-T072 | Runtime Lifecycle Dashboard | backend_developer + frontend_developer | P2 |
-| CP-T073 | Iranti Upgrade Coordination | backend_developer + frontend_developer | P2 |
-| CP-T074 | Submit CP-T025 Upstream PR | system_architect | P1 |
-| CP-T075 | CP-T048 AC-11 Closure | qa_engineer | P0 |
+| Ticket | Title | Status | Notes |
+|--------|-------|--------|-------|
+| CP-T071 | Session Recovery Visibility | **DONE** | Sessions backend proxy + Sessions view committed. tsc-clean. |
+| CP-T072 | Runtime Lifecycle Dashboard | **DONE** | Runtime field extracted from /health; per-instance runtimeStatus; InstanceManager RUNNING/STALE/STOPPED badge. tsc-clean. |
+| CP-T073 | Iranti Upgrade Coordination | **IN PROGRESS** | Backend + frontend agents dispatched. Awaiting completion and TypeScript verification. |
+| CP-T074 | Submit CP-T025 Upstream PR | **IN PROGRESS** | Architect agent applying diffs to iranti repo. Awaiting PR URL. |
+| CP-T075 | CP-T048 AC-11 Closure | **DONE (QA portion)** | Assessment + execution guide committed. Human testing required for final closure. |
 
-**Next PM action:** Dispatch Phase 5 Wave 11. Recommended sequencing:
-1. CP-T075 and CP-T074 immediately (unblock release + close CP-T025 carryover)
-2. CP-T071 (Session Recovery Visibility) — highest user value from v0.2.16
-3. CP-T072 (Runtime Lifecycle Dashboard) — pairs with CP-T073 in Wave 12
+**Next PM action:** When CP-T073 and CP-T074 complete — verify tsc-clean, accept Wave 11/12, update tickets to ACCEPTED, update resume-next-session. Then PM-accept Phase 5 when all tickets complete and tsc is clean.
 
 ---
 
