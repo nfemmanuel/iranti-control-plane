@@ -25,6 +25,104 @@ import { join } from 'path'
 import { query, env } from '../../db.js'
 import { HealthCheck, HealthResponse, ApiError } from '../../types.js'
 
+// ---------------------------------------------------------------------------
+// CP-T072: Runtime lifecycle types
+// ---------------------------------------------------------------------------
+
+export interface IrantiRuntimeMetadata {
+  instanceName: string
+  pid: number
+  port: number
+  startedAt: string
+  lastHeartbeatAt: string
+  updatedAt: string
+  status: 'starting' | 'running' | 'stopping' | 'stopped'
+  version?: string
+  healthUrl?: string | null
+}
+
+export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+
+/**
+ * Staleness threshold: if runtime.status === 'running' but lastHeartbeatAt is
+ * more than STALE_THRESHOLD_MS milliseconds old, the instance is considered stale.
+ * CP-T072 implementation spec: 30 seconds.
+ */
+const STALE_THRESHOLD_MS = 30_000
+
+export function deriveRuntimeStatus(runtime: IrantiRuntimeMetadata | null): RuntimeStatus {
+  if (!runtime) return 'unknown'
+  if (runtime.status === 'stopped' || runtime.status === 'stopping') return 'stopped'
+  if (runtime.status === 'running') {
+    const heartbeat = Date.parse(runtime.lastHeartbeatAt)
+    if (isNaN(heartbeat)) return 'stale'
+    const ageMs = Date.now() - heartbeat
+    return ageMs > STALE_THRESHOLD_MS ? 'stale' : 'running'
+  }
+  // 'starting' or any unknown status
+  return 'unknown'
+}
+
+/**
+ * Fetch the Iranti /health response and extract the runtime field.
+ * Returns null if Iranti is unreachable or returns no runtime field.
+ */
+async function fetchIrantiRuntime(): Promise<IrantiRuntimeMetadata | null> {
+  const baseUrl = (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+  const apiKey = env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['X-Iranti-Key'] = apiKey
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3000)
+
+  try {
+    const res = await fetch(`${baseUrl}/health`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    })
+
+    if (!res.ok) return null
+
+    const body = await res.json() as Record<string, unknown>
+    const runtime = body['runtime']
+
+    if (!runtime || typeof runtime !== 'object') return null
+
+    const r = runtime as Record<string, unknown>
+
+    // Validate required fields before accepting
+    if (
+      typeof r['instanceName'] !== 'string' ||
+      typeof r['pid'] !== 'number' ||
+      typeof r['port'] !== 'number' ||
+      typeof r['startedAt'] !== 'string' ||
+      typeof r['lastHeartbeatAt'] !== 'string' ||
+      typeof r['status'] !== 'string'
+    ) {
+      return null
+    }
+
+    return {
+      instanceName: r['instanceName'],
+      pid: r['pid'],
+      port: r['port'],
+      startedAt: r['startedAt'],
+      lastHeartbeatAt: r['lastHeartbeatAt'],
+      updatedAt: typeof r['updatedAt'] === 'string' ? r['updatedAt'] : r['lastHeartbeatAt'],
+      status: r['status'] as IrantiRuntimeMetadata['status'],
+      version: typeof r['version'] === 'string' ? r['version'] : undefined,
+      healthUrl: typeof r['healthUrl'] === 'string' ? r['healthUrl'] : null,
+    }
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export const healthRouter = Router()
 
 // ---------------------------------------------------------------------------
@@ -465,7 +563,10 @@ export async function runAllHealthChecks(): Promise<HealthResponse> {
     checkStaffEventsTable,
   ]
 
-  const settled = await Promise.allSettled(checkFunctions.map((fn) => fn()))
+  const [settled, runtime] = await Promise.all([
+    Promise.allSettled(checkFunctions.map((fn) => fn())),
+    fetchIrantiRuntime(),
+  ])
 
   const checks: HealthCheck[] = settled.map((result, i) => {
     if (result.status === 'fulfilled') return result.value
@@ -478,7 +579,15 @@ export async function runAllHealthChecks(): Promise<HealthResponse> {
     }
   })
 
-  return { overall: computeOverall(checks), checks, checkedAt }
+  const runtimeStatus = deriveRuntimeStatus(runtime)
+
+  return {
+    overall: computeOverall(checks),
+    checks,
+    checkedAt,
+    runtime,
+    runtimeStatus,
+  }
 }
 
 // ---------------------------------------------------------------------------

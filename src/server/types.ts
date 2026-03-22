@@ -102,10 +102,32 @@ export interface HealthCheck {
   detail?: Record<string, unknown>
 }
 
+// ---------------------------------------------------------------------------
+// CP-T072: Runtime lifecycle metadata — mirrors IrantiRuntimeMetadata in health.ts
+// ---------------------------------------------------------------------------
+
+export interface IrantiRuntimeMetadata {
+  instanceName: string
+  pid: number
+  port: number
+  startedAt: string
+  lastHeartbeatAt: string
+  updatedAt: string
+  status: 'starting' | 'running' | 'stopping' | 'stopped'
+  version?: string
+  healthUrl?: string | null
+}
+
+export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+
 export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checks: HealthCheck[]
   checkedAt: string
+  /** CP-T072: Runtime metadata from Iranti /health, null if ad-hoc or unreachable */
+  runtime?: IrantiRuntimeMetadata | null
+  /** CP-T072: Derived staleness status */
+  runtimeStatus?: RuntimeStatus
 }
 
 export interface PaginatedResponse<T> {

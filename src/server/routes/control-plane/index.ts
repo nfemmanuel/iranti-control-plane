@@ -15,6 +15,7 @@ import { whoknowsRouter } from './whoknows.js'
 import { diagnosticsRouter } from './diagnostics.js'
 import { metricsRouter } from './metrics.js'
 import { overviewRouter } from './overview.js'
+import { sessionsRouter } from './sessions.js'
 
 export const controlPlaneRouter = Router()
 
@@ -44,3 +45,5 @@ controlPlaneRouter.use('/diagnostics', diagnosticsRouter)
 controlPlaneRouter.use('/metrics', metricsRouter)
 // Overview Dashboard: GET /overview — CP-T068
 controlPlaneRouter.use('/overview', overviewRouter)
+// Session Recovery: GET /sessions, POST /sessions/:sessionId/resume, POST /sessions/:sessionId/abandon — CP-T071
+controlPlaneRouter.use('/sessions', sessionsRouter)

@@ -20,6 +20,11 @@ import http from 'http'
 import { URL } from 'url'
 import { env } from '../../db.js'
 import { ApiError } from '../../types.js'
+import {
+  IrantiRuntimeMetadata,
+  RuntimeStatus,
+  deriveRuntimeStatus,
+} from './health.js'
 
 export const instancesRouter = Router()
 
@@ -79,6 +84,10 @@ interface InstanceMetadata {
   projects: []
   registeredAt: string | null
   notes: string | null   // string | null — buildErrorInstance may set a string message
+  /** CP-T072 — Runtime lifecycle metadata from Iranti /health; null if ad-hoc or unreachable */
+  runtime: IrantiRuntimeMetadata | null
+  /** CP-T072 — Derived staleness status */
+  runtimeStatus: RuntimeStatus
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +220,58 @@ function probeInstance(port: number): Promise<ProbeResult> {
 }
 
 // ---------------------------------------------------------------------------
+// CP-T072: Per-instance runtime metadata fetch
+// ---------------------------------------------------------------------------
+
+async function fetchInstanceRuntime(port: number): Promise<IrantiRuntimeMetadata | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1500)
+
+  try {
+    const res = await fetch(`http://localhost:${port}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    })
+
+    if (!res.ok) return null
+
+    const body = await res.json() as Record<string, unknown>
+    const runtime = body['runtime']
+
+    if (!runtime || typeof runtime !== 'object') return null
+
+    const r = runtime as Record<string, unknown>
+
+    if (
+      typeof r['instanceName'] !== 'string' ||
+      typeof r['pid'] !== 'number' ||
+      typeof r['port'] !== 'number' ||
+      typeof r['startedAt'] !== 'string' ||
+      typeof r['lastHeartbeatAt'] !== 'string' ||
+      typeof r['status'] !== 'string'
+    ) {
+      return null
+    }
+
+    return {
+      instanceName: r['instanceName'],
+      pid: r['pid'],
+      port: r['port'],
+      startedAt: r['startedAt'],
+      lastHeartbeatAt: r['lastHeartbeatAt'],
+      updatedAt: typeof r['updatedAt'] === 'string' ? r['updatedAt'] : r['lastHeartbeatAt'],
+      status: r['status'] as IrantiRuntimeMetadata['status'],
+      version: typeof r['version'] === 'string' ? r['version'] : undefined,
+      healthUrl: typeof r['healthUrl'] === 'string' ? r['healthUrl'] : null,
+    }
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Version from package.json fallback
 // ---------------------------------------------------------------------------
 
@@ -259,9 +320,10 @@ async function aggregateInstance(
 
   const dbParsed = parseAndRedactDbUrl(envResult.raw?.['DATABASE_URL'])
 
-  const [probe, versionFallback] = await Promise.all([
+  const [probe, versionFallback, runtime] = await Promise.all([
     probeInstance(port),
     envResult.present ? readVersionFromPackageJson(runtimeRoot) : Promise.resolve(null),
+    fetchInstanceRuntime(port),
   ])
 
   const irantVersion = probe.irantVersion ?? versionFallback
@@ -298,6 +360,9 @@ async function aggregateInstance(
     projects: [],
     registeredAt: registeredAt ?? null,
     notes: null,
+    // CP-T072: runtime lifecycle metadata — null for ad-hoc instances or when unreachable
+    runtime,
+    runtimeStatus: deriveRuntimeStatus(runtime),
   }
 }
 
@@ -325,6 +390,9 @@ function buildErrorInstance(
     projects: [],
     registeredAt,
     notes: `Aggregation error: ${errorMsg}`,
+    // CP-T072: runtime unavailable for error instances
+    runtime: null,
+    runtimeStatus: 'unknown',
   }
 }
 

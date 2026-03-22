@@ -193,6 +193,26 @@ export interface HealthAttendant {
   upstreamPRRequired: string
 }
 
+/* CP-T072: Runtime lifecycle metadata from Iranti v0.2.16 runtimeLifecycle.ts */
+export interface IrantiRuntimeMetadata {
+  instanceName: string
+  pid: number
+  port: number
+  startedAt: string
+  lastHeartbeatAt: string
+  updatedAt: string
+  status: 'starting' | 'running' | 'stopping' | 'stopped'
+  version?: string
+  healthUrl?: string | null
+}
+
+/** CP-T072: Derived staleness status — computed server-side so the frontend never
+ *  needs to compare timestamps. 'unknown' means no runtime data (ad-hoc mode). */
+export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+
+/** @deprecated Use IrantiRuntimeMetadata instead — kept for backwards compat */
+export type InstanceRuntimeInfo = IrantiRuntimeMetadata
+
 export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checkedAt: string
@@ -203,6 +223,10 @@ export interface HealthResponse {
   vectorBackend?: HealthVectorBackend
   /** CP-T052: Attendant status (informational — no live probe available) */
   attendant?: HealthAttendant
+  /** CP-T072: Runtime metadata from Iranti /health; null if ad-hoc or unreachable */
+  runtime?: IrantiRuntimeMetadata | null
+  /** CP-T072: Derived staleness status */
+  runtimeStatus?: RuntimeStatus
 }
 
 /* ------------------------------------------------------------------ */
@@ -262,6 +286,10 @@ export interface InstanceMetadata {
   discoveredAt: string
   /** CP-T058 H8 — IRANTI_PROJECT_MODE env var value, null if not set */
   projectMode: 'isolated' | 'shared' | null
+  /** CP-T072: Runtime lifecycle metadata — null for ad-hoc instances or if unreachable */
+  runtime?: IrantiRuntimeMetadata | null
+  /** CP-T072: Derived staleness status — 'unknown' if no runtime data */
+  runtimeStatus?: RuntimeStatus
 }
 
 export interface InstanceListResponse {
@@ -651,4 +679,40 @@ export interface OverviewResponse {
   recentEvents: OverviewRecentEvent[]
   activeAgents: OverviewActiveAgent[]
   fetchedAt: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sessions (CP-T071)                                                 */
+/* ------------------------------------------------------------------ */
+
+export type SessionState = 'interrupted' | 'checkpointed' | 'complete' | 'abandoned' | 'unknown'
+
+export interface SessionRecord {
+  sessionId: string
+  agentId: string
+  state: SessionState
+  task: string | null
+  startedAt: string | null
+  lastCheckpointAt: string | null
+  completedAt: string | null
+  abandonedAt: string | null
+  /** Raw checkpoint data — backend may include this; optional */
+  checkpoint?: Record<string, unknown> | null
+}
+
+export interface SessionsResponse {
+  sessions: SessionRecord[]
+  total: number
+  fetchedAt: string
+  /** Non-fatal error message when Iranti is unreachable or sessions not queryable */
+  error?: string
+  /** Informational note explaining which data sources were checked */
+  note?: string
+}
+
+export interface SessionActionResponse {
+  success: boolean
+  sessionId: string
+  message?: string
+  error?: string
 }
