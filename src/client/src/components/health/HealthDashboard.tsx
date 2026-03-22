@@ -110,16 +110,19 @@ export function classifyCheckSeverity(check: HealthCheck): Severity {
     return 'CRITICAL'
   }
 
-  // INFO: explicitly expected states for standard installations
-  // These must not appear as warnings — they will alarm users unnecessarily.
+  // INFO: project-level setup and non-blocking states.
+  // These must not appear as warnings — they do not affect Iranti runtime health.
   if (
-    // Version behind latest (minor) — expected, non-breaking
+    // Version behind latest (minor) — non-breaking, Iranti is fully operational
     (name === 'runtime_version' && status === 'warn') ||
-    // staff_events_table not created yet — expected on clean install
-    (name === 'staff_events_table' && status === 'warn')
-    // Note: provider key checks (anthropic_key, openai_key) now handle absent-but-not-active
-    // providers server-side by returning status:ok. A warn status here means the key is
-    // absent AND the provider IS the active one — that is a genuine warning.
+    // staff_events_table not created — CP-specific migration, not a runtime blocker
+    (name === 'staff_events_table' && status === 'warn') ||
+    // MCP and CLAUDE.md are project-level integration setup, not runtime health
+    (name === 'mcp_integration' && status === 'warn') ||
+    (name === 'claude_md_integration' && status === 'warn')
+    // Note: provider key checks (anthropic_key, openai_key) return status:ok when
+    // the key is absent but that provider is not active — server-side logic handles this.
+    // A warn status here means the key IS absent AND the provider IS active — genuine warning.
   ) {
     return 'INFO'
   }
@@ -138,7 +141,11 @@ export function getInfoNormalization(checkName: string): string | null {
     case 'runtime_version':
       return 'A newer version is available, but this update is non-breaking. Iranti is fully operational on your current version.'
     case 'staff_events_table':
-      return 'The staff_events table is created automatically when migrations run. This is expected on a fresh install before `iranti migrate` has been run.'
+      return 'The staff_events table is created by the control plane migrations. Run `npm run migrate` to enable the Staff Activity Stream.'
+    case 'mcp_integration':
+      return 'MCP integration is a per-project setup step, not a runtime requirement. Iranti is fully operational without it.'
+    case 'claude_md_integration':
+      return 'CLAUDE.md integration is a per-project setup step. Iranti is fully operational without it in this directory.'
     default:
       return null
   }

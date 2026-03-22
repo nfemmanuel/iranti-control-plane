@@ -492,8 +492,8 @@ async function checkStaffEventsTable(): Promise<HealthCheck> {
       status: exists ? 'ok' : 'warn',
       message: exists
         ? 'staff_events table exists'
-        : 'staff_events table missing — run iranti migrate to apply pending migrations; event stream will not work until this is resolved',
-      detail: exists ? undefined : { hint: 'Run: iranti migrate --instance <name>' },
+        : 'staff_events table missing — run control plane migrations to enable the Staff Activity Stream',
+      detail: exists ? undefined : { hint: 'Run: npm run migrate from your iranti-control-plane directory' },
     }
   } catch (err) {
     return {
@@ -698,9 +698,26 @@ async function buildAttendantStatus(): Promise<AttendantStatus> {
 // Aggregator
 // ---------------------------------------------------------------------------
 
+/**
+ * Checks that affect the overall runtime health status.
+ * Integration/setup checks (mcp_integration, claude_md_integration,
+ * staff_events_table) are NOT included — they are informational and should
+ * not degrade overall status when Iranti itself is healthy.
+ */
+const RUNTIME_CHECK_NAMES = new Set([
+  'db_reachability',
+  'db_schema_version',
+  'vector_backend',
+  'anthropic_key',
+  'openai_key',
+  'default_provider_configured',
+  'runtime_version',
+])
+
 function computeOverall(checks: HealthCheck[]): 'healthy' | 'degraded' | 'error' {
-  if (checks.some((c) => c.status === 'error')) return 'error'
-  if (checks.some((c) => c.status === 'warn')) return 'degraded'
+  const runtime = checks.filter((c) => RUNTIME_CHECK_NAMES.has(c.name))
+  if (runtime.some((c) => c.status === 'error')) return 'error'
+  if (runtime.some((c) => c.status === 'warn')) return 'degraded'
   return 'healthy'
 }
 

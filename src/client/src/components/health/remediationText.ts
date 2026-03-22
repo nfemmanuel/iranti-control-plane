@@ -10,18 +10,20 @@ export interface RemediationEntry {
 export const REMEDIATION: Record<string, Record<string, string>> = {
   db_reachability: {
     error:
-      'Iranti cannot connect to PostgreSQL. Ensure PostgreSQL is running and DATABASE_URL in .env.iranti is correct. ' +
-      'Check that the host, port, and credentials in the connection string are reachable from this machine.',
+      'Iranti cannot connect to PostgreSQL. Ensure PostgreSQL is running and DATABASE_URL in your instance .env file is correct. ' +
+      'Check that the host, port, and credentials in the connection string are reachable from this machine. ' +
+      'Run `iranti instance show local` to inspect the current database config.',
     warn:
-      'Database connection is degraded. Verify that PostgreSQL is running and that DATABASE_URL in .env.iranti is set correctly.',
+      'Database connection is degraded. Verify that PostgreSQL is running and that DATABASE_URL in your instance .env file is set correctly. ' +
+      'Run `iranti doctor --instance local` for a full environment check.',
   },
   db_schema_version: {
     warn:
-      'The database schema is behind the expected migration version. ' +
-      'Run the Iranti database migrations to bring the schema up to date: `iranti migrate`.',
+      'The Iranti database schema may need migrations applied. ' +
+      'Run `iranti doctor --instance local` to check schema state and follow any prompts.',
     error:
-      'The database schema version could not be determined. ' +
-      'The schema may be uninitialized. Run `iranti migrate` to initialize the database.',
+      'The Iranti database schema version could not be determined — the schema may be uninitialized. ' +
+      'Run `iranti doctor --instance local` to diagnose and apply any pending migrations.',
   },
   vector_backend: {
     warn:
@@ -34,14 +36,15 @@ export const REMEDIATION: Record<string, Record<string, string>> = {
   },
   anthropic_key: {
     warn:
-      'ANTHROPIC_API_KEY is not set in .env.iranti. ' +
-      'Add: ANTHROPIC_API_KEY=sk-ant-... to your .env.iranti file and restart Iranti. ' +
-      'You need at least one provider key (Anthropic or OpenAI) for Iranti to function.',
+      'ANTHROPIC_API_KEY is not set but Anthropic is your active provider. ' +
+      'Add the key via the Provider Manager, or run: `iranti add api-key anthropic --instance local` ' +
+      'to store it in your instance config.',
   },
   openai_key: {
     warn:
-      'OPENAI_API_KEY is not set in .env.iranti. ' +
-      'If you intend to use OpenAI as a provider, add: OPENAI_API_KEY=sk-... to your .env.iranti file and restart Iranti.',
+      'OPENAI_API_KEY is not set but OpenAI is your active provider. ' +
+      'Add the key via the Provider Manager, or run: `iranti add api-key openai --instance local` ' +
+      'to store it in your instance config.',
   },
   default_provider_configured: {
     warn:
@@ -72,11 +75,11 @@ export const REMEDIATION: Record<string, Record<string, string>> = {
   staff_events_table: {
     warn:
       'The staff_events table does not exist in your database. ' +
-      'This is expected if you have not yet applied the CP-T001 migration. ' +
-      'Run the database migration to enable the Staff Activity Stream: `iranti migrate`.',
+      'Run the control plane migrations to enable the Staff Activity Stream: ' +
+      '`npm run migrate` from your iranti-control-plane directory.',
     error:
-      'The staff_events table is missing and the migration could not be confirmed. ' +
-      'Run `iranti migrate` to apply all pending migrations.',
+      'The staff_events table is missing. ' +
+      'Run `npm run migrate` from your iranti-control-plane directory to apply pending migrations.',
   },
 }
 
