@@ -95,11 +95,12 @@ async function checkProvider(): Promise<SetupStep> {
 
   const anthropicKey = env['ANTHROPIC_API_KEY'] || process.env['ANTHROPIC_API_KEY'] || ''
   const openaiKey = env['OPENAI_API_KEY'] || process.env['OPENAI_API_KEY'] || ''
+  // LLM_PROVIDER is the authoritative instance runtime var — set in the instance .env
+  // and merged into the CP env by db.ts. Project-binding vars (IRANTI_DEFAULT_PROVIDER,
+  // DEFAULT_PROVIDER) have been removed; they had no runtime authority.
   const explicitProvider =
-    env['IRANTI_DEFAULT_PROVIDER'] ||
-    process.env['IRANTI_DEFAULT_PROVIDER'] ||
-    env['DEFAULT_PROVIDER'] ||
-    process.env['DEFAULT_PROVIDER'] ||
+    env['LLM_PROVIDER'] ||
+    process.env['LLM_PROVIDER'] ||
     ''
 
   const hasAnthropicKey = anthropicKey.trim() !== ''

@@ -12,10 +12,10 @@
  *   3. vector_backend         — pg_extension WHERE extname = 'vector'
  *   4. anthropic_key          — ANTHROPIC_API_KEY in env
  *   5. openai_key             — OPENAI_API_KEY in env
- *   6. default_provider_configured — IRANTI_DEFAULT_PROVIDER or DEFAULT_PROVIDER
+ *   6. default_provider_configured — LLM_PROVIDER (authoritative, from instance env)
  *   7. mcp_integration        — .mcp.json in cwd
  *   8. claude_md_integration  — CLAUDE.md in cwd
- *   9. runtime_version        — package.json version
+ *   9. runtime_version        — live probe of Iranti /health endpoint
  *  10. staff_events_table     — information_schema.tables check
  */
 
@@ -228,25 +228,78 @@ async function checkVectorBackend(): Promise<HealthCheck> {
   }
 }
 
-function makeProviderKeyCheck(keyName: string, checkName: string): () => Promise<HealthCheck> {
+/**
+ * Check whether a provider API key is present.
+ * Severity rules:
+ *   - key present → ok (regardless of active provider)
+ *   - key absent AND this provider IS the active default or in the fallback chain → warn
+ *   - key absent AND this provider is NOT active and NOT in the fallback chain → ok
+ *     (absent key for an inactive provider is expected, not a warning)
+ *
+ * Active provider is read from LLM_PROVIDER in the instance env (authoritative).
+ * Fallback chain is read from LLM_PROVIDER_FALLBACK.
+ *
+ * SECURITY: never include key value or any part of it in the result.
+ */
+function makeProviderKeyCheck(
+  keyName: string,
+  checkName: string,
+  providerName: string
+): () => Promise<HealthCheck> {
   return async (): Promise<HealthCheck> => {
-    // Check process.env first, then loaded .env.iranti values
     const value = process.env[keyName] ?? env[keyName]
     const present = typeof value === 'string' && value.trim() !== ''
+
+    if (present) {
+      return {
+        name: checkName,
+        status: 'ok',
+        message: `${keyName} is set`,
+      }
+    }
+
+    // Key absent — check whether this provider is actually in use
+    const activeProvider = (
+      process.env['LLM_PROVIDER'] ?? env['LLM_PROVIDER'] ?? ''
+    ).trim().toLowerCase()
+    const fallbackChain = (
+      process.env['LLM_PROVIDER_FALLBACK'] ?? env['LLM_PROVIDER_FALLBACK'] ?? ''
+    ).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+
+    const isActiveOrFallback =
+      activeProvider === providerName || fallbackChain.includes(providerName)
+
+    if (!isActiveOrFallback) {
+      // Key is absent but provider is not the active default or fallback — expected state
+      return {
+        name: checkName,
+        status: 'ok',
+        message: `${keyName} not set — ${providerName} is not the active provider`,
+        detail: { activeProvider: activeProvider || 'not set' },
+      }
+    }
+
+    // Key absent and provider IS active/fallback — this is a real problem
     return {
       name: checkName,
-      status: present ? 'ok' : 'warn',
-      message: present ? `${keyName} is present` : `${keyName} not found in environment`,
-      // SECURITY: never include the value or any part of it
+      status: 'warn',
+      message: `${keyName} not found — ${providerName} is the active provider but has no API key configured`,
+      detail: { activeProvider },
     }
   }
 }
 
-const checkAnthropicKey = makeProviderKeyCheck('ANTHROPIC_API_KEY', 'anthropic_key')
-const checkOpenAIKey = makeProviderKeyCheck('OPENAI_API_KEY', 'openai_key')
+const checkAnthropicKey = makeProviderKeyCheck('ANTHROPIC_API_KEY', 'anthropic_key', 'anthropic')
+const checkOpenAIKey = makeProviderKeyCheck('OPENAI_API_KEY', 'openai_key', 'openai')
 
 async function checkDefaultProvider(): Promise<HealthCheck> {
-  const candidates = ['IRANTI_DEFAULT_PROVIDER', 'DEFAULT_PROVIDER', 'DEFAULT_LLM_PROVIDER']
+  // LLM_PROVIDER is the authoritative Iranti runtime var — set in the instance .env
+  // (e.g. ~/.iranti-runtime/instances/local/.env) and merged into the CP env by db.ts
+  // via the IRANTI_INSTANCE_ENV pointer. Project-binding files (.env.iranti) must NOT
+  // set this var; they are connector pointers only and do not configure runtime behaviour.
+  // IRANTI_DEFAULT_PROVIDER / DEFAULT_PROVIDER were CP-specific vars that blurred this
+  // authority boundary — they have been removed from project binding files.
+  const candidates = ['LLM_PROVIDER']
   const found = candidates.find((k) => {
     const val = process.env[k] ?? env[k]
     return typeof val === 'string' && val.trim() !== ''
@@ -256,13 +309,16 @@ async function checkDefaultProvider(): Promise<HealthCheck> {
     return {
       name: 'default_provider_configured',
       status: 'warn',
-      message: 'No default provider configured (IRANTI_DEFAULT_PROVIDER not set)',
-      detail: { checked: candidates },
+      message: 'No default provider configured (LLM_PROVIDER not set in instance env)',
+      detail: {
+        checked: candidates,
+        hint: 'Set LLM_PROVIDER in the instance .env file (e.g. LLM_PROVIDER=openai) and restart Iranti.',
+      },
     }
   }
 
   const value = (process.env[found] ?? env[found] ?? '').trim().toLowerCase()
-  const knownProviders = ['anthropic', 'openai']
+  const knownProviders = ['anthropic', 'openai', 'ollama', 'groq', 'mistral', 'together', 'gemini']
   const known = knownProviders.includes(value)
 
   return {
@@ -349,37 +405,74 @@ async function checkClaudeMdIntegration(): Promise<HealthCheck> {
 }
 
 async function checkRuntimeVersion(): Promise<HealthCheck> {
-  const pkgCandidates = [
-    join(process.cwd(), 'package.json'),
-    join(process.cwd(), 'node_modules', 'iranti', 'package.json'),
-  ]
+  // Fetch the live Iranti runtime version from its /health endpoint.
+  // This is the authoritative source — the runtime version lives in the running
+  // Iranti process, not in any local package.json.
+  // The control-plane's own version is separate and is not surfaced here.
+  const baseUrl = (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+  const apiKey = env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
 
-  let version: string | null = null
-  for (const pkgPath of pkgCandidates) {
-    try {
-      const raw = await readFile(pkgPath, 'utf8')
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      if (typeof parsed.version === 'string') {
-        version = parsed.version
-        break
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['X-Iranti-Key'] = apiKey
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3000)
+
+  try {
+    const res = await fetch(`${baseUrl}/health`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      return {
+        name: 'runtime_version',
+        status: 'warn',
+        message: 'Could not read Iranti runtime version — Iranti may not be running',
+        detail: { hint: 'Start Iranti: iranti run --instance <name>' },
       }
-    } catch { /* try next */ }
-  }
+    }
 
-  if (!version) {
+    const body = await res.json() as Record<string, unknown>
+
+    // Prefer runtime.version (added in v0.2.16); fall back to top-level version field
+    const runtime = body['runtime']
+    let version: string | null = null
+    if (runtime && typeof runtime === 'object') {
+      const r = runtime as Record<string, unknown>
+      if (typeof r['version'] === 'string' && r['version']) {
+        version = r['version']
+      }
+    }
+    if (!version && typeof body['version'] === 'string' && body['version']) {
+      version = body['version']
+    }
+
+    if (!version) {
+      return {
+        name: 'runtime_version',
+        status: 'warn',
+        message: 'Iranti is running but did not report a version',
+        detail: { url: `${baseUrl}/health` },
+      }
+    }
+
+    return {
+      name: 'runtime_version',
+      status: 'ok',
+      message: `Iranti runtime v${version}`,
+      detail: { version, source: `${baseUrl}/health` },
+    }
+  } catch {
     return {
       name: 'runtime_version',
       status: 'warn',
-      message: 'Could not detect Iranti runtime version',
-      detail: { checked: pkgCandidates },
+      message: 'Could not reach Iranti to check runtime version',
+      detail: { hint: 'Start Iranti: iranti run --instance <name>' },
     }
-  }
-
-  return {
-    name: 'runtime_version',
-    status: 'ok',
-    message: `Running Iranti version ${version}`,
-    detail: { version },
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -399,8 +492,8 @@ async function checkStaffEventsTable(): Promise<HealthCheck> {
       status: exists ? 'ok' : 'warn',
       message: exists
         ? 'staff_events table exists'
-        : 'staff_events table missing — CP-T001 migration not applied; event stream will not work',
-      detail: exists ? undefined : { hint: 'Apply the CP-T001 migration to create the staff_events table.' },
+        : 'staff_events table missing — run iranti migrate to apply pending migrations; event stream will not work until this is resolved',
+      detail: exists ? undefined : { hint: 'Run: iranti migrate --instance <name>' },
     }
   } catch (err) {
     return {
@@ -519,21 +612,85 @@ async function buildVectorBackendInfo(): Promise<VectorBackendInfo> {
 }
 
 // ---------------------------------------------------------------------------
-// CP-T052: Attendant status builder
+// CP-T052: Attendant status — live probe
 // ---------------------------------------------------------------------------
 
 interface AttendantStatus {
-  status: 'informational'
+  status: 'ok' | 'warn' | 'error' | 'unreachable'
   message: string
-  upstreamPRRequired: string
+  checkedAt: string
 }
 
-function buildAttendantStatus(): AttendantStatus {
-  return {
-    status: 'informational',
-    message:
-      'Attendant automatic injection has known reliability limitations without native emitter injection. A PR to add native Staff event emission is submitted upstream (CP-T025, PR #1) and awaiting merge. Until merged, use forceInject: true or provide explicit entityHints to iranti_observe.',
-    upstreamPRRequired: 'CP-T025 — PR #1 submitted, awaiting merge',
+/**
+ * Probe the live Iranti Attendant by calling POST /memory/attend with a
+ * minimal diagnostic payload. Returns a status and operator-readable message.
+ * This replaces the previous static hardcoded message so the surface reflects
+ * the actual attendant state rather than internal engineering notes.
+ */
+async function buildAttendantStatus(): Promise<AttendantStatus> {
+  const baseUrl = (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+  const apiKey = env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+  const checkedAt = new Date().toISOString()
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['X-Iranti-Key'] = apiKey
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    const res = await fetch(`${baseUrl}/memory/attend`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        agent: 'control_plane_operator',
+        query: 'health check probe',
+        currentContext: 'health check probe',
+      }),
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      const isUnreachable = res.status === 404 || res.status === 503
+      return {
+        status: isUnreachable ? 'unreachable' : 'error',
+        message: isUnreachable
+          ? 'Attendant route not available — Iranti may not be running'
+          : `Attendant returned HTTP ${res.status}`,
+        checkedAt,
+      }
+    }
+
+    // Parse for known classifier failure indicator
+    let parseFailed = false
+    try {
+      const body = await res.json() as unknown
+      if (JSON.stringify(body).includes('classification_parse_failed_default_false')) {
+        parseFailed = true
+      }
+    } catch { /* 200 response — treat as ok even if body parse fails */ }
+
+    if (parseFailed) {
+      return {
+        status: 'warn',
+        message: 'Attendant responded but classifier reported a parse failure — memory injection may be unreliable. Use forceInject: true in iranti_attend as a workaround.',
+        checkedAt,
+      }
+    }
+
+    return {
+      status: 'ok',
+      message: 'Attendant is responding normally',
+      checkedAt,
+    }
+  } catch {
+    return {
+      status: 'unreachable',
+      message: 'Could not reach Attendant endpoint — Iranti may not be running',
+      checkedAt,
+    }
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -596,9 +753,10 @@ export async function runAllHealthChecks(): Promise<HealthResponse> {
 
 healthRouter.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const [result, vectorBackend] = await Promise.all([
+    const [result, vectorBackend, attendant] = await Promise.all([
       runAllHealthChecks(),
       buildVectorBackendInfo(),
+      buildAttendantStatus(),
     ])
     // Always 200 — HTTP status reflects whether the endpoint itself worked.
     //
@@ -612,7 +770,7 @@ healthRouter.get('/', async (_req: Request, res: Response, next: NextFunction) =
       ...result,
       decay: buildDecayConfig(),
       vectorBackend,
-      attendant: buildAttendantStatus(),
+      attendant,
     })
   } catch (err) {
     next(err)

@@ -215,13 +215,11 @@ function getGroqKey(): string {
 }
 
 function getDefaultProvider(): string | null {
-  // LLM_PROVIDER is the Iranti CLI canonical var (written by iranti add api-key --set-default)
-  // IRANTI_DEFAULT_PROVIDER / DEFAULT_PROVIDER are legacy CP-specific vars — kept for compat
-  const val =
-    getEnvVar('LLM_PROVIDER') ||
-    getEnvVar('IRANTI_DEFAULT_PROVIDER') ||
-    getEnvVar('DEFAULT_PROVIDER') ||
-    ''
+  // LLM_PROVIDER is the authoritative Iranti runtime var — set in the instance .env
+  // and merged into the CP env by db.ts via IRANTI_INSTANCE_ENV. Project-binding vars
+  // IRANTI_DEFAULT_PROVIDER / DEFAULT_PROVIDER have been removed; they had no runtime
+  // authority and blurred the distinction between connector config and runtime config.
+  const val = getEnvVar('LLM_PROVIDER')
   return val.trim() || null
 }
 

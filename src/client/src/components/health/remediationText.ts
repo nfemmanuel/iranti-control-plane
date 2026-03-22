@@ -45,13 +45,14 @@ export const REMEDIATION: Record<string, Record<string, string>> = {
   },
   default_provider_configured: {
     warn:
-      'DEFAULT_PROVIDER (or IRANTI_DEFAULT_PROVIDER) is not set in .env.iranti. ' +
+      'LLM_PROVIDER is not set in the instance .env file. ' +
       'Iranti will use its built-in fallback, which may not match your preferred provider. ' +
-      'Add: DEFAULT_PROVIDER=anthropic to your .env.iranti file and restart.',
+      'Set LLM_PROVIDER=openai (or anthropic) in the instance .env file ' +
+      '(e.g. ~/.iranti-runtime/instances/local/.env) and restart Iranti.',
     error:
-      'DEFAULT_PROVIDER is set to an unrecognized value in .env.iranti. ' +
-      'Valid values are: anthropic, openai. ' +
-      'Update the value and restart Iranti.',
+      'LLM_PROVIDER is set to an unrecognized value in the instance .env file. ' +
+      'Valid values are: anthropic, openai, ollama, groq, mistral, together, gemini. ' +
+      'Update LLM_PROVIDER in the instance .env file and restart Iranti.',
   },
   mcp_integration: {
     warn:

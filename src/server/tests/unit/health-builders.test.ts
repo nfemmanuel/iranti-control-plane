@@ -49,22 +49,30 @@ function buildDecayConfig(testEnv: Record<string, string> = {}): DecayConfig {
 }
 
 // ===========================================================================
-// Inline replication of buildAttendantStatus (from routes/control-plane/health.ts)
+// Inline replication of the AttendantStatus shape (from routes/control-plane/health.ts)
+//
+// NOTE: buildAttendantStatus() is now async — it makes a live probe to
+// POST /memory/attend. The network probe path is not unit-tested here
+// (no fetch mocking per spec). Only the response shape contract is documented.
 // ===========================================================================
 
 interface AttendantStatus {
-  status: 'informational'
+  status: 'ok' | 'warn' | 'error' | 'unreachable'
   message: string
-  upstreamPRRequired: string
+  checkedAt: string
 }
 
-function buildAttendantStatus(): AttendantStatus {
-  return {
-    status: 'informational',
-    message:
-      'Attendant automatic injection has known reliability limitations without native emitter injection (CP-T025). Iranti v0.2.13 improved classification accuracy. If injection appears unreliable, provide explicit entityHints to iranti_observe.',
-    upstreamPRRequired: 'CP-T025',
-  }
+// Type-check helper — verifies a result object satisfies the AttendantStatus shape.
+// Used in tests below to validate the interface contract without a live network call.
+function isValidAttendantStatus(x: unknown): x is AttendantStatus {
+  if (typeof x !== 'object' || x === null) return false
+  const obj = x as Record<string, unknown>
+  const validStatuses = ['ok', 'warn', 'error', 'unreachable']
+  return (
+    validStatuses.includes(obj.status as string) &&
+    typeof obj.message === 'string' && obj.message.length > 0 &&
+    typeof obj.checkedAt === 'string'
+  )
 }
 
 // ===========================================================================
@@ -238,25 +246,30 @@ describe('buildDecayConfig', () => {
 // Tests: buildAttendantStatus
 // ===========================================================================
 
-describe('buildAttendantStatus', () => {
-  it('returns status === "informational"', () => {
-    expect(buildAttendantStatus().status).toBe('informational')
+describe('AttendantStatus shape contract', () => {
+  // buildAttendantStatus() is now async and makes a live /memory/attend probe.
+  // Network-dependent results are not unit-tested here.
+  // These tests verify the interface contract only.
+
+  it('isValidAttendantStatus accepts all valid status values', () => {
+    const statuses = ['ok', 'warn', 'error', 'unreachable'] as const
+    for (const status of statuses) {
+      const obj: AttendantStatus = { status, message: 'test', checkedAt: new Date().toISOString() }
+      expect(isValidAttendantStatus(obj)).toBe(true)
+    }
   })
 
-  it('returns a non-empty message string', () => {
-    const { message } = buildAttendantStatus()
-    expect(typeof message).toBe('string')
-    expect(message.length).toBeGreaterThan(0)
+  it('isValidAttendantStatus rejects old "informational" status value', () => {
+    // The old shape used status: 'informational' — confirm it is no longer valid
+    expect(isValidAttendantStatus({ status: 'informational', message: 'x', checkedAt: new Date().toISOString() })).toBe(false)
   })
 
-  it('returns upstreamPRRequired === "CP-T025"', () => {
-    expect(buildAttendantStatus().upstreamPRRequired).toBe('CP-T025')
+  it('isValidAttendantStatus rejects objects missing checkedAt', () => {
+    expect(isValidAttendantStatus({ status: 'ok', message: 'x' })).toBe(false)
   })
 
-  it('returns the same value on every call (pure/idempotent)', () => {
-    const first = buildAttendantStatus()
-    const second = buildAttendantStatus()
-    expect(first).toEqual(second)
+  it('isValidAttendantStatus rejects objects with empty message', () => {
+    expect(isValidAttendantStatus({ status: 'ok', message: '', checkedAt: new Date().toISOString() })).toBe(false)
   })
 })
 

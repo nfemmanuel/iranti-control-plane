@@ -74,18 +74,20 @@ export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'HEALTHY'
  *   - db_reachability:warn
  *   - db_schema_version:warn
  *   - vector_backend:warn
- *   - anthropic_key:warn        (missing key — degraded but only if no other provider)
- *   - openai_key:warn           (missing key — informational by default)
+ *   - anthropic_key:warn        (missing key AND Anthropic is the active provider)
+ *   - openai_key:warn           (missing key AND OpenAI is the active provider)
  *   - default_provider_configured:warn
  *   - mcp_integration:warn
  *   - claude_md_integration:warn
  *   - staff_events_table:error
  *
  * INFO (explicitly expected states — do NOT show as warning):
- *   - anthropic_key:ok          (present = healthy, but absence is a warning only)
  *   - runtime_version:warn      (version behind — non-breaking, expected)
  *   - staff_events_table:warn   (table not yet created — expected on clean install)
- *   - openai_key:warn — handled as INFO because most users use Anthropic
+ *
+ * Note: provider key checks (anthropic_key, openai_key) return status:ok when
+ * the key is absent but the provider is not the active one — server-side logic
+ * handles this so the frontend never needs to second-guess provider context.
  *
  * HEALTHY:
  *   - Any check with status:ok that isn't reclassified above
@@ -114,10 +116,10 @@ export function classifyCheckSeverity(check: HealthCheck): Severity {
     // Version behind latest (minor) — expected, non-breaking
     (name === 'runtime_version' && status === 'warn') ||
     // staff_events_table not created yet — expected on clean install
-    (name === 'staff_events_table' && status === 'warn') ||
-    // OpenAI key absent — only matters if OpenAI is the chosen provider
-    // Informational because most users use Anthropic as their primary provider
-    (name === 'openai_key' && status === 'warn')
+    (name === 'staff_events_table' && status === 'warn')
+    // Note: provider key checks (anthropic_key, openai_key) now handle absent-but-not-active
+    // providers server-side by returning status:ok. A warn status here means the key is
+    // absent AND the provider IS the active one — that is a genuine warning.
   ) {
     return 'INFO'
   }
@@ -136,9 +138,7 @@ export function getInfoNormalization(checkName: string): string | null {
     case 'runtime_version':
       return 'A newer version is available, but this update is non-breaking. Iranti is fully operational on your current version.'
     case 'staff_events_table':
-      return 'The staff_events table is created automatically when migrations run. This is expected on a fresh install before \u0060iranti migrate\u0060 has been run.'
-    case 'openai_key':
-      return 'OpenAI API key is not set. This is expected if you are using Anthropic as your provider. Only required if you intend to use OpenAI models.'
+      return 'The staff_events table is created automatically when migrations run. This is expected on a fresh install before `iranti migrate` has been run.'
     default:
       return null
   }
@@ -707,44 +707,72 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
 /* ------------------------------------------------------------------ */
 
 function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
+  const severity: Severity =
+    attendant.status === 'ok' ? 'HEALTHY' :
+    attendant.status === 'warn' ? 'WARNING' :
+    attendant.status === 'unreachable' ? 'INFO' :
+    'WARNING'
+
+  const iconMap: Record<Severity, string> = {
+    CRITICAL: '✗',
+    WARNING:  '⚠',
+    INFO:     'ℹ',
+    HEALTHY:  '✓',
+  }
+  const iconClassMap: Record<Severity, string> = {
+    CRITICAL: styles.iconCritical,
+    WARNING:  styles.iconWarn,
+    INFO:     styles.iconInfo,
+    HEALTHY:  styles.iconOk,
+  }
+  const cardClassMap: Record<Severity, string> = {
+    CRITICAL: styles.cardCritical,
+    WARNING:  styles.cardWarn,
+    INFO:     styles.cardInfo,
+    HEALTHY:  styles.cardOk,
+  }
+
   return (
     <div
-      className={`${styles.card} ${styles.cardInfo}`}
-      aria-label="Attendant Status: Informational"
+      className={`${styles.card} ${cardClassMap[severity]}`}
+      aria-label={`Attendant Status: ${severity.toLowerCase()}`}
     >
       <div className={styles.cardHeader}>
-        <span className={`${styles.statusIcon} ${styles.iconInfo}`} aria-hidden="true">
-          ℹ
+        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
+          {iconMap[severity]}
         </span>
-        <span className={styles.cardName}>Attendant Status</span>
-        <SeverityBadge severity="INFO" />
+        <span className={styles.cardName}>Attendant</span>
+        <SeverityBadge severity={severity} />
       </div>
 
       <p className={styles.cardMessage}>{attendant.message}</p>
 
+      {attendant.status === 'warn' && (
+        <div className={styles.remediation}>
+          <span className={styles.remediationLabel}>How to fix</span>
+          <p className={styles.remediationText}>
+            Use <code className={styles.capabilityInlineCode}>forceInject: true</code> in{' '}
+            <code className={styles.capabilityInlineCode}>iranti_attend</code> to bypass the classifier
+            and always inject working memory.
+          </p>
+        </div>
+      )}
+
+      {attendant.status === 'unreachable' && (
+        <div className={styles.normalization}>
+          <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+          <p className={styles.normalizationText}>
+            Start Iranti to enable the Attendant: <code className={styles.capabilityInlineCode}>iranti run --instance local</code>
+          </p>
+        </div>
+      )}
+
       <dl className={styles.cardDetail}>
         <div className={styles.cardDetailRow}>
-          <dt className={styles.cardDetailKey}>upstream PR</dt>
-          <dd className={styles.cardDetailVal}>{attendant.upstreamPRRequired}</dd>
+          <dt className={styles.cardDetailKey}>checked</dt>
+          <dd className={styles.cardDetailVal}>{new Date(attendant.checkedAt).toLocaleTimeString()}</dd>
         </div>
       </dl>
-
-      {/* Workaround callout — shown until CP-T025 upstream PR is merged */}
-      <div className={styles.normalization}>
-        <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
-        <p className={styles.normalizationText}>
-          Upstream PR submitted — awaiting merge.{' '}
-          Until merged, call <code className={styles.capabilityInlineCode}>iranti_attend</code> with{' '}
-          <code className={styles.capabilityInlineCode}>forceInject: true</code> to bypass the classifier and always inject working memory.
-        </p>
-      </div>
-      <pre className={styles.capabilityCodeBlock}>{`{
-  "agent": "<your_agent_id>",
-  "currentContext": "...",
-  "forceInject": true
-}`}</pre>
-      {/* CP-T084: Quick access to the iranti config file */}
-      <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
     </div>
   )
 }

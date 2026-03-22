@@ -188,9 +188,9 @@ export interface HealthVectorBackend {
 }
 
 export interface HealthAttendant {
-  status: 'informational'
+  status: 'ok' | 'warn' | 'error' | 'unreachable'
   message: string
-  upstreamPRRequired: string
+  checkedAt: string
 }
 
 /* CP-T072: Runtime lifecycle metadata from Iranti v0.2.16 runtimeLifecycle.ts */
@@ -221,7 +221,7 @@ export interface HealthResponse {
   decay?: HealthDecay
   /** CP-T052: Vector backend reachability */
   vectorBackend?: HealthVectorBackend
-  /** CP-T052: Attendant status (informational — no live probe available) */
+  /** CP-T052: Attendant status — live probe of /memory/attend */
   attendant?: HealthAttendant
   /** CP-T072: Runtime metadata from Iranti /health; null if ad-hoc or unreachable */
   runtime?: IrantiRuntimeMetadata | null

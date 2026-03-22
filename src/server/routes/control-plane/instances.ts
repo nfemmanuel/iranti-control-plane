@@ -345,7 +345,9 @@ async function aggregateInstance(
     },
     integration: {
       // SECURITY: only boolean presence and non-secret derived values returned
-      defaultProvider: envResult.raw?.['IRANTI_DEFAULT_PROVIDER'] ?? null,
+      // LLM_PROVIDER is the authoritative instance runtime var; IRANTI_DEFAULT_PROVIDER
+      // was a project-binding var that had no runtime authority and has been removed.
+      defaultProvider: envResult.raw?.['LLM_PROVIDER'] ?? null,
       defaultModel: envResult.raw?.['IRANTI_DEFAULT_MODEL'] ?? null,
       providerKeys: {
         anthropic: !!(envResult.raw?.['ANTHROPIC_API_KEY']?.trim()),

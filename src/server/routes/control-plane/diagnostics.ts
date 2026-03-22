@@ -631,8 +631,8 @@ async function checkAttend(): Promise<CheckResult> {
       return {
         check: 'attend_check',
         status: 'warn',
-        message: 'Attendant returned 200 but classifier reported a parse failure',
-        fixHint: 'Classification parse failed — memory injection may be unreliable. Provide explicit entityHints to iranti_observe, or use forceInject: true in iranti_attend. Upstream fix is in review (CP-T025 PR #1).',
+        message: 'Attendant returned 200 but classifier reported a parse failure — memory injection may be unreliable',
+        fixHint: 'Use forceInject: true in iranti_attend to bypass the classifier, or provide explicit entityHints to iranti_observe.',
         durationMs,
       }
     }
