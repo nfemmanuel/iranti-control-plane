@@ -185,6 +185,30 @@ Linked tickets: CP-T061, CP-T065, CP-T066, CP-T067
 
 ---
 
+---
+
+### CP-E015 — Iranti Desktop (Phase 4)
+
+Phase: 4
+Owner: backend_developer, frontend_developer
+Status: **COMPLETE — 2026-03-21** (CP-T068, CP-T069, CP-T070 — all PM-ACCEPTED)
+Tier: Should Have
+Description: Transform the control plane from a navigation-first inspection tool into a desktop-class operator experience. Home Overview Dashboard (CP-T068) gives operators a complete at-a-glance picture the moment they open the app. Proactive health alert toasts (CP-T069) notify operators when Iranti degrades without requiring a visit to the Health Dashboard. Global keyboard shortcuts (CP-T070) allow power users to navigate without the mouse. Product direction: Docker Desktop for Iranti.
+Linked tickets: CP-T068, CP-T069, CP-T070
+
+---
+
+### CP-E016 — Session Recovery & Runtime Lifecycle (Phase 5)
+
+Phase: 5
+Owner: backend_developer, frontend_developer, qa_engineer, system_architect
+Status: **SCOPED — Wave 11 ready to dispatch**
+Tier: Must Have
+Description: Surface the major new capabilities added in Iranti v0.2.16. Operators need visibility into session state (interrupted, checkpointed, complete, abandoned) via a Session Recovery view (CP-T071). The Instance Manager needs runtime lifecycle status — running vs stale vs stopped — derived from v0.2.16's runtime.json and /health runtime field (CP-T072). Operators should be able to trigger `iranti upgrade --restart --instance <name>` from the UI without a terminal (CP-T073). Additionally: submit the long-pending CP-T025 upstream PR to add native Attendant/Resolutionist Staff event emission (CP-T074), and formally run CP-T048 AC-11 clean-machine installer validation to unblock the v0.3.0 and v0.4.0 GitHub Releases (CP-T075).
+Linked tickets: CP-T071, CP-T072, CP-T073, CP-T074, CP-T075
+
+---
+
 ## Subtasks
 
 - [x] Phase 0: All 5 tickets (CP-T001 through CP-T005) assigned and accepted by agents
@@ -200,5 +224,13 @@ Linked tickets: CP-T061, CP-T065, CP-T066, CP-T067
 - [x] Phase 3 Wave 7: CP-T060 (Metrics Dashboard, CP-E013) — PM-ACCEPTED 2026-03-21
 - [x] Phase 3 Wave 8: CP-T061 (backend+CP-T065 frontend), CP-T062, CP-T063, CP-T064 — all PM-ACCEPTED 2026-03-21
 - [x] Phase 3 Wave 9: CP-T065 (Alias Panel Rewrite) — PM-ACCEPTED 2026-03-21
-- [ ] Phase 3 Wave 9: CP-T066 (KB Full-Text Search) — OPEN
-- [ ] Phase 3 Wave 9: CP-T067 (Entity Type Browser) — OPEN
+- [x] Phase 3 Wave 9: CP-T066 (KB Full-Text Search) — PM-ACCEPTED 2026-03-21
+- [x] Phase 3 Wave 9: CP-T067 (Entity Type Browser) — PM-ACCEPTED 2026-03-21
+- [x] Phase 4 Wave 10: CP-T068 (Home Overview Dashboard) — PM-ACCEPTED 2026-03-21
+- [x] Phase 4 Wave 10: CP-T069 (Proactive Health Alert Toasts) — PM-ACCEPTED 2026-03-21
+- [x] Phase 4 Wave 10: CP-T070 (Global Keyboard Shortcuts) — PM-ACCEPTED 2026-03-21
+- [ ] Phase 5 Wave 11: CP-T075 (AC-11 Closure) — P0 OPEN
+- [ ] Phase 5 Wave 11: CP-T074 (CP-T025 PR Submission) — P1 OPEN
+- [ ] Phase 5 Wave 11: CP-T071 (Session Recovery Visibility) — P1 OPEN
+- [ ] Phase 5 Wave 11: CP-T072 (Runtime Lifecycle Dashboard) — P2 OPEN
+- [ ] Phase 5 Wave 12: CP-T073 (Iranti Upgrade Coordination) — P2 OPEN

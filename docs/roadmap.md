@@ -1,6 +1,6 @@
 # Iranti Control Plane — Roadmap
 
-> **Last updated: 2026-03-21 (Phase 4 / Wave 10 dispatched — v0.4.0 Iranti Desktop in progress)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051–CP-T053, CP-T056–CP-T060, CP-T061–CP-T067). CP-T048 Wave 3 implementation complete; AC-11 clean-machine testing pending. **Phase 4 / Wave 10 dispatched 2026-03-21:** CP-T068 (Home Overview Dashboard), CP-T069 (Proactive Health Alerts), CP-T070 (Keyboard Navigation Hotkeys). Product direction: Iranti Desktop — one screen tells you system state, recent activity, agent presence, and quick actions the moment you open the app.
+> **Last updated: 2026-03-21 (Phase 5 scoped — v0.4.0 RC declared; Wave 11 ready to dispatch)** — Phase 0 complete, Phase 1 **COMPLETE**, v0.1.0 **SHIPPED**. Phase 2 **COMPLETE**, **v0.2.0-beta declared 2026-03-20** — all 18 tickets accepted. Phase 3 **COMPLETE (2026-03-21)** — all waves PM-ACCEPTED (CP-T050, CP-T049, CP-T051–CP-T053, CP-T056–CP-T060, CP-T061–CP-T067). Phase 4 **COMPLETE (2026-03-21)** — Wave 10 PM-ACCEPTED: CP-T068 (Home Overview Dashboard), CP-T069 (Proactive Health Alerts), CP-T070 (Keyboard Navigation Hotkeys). **v0.4.0: Release Candidate** — pending CP-T048 AC-11 clean-machine validation (CP-T075). **Phase 5 scoped 2026-03-21:** CP-T071 (Session Recovery), CP-T072 (Runtime Lifecycle), CP-T073 (Upgrade Coordination), CP-T074 (CP-T025 PR submission), CP-T075 (AC-11 Closure). Iranti upstream: v0.2.16. B6 (ingest contamination): FIXED in v0.2.16.
 
 ## Horizon
 
@@ -350,9 +350,9 @@ Drawn from the PRD and Phase 2 retrospective learnings:
 
 ## Phase 4 — Iranti Desktop
 
-**Status: IN PROGRESS — Wave 10 dispatched 2026-03-21**
-**Target:** v0.4.0
-**Prerequisite:** Phase 3 complete — **MET** 2026-03-21 (v0.3.0 candidate; CP-T048 AC-11 clean-machine test the only remaining gate for final tag)
+**Status: COMPLETE — Wave 10 PM-ACCEPTED 2026-03-21**
+**Target:** v0.4.0 (Release Candidate — pending CP-T048 AC-11 and GitHub Release tag)
+**Prerequisite:** Phase 3 complete — **MET** 2026-03-21
 **Coordination doc:** `docs/coordination/agent-assignments-phase4.md`
 
 **Goal**: Transform the control plane from a navigation-first inspection tool into a desktop-class operator experience. The defining feature is a Home Overview Dashboard that gives operators a complete at-a-glance picture of their Iranti system the moment they open the app — before clicking anything. Product direction: *Docker Desktop for Iranti*.
@@ -372,21 +372,73 @@ User feedback driving this phase: *"you know how the Docker Desktop control pane
 
 | ID | Title | Assigned | Priority | Status |
 |----|-------|----------|----------|--------|
-| CP-T068 | Home Overview Dashboard | backend_developer + frontend_developer | P1 | OPEN |
-| CP-T069 | Proactive Health Alert Toasts | frontend_developer | P2 | OPEN — depends on CP-T068 |
-| CP-T070 | Global Keyboard Shortcuts: View Navigation Hotkeys | frontend_developer | P3 | OPEN — depends on CP-T068 |
+| CP-T068 | Home Overview Dashboard | backend_developer + frontend_developer | P1 | **PM-ACCEPTED 2026-03-21** |
+| CP-T069 | Proactive Health Alert Toasts | frontend_developer | P2 | **PM-ACCEPTED 2026-03-21** |
+| CP-T070 | Global Keyboard Shortcuts: View Navigation Hotkeys | frontend_developer | P3 | **PM-ACCEPTED 2026-03-21** |
 
 ### Phase 4 Exit Criteria
 
-- [ ] CP-T068: Home Overview Dashboard ships with all 12 ACs — `/overview` is the landing page, 5 cards, alert banner, quick actions — PM-ACCEPTED
-- [ ] CP-T069: Proactive Health Alert Toasts — all 11 ACs, state-transition-only, auto-dismiss by severity, no spam — PM-ACCEPTED
-- [ ] CP-T070: Global keyboard shortcuts — `G + key` navigation from any view, go mode indicator, palette integration — PM-ACCEPTED
-- [ ] tsc --noEmit exits 0 in both `src/server` and `src/client`
-- [ ] No regressions against v0.3.0 surfaces
-- [ ] v0.4.0 release notes written and published
+- [x] CP-T068: Home Overview Dashboard ships with all 12 ACs — `/overview` is the landing page, 5 cards, alert banner, quick actions — **PM-ACCEPTED 2026-03-21**
+- [x] CP-T069: Proactive Health Alert Toasts — all 11 ACs, state-transition-only, auto-dismiss by severity, no spam — **PM-ACCEPTED 2026-03-21**
+- [x] CP-T070: Global keyboard shortcuts — `G + key` navigation from any view, go mode indicator, palette integration — **PM-ACCEPTED 2026-03-21**
+- [x] tsc --noEmit exits 0 in both `src/server` and `src/client` — **CLEAN**
+- [x] No regressions against v0.3.0 surfaces — confirmed
+- [x] v0.4.0 release notes written — `docs/releases/v0.4.0-release-notes.md`
+- [ ] GitHub Release tag pushed — **PENDING CP-T048 AC-11 (CP-T075)**
 
 **Primary agents:** backend_developer, frontend_developer
 **Epic:** CP-E015 (Iranti Desktop)
+
+---
+
+## Phase 5 — Session Recovery & Runtime Lifecycle
+
+**Status: SCOPED — Wave 11 ready to dispatch**
+**Target:** v0.5.0
+**Prerequisite:** Phase 4 complete — **MET** 2026-03-21 (Wave 10 PM-ACCEPTED: CP-T068, CP-T069, CP-T070)
+**Upstream driver:** Iranti v0.2.16 (released 2026-03-21) — session recovery routes, runtime lifecycle tracking, upgrade coordination
+**Cross-repo audit:** `docs/coordination/cross-repo-audit-v0216-2026-03-21.md`
+
+**Goal**: Surface the new capabilities added in Iranti v0.2.16 — durable session recovery, runtime lifecycle status (running vs stale), and upgrade coordination. Close the CP-T025 upstream PR deliverable and formally release v0.3.0 and v0.4.0 by passing CP-T048 AC-11.
+
+### Phase 5 Success Metrics
+
+- Operator can see all session states (interrupted, checkpointed, complete, abandoned) from the control plane without querying the database
+- Operator can distinguish live instances from stale/crashed processes in the Instance Manager
+- Operator can trigger an Iranti upgrade and restart from the Instance Manager without a terminal
+- CP-T025 upstream PR is submitted to `nfemmanuel/iranti`
+- CP-T048 AC-11 clean-machine validation is run and either releases v0.3.0/v0.4.0 or documents exactly what fails
+
+### Wave 11 — Core Phase 5 (CP-E016 + CP-E010 closure)
+
+**Recommended dispatch order:** CP-T075 and CP-T074 first (unblock release + close carryover), then CP-T071.
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T075 | CP-T048 AC-11 Closure: Clean-Machine Installer Validation | qa_engineer | P0 | OPEN |
+| CP-T074 | Submit CP-T025 Upstream PR | system_architect | P1 | OPEN |
+| CP-T071 | Session Recovery Visibility | backend_developer + frontend_developer | P1 | OPEN |
+| CP-T072 | Runtime Lifecycle Dashboard | backend_developer + frontend_developer | P2 | OPEN |
+
+### Wave 12 — Phase 5 Completion
+
+| ID | Title | Assigned | Priority | Status |
+|----|-------|----------|----------|--------|
+| CP-T073 | Iranti Upgrade Coordination | backend_developer + frontend_developer | P2 | OPEN — depends on CP-T072 |
+
+### Phase 5 Exit Criteria
+
+- [ ] CP-T075: AC-11 clean-machine test run; PM receives pass/fail table and release recommendation
+- [ ] CP-T074: Upstream PR submitted to `nfemmanuel/iranti`; PR URL recorded in docs/specs and shared memory
+- [ ] CP-T071: Sessions view at `/sessions` with state filter, detail panel, resume/abandon actions; tsc clean
+- [ ] CP-T072: Runtime status badge (running/stale/stopped) in Instance Manager; staleness detection; tsc clean
+- [ ] CP-T073: Upgrade action in Instance Manager; confirmation modal; live output streaming; audit log; tsc clean
+- [ ] tsc --noEmit exits 0 in both `src/server` and `src/client`
+- [ ] No regressions against v0.4.0 surfaces
+- [ ] v0.5.0 release notes written
+
+**Primary agents:** backend_developer, frontend_developer, qa_engineer, system_architect
+**Epic:** CP-E016 (Session Recovery & Runtime Lifecycle)
 
 ---
 
