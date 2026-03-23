@@ -10,7 +10,7 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ## What's Available Now
 
-The following views are functional as of 2026-03-21 (v0.3.0-candidate + Phase 3 complete):
+The following views are functional as of v0.7.0+ (Phase 7 complete):
 
 | View | What it does |
 |---|---|
@@ -32,6 +32,7 @@ The following views are functional as of 2026-03-21 (v0.3.0-candidate + Phase 3 
 | **Staff Logs** | Persistent, queryable Staff event history at `/logs` — filter by component, date range, severity, agent, and event type; expand rows for full payload; export as JSONL or CSV (Phase 3 — CP-T050) |
 | **Archivist History** | Per-fact Archivist event timeline in the Archive Explorer expanded row — every Archivist action on a fact with timestamp, reason, and agent. Flag facts for operator review and restore superseded values. Queue of flagged facts at `/archive?flagged=true` (Phase 3 — CP-T049) |
 | **Metrics** | Historical KB growth, per-agent write volume, and activity summary statistics at `/metrics` — SVG-native line and bar charts over 7d/30d periods, 4 summary stat cards (total facts, facts last 24h, active agents last 7d, rejection rate). All data derived from `staff_events` table, no new infrastructure needed. (Wave 7 — CP-T060, PM-accepted 2026-03-21) |
+| **Sessions** | Session recovery and checkpointing view at `/sessions` — browse active and completed agent sessions, checkpoints, and recovery state. |
 | **Entity Aliases** | Entity Detail page at `/memory/:entityType/:entityId` includes a fourth "Aliases" tab showing all registered human-readable alias tokens for that entity (e.g., `alice` for `user/alice-doe`). Each alias shows the token in monospace, its source (manual/query), a confidence bar, and how long ago it was registered. Operators can register new aliases using a single-field "Alias token" form — the canonical entity is derived automatically from the current page. (Wave 8/9 — CP-T061/CP-T065, PM-accepted 2026-03-21) |
 | **KB Full-Text / Semantic Search** | Global cross-KB search input at the top of the Memory Explorer (`/memory`). Type any query to search across all KB facts using Iranti's hybrid lexical + vector search — answer "which entities mention Project Iris?" or "what do agents know about onboarding?" without knowing entity type or ID upfront. Results are ranked by relevance score (shown as a percentage bar). If vector search is unavailable, falls back to lexical-only with a clear note. Requires a global-scope API key. (Wave 9 — CP-T066, PM-accepted 2026-03-21) |
 | **Entity Type Browser** | When the Memory Explorer has no entity type filter active, shows a card grid of all distinct entity types in the KB — each with fact count and last updated time. Click "Browse →" to filter to that type. Replaces the previous empty-table initial state with a useful discovery view. Ideal for operators exploring an unfamiliar Iranti instance. (Wave 9 — CP-T067, PM-accepted 2026-03-21) |
@@ -48,13 +49,17 @@ Before you start, you need the following already running:
 
 - **PostgreSQL with pgvector.** Iranti stores facts in PostgreSQL and uses pgvector for semantic search. Both must be running. In the default local setup, Iranti's database is named `iranti`, running on `localhost:5432`, accessible as the `postgres` user with no password. If you're using Docker, the container is typically named `iranti_db`.
 
-- **An Iranti runtime root at `~/.iranti-runtime`.** The control plane discovers instances from `~/.iranti-runtime/instances/<name>/`. Each live instance keeps its runtime authority in `~/.iranti-runtime/instances/<name>/.env`.
+- **An Iranti runtime root at `~/.iranti-runtime`.** The control plane discovers instances by scanning `~/.iranti-runtime/instances/<name>/`. Each instance directory must contain a `.env` file — that file is the authoritative runtime config for that instance (database URL, provider keys, port).
 
-  Important:
+  The project directory also contains a `.env.iranti` binding file. This is a **pointer only** — it tells the control plane which instance to connect to via `IRANTI_INSTANCE_ENV`. It is not a config source.
 
-  - Provider keys, `LLM_PROVIDER`, and `LLM_PROVIDER_FALLBACK` belong in the instance `.env`, not the control-plane project root.
-  - Project `.env.iranti` files are bindings to an instance. They are not the runtime authority for provider configuration.
-  - The control plane can still use a bound project `.env.iranti` to discover which instance is currently selected when no explicit instance is chosen.
+  Critical distinction:
+
+  - `DATABASE_URL`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` belong in the **instance env** (`~/.iranti-runtime/instances/<name>/.env`), created by `iranti init`.
+  - `.env.iranti` in the project root contains only connection metadata: `IRANTI_URL`, `IRANTI_API_KEY`, `IRANTI_AGENT_ID`, `IRANTI_INSTANCE`, and `IRANTI_INSTANCE_ENV` (the path to the instance env).
+  - Never put provider API keys or `DATABASE_URL` in `.env.iranti` — they have no effect there.
+
+  See [docs/guides/config-authority-model.md](config-authority-model.md) for a full explanation of this two-file model.
 
 ---
 
@@ -75,36 +80,36 @@ npm run setup
 
 This is equivalent to `npm install --prefix src/server && npm install --prefix src/client`. Running `npm install` at the root alone is not sufficient — it only installs `concurrently` (the dev runner) and does not install the server or client dependencies.
 
-Copy the example environment file and edit it to point at your Iranti database:
+Ensure your project root has a `.env.iranti` binding file pointing at your Iranti instance. If you ran `iranti init`, this file was created for you. It should look like:
 
-```bash
-cp .env.example .env
+```dotenv
+IRANTI_URL=http://localhost:3001
+IRANTI_API_KEY=<your-instance-api-key>
+IRANTI_AGENT_ID=<your-agent-id>
+IRANTI_INSTANCE=local
+IRANTI_INSTANCE_ENV=C:\Users\<user>\.iranti-runtime\instances\local\.env
 ```
 
-Open `.env` and set the `DATABASE_URL` to match your Iranti PostgreSQL connection. Example:
+The `IRANTI_INSTANCE_ENV` path is how the control plane finds your instance's runtime config (database URL, provider keys, port). The `DATABASE_URL` and provider keys live in the instance env — not here.
 
-```
-DATABASE_URL=postgresql://postgres@localhost:5432/iranti
-CONTROL_PLANE_PORT=3002
-```
-
-The control plane server runs on port `3002` by default. You can change this with the `CONTROL_PLANE_PORT` variable.
+The control plane server runs on port `3002` by default in development. You can change this with the `CONTROL_PLANE_PORT` variable in `.env.iranti`.
 
 ---
 
 ## Running the Migration
 
-The control plane adds one table to your Iranti database: `staff_events`. This table stores the structured event stream that powers the Staff Activity view. Without it, the events endpoints return a clear error and the Activity Stream tab will show a "migration not applied" warning.
+The control plane adds one table to your Iranti database: `staff_events`. This table stores the structured event stream that powers the Staff Activity view.
 
-Run the migration once, after `npm run setup`:
+As of v0.7.0, migrations run automatically on startup. You do not need to run them manually on a fresh install.
+
+If the Health dashboard shows a `staff_events` warning after startup, restart the control plane — the migration will retry. If the warning persists, run it manually from the server directory:
 
 ```bash
+cd src/server
 npm run migrate
 ```
 
-This creates the `staff_events` table and its indexes. It does not touch any existing Iranti tables (`knowledge_base`, `archive`, `entity_relationships`). If the table already exists, the migration is a no-op.
-
-You only need to run this once. After that, the table persists across restarts.
+This creates the `staff_events` table and its indexes. It does not touch any existing Iranti tables (`knowledge_base`, `archive`, `entity_relationships`). If the table already exists, the migration is a no-op and is safe to re-run.
 
 ---
 
@@ -156,14 +161,14 @@ You'll land on the **Memory Explorer** by default. Use the sidebar on the left t
 2. **Archive** (`/archive`) — browse superseded and decayed facts
 3. **Activity** (`/activity`) — live Staff event stream
 4. **Logs** (`/logs`) — persistent, queryable Staff event history with export
-5. **Instances** (`/instances`) — discovered Iranti instances and project bindings
-6. **Health** (`/health`) — diagnostics and integration checks
-7. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
-8. **Providers** (`/providers`) — provider reachability and model management
-9. **Agents** (`/agents`) — registered agent registry with health stats (Wave 4 — CP-T051)
-10. **Getting Started** (`/getting-started`) — guided first-run setup checklist
-
-**Settings** is a Phase 2 item — it appears in the sidebar as a disabled placeholder and is not yet functional.
+5. **Metrics** (`/metrics`) — historical KB growth, agent write volume, and activity statistics
+6. **Sessions** (`/sessions`) — session recovery and checkpointing view
+7. **Instances** (`/instances`) — discovered Iranti instances and project bindings
+8. **Health** (`/health`) — diagnostics and integration checks
+9. **Conflicts** (`/conflicts`) — review and resolve Resolutionist escalations
+10. **Providers** (`/providers`) — provider reachability and model management
+11. **Agents** (`/agents`) — registered agent registry with health stats
+12. **Getting Started** (`/getting-started`) — guided first-run setup checklist
 
 ---
 
@@ -213,9 +218,9 @@ The Health dashboard (`/health`) shows a list of checks run against your local s
 | **DB Reachability** | Can the control plane connect to PostgreSQL? If this is `error`, nothing else works. |
 | **DB Schema Version** | Is the database schema up to date? A `warn` here means you may be running a newer version of the control plane against an older Iranti schema. |
 | **Vector Backend** | Is pgvector configured and reachable? Required for Iranti's semantic search. |
-| **Claude Key** | Is `ANTHROPIC_API_KEY` present in the selected instance env? `warn` if missing while Claude is the active provider. |
-| **OpenAI Key** | Same check for `OPENAI_API_KEY`. |
-| **Default Provider** | Is `LLM_PROVIDER` set in the selected instance env? If not, runtime routing is ambiguous. |
+| **Claude API Key** | Is `ANTHROPIC_API_KEY` present in the selected instance env? `warn` if missing while `LLM_PROVIDER=claude`. |
+| **OpenAI Key** | Same check for `OPENAI_API_KEY` when `LLM_PROVIDER=openai`. |
+| **Default Provider** | Is `LLM_PROVIDER` set to a valid value (`claude` or `openai`) in the selected instance env? If not set or set to an invalid value (e.g., `anthropic`), runtime routing is ambiguous. |
 | **MCP Integration** | Does your project have a `.mcp.json` with an Iranti server entry? |
 | **CLAUDE.md Integration** | Does your project have a `CLAUDE.md` that references Iranti? |
 | **Runtime Version** | What version of Iranti is running? |
@@ -310,7 +315,7 @@ Even with no instances found, the Health dashboard and Memory Explorer still wor
 
 ### "staff_events table not found" warning
 
-Run `npm run migrate` from the project root. This creates the `staff_events` table that the Activity Stream depends on. It is a one-time operation.
+Migrations run automatically on startup. If you see this warning, restart the control plane — the migration will retry on the next startup. If it persists, run `npm run migrate` manually from `src/server/` (not the project root).
 
 ---
 
@@ -355,13 +360,4 @@ Phase 3 advanced operator features began shipping on 2026-03-20.
 
 ## Known Issues
 
-Before filing a bug report, check [`docs/reference/known-issues.md`](../reference/known-issues.md) for the full list of confirmed issues in v0.1.0.
-
-Key items to be aware of:
-
-- **CP-D001** (KI-001): The column naming defect affecting all data read paths is **fixed in v0.1.0** (commit `8e5479c`).
-- **KI-002**: The `entity` field in entity detail responses is always `null` — the `entities` table is not yet in the Iranti schema.
-- **KI-003**: The Staff Activity Stream covers Librarian and Archivist events only. Attendant and Resolutionist events require Phase 2 native emitter injection (CP-T025).
-- **KI-005**: The `staff_events` migration must be run manually once with `npm run migrate`.
-
-See the [full known-issues list](../reference/known-issues.md) for severities, workarounds, and Phase 2 fix timelines.
+For a full list of current known issues, workarounds, and severities, see the [troubleshooting guide](troubleshooting.md). That guide covers the most common failure modes in detail, including instance discovery failures, provider key write issues, health check false positives, and database connectivity problems.
