@@ -49,7 +49,7 @@ const PLACEHOLDER_PATTERNS = [
   /^dummy/i,
 ]
 
-function isPlaceholderKey(val: string): boolean {
+export function isPlaceholderKey(val: string): boolean {
   return PLACEHOLDER_PATTERNS.some(p => p.test(val.trim()))
 }
 
@@ -74,7 +74,7 @@ function findEnvFilePath(): string | null {
   return null
 }
 
-function getPreferredEnvFilePath(): string {
+export function getPreferredEnvFilePath(): string {
   // Prefer the explicitly-pointed instance env — this is where `iranti` CLI writes
   // provider keys. The control plane `.env.iranti` is a project binding file, not
   // the live instance env.
@@ -91,7 +91,7 @@ function getPreferredEnvFilePath(): string {
  * Preserves comments and unrelated keys.
  * Updates the in-memory env object so subsequent reads reflect the change immediately.
  */
-function writeEnvVar(key: string, value: string | null): void {
+export function writeEnvVar(key: string, value: string | null): void {
   const filePath = getPreferredEnvFilePath()
   let rawLines: string[] = []
   if (existsSync(filePath)) {
