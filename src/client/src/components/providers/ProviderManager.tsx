@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, setProviderKey, removeProviderKey, setDefaultProvider, clearDefaultProvider, setFallbackChain, clearFallbackChain } from '../../api/client'
 import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse, ProviderScopeType } from '../../api/types'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './ProviderManager.module.css'
 import { Spinner } from '../ui/Spinner'
 import { RoutingEditor } from './RoutingEditor'
@@ -64,7 +65,7 @@ function recordHistory(prev: ReachabilityHistory, providers: ProviderStatus[]): 
 
 function providerIcon(id: string): string {
   switch (id) {
-    case 'anthropic': return 'A'
+    case 'claude':    return 'C'
     case 'openai':    return 'OA'
     case 'ollama':    return 'OL'
     case 'together':  return 'T'
@@ -141,21 +142,21 @@ function ScopeBadge({ scope, scopeType }: ScopeBadgeProps) {
 // ---------------------------------------------------------------------------
 
 // Providers where balance threshold is meaningful (supported:true from quota endpoint)
-// Anthropic is permanently supported:false — threshold hidden for it.
+// Claude is permanently supported:false — threshold hidden for it.
 // We compute this frontend-side rather than fetching quota for each provider on load.
-// Instead: show the threshold field for together/openai (may be supported), hide for anthropic.
+// Instead: show the threshold field for together/openai (may be supported), hide for claude.
 const QUOTA_SUPPORTED_PROVIDERS = new Set(['openai', 'together'])
 
 // ---------------------------------------------------------------------------
 // Model list (full — no truncation for detail panel)
 // ---------------------------------------------------------------------------
 
-function FullModelList({ providerId, reachable }: { providerId: string; reachable: boolean }) {
+function FullModelList({ providerId, reachable, instanceId }: { providerId: string; reachable: boolean; instanceId?: string }) {
   const { data, isLoading, error } = useQuery<ProviderModelsResponse, Error>({
-    queryKey: ['provider-models', providerId],
-    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${providerId}/models`),
+    queryKey: ['provider-models', instanceId, providerId],
+    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${providerId}/models`, { instanceId }),
     staleTime: 5 * 60 * 1000,
-    enabled: reachable || providerId === 'anthropic',
+    enabled: reachable || providerId === 'claude',
   })
 
   if (isLoading) {
@@ -200,10 +201,11 @@ function FullModelList({ providerId, reachable }: { providerId: string; reachabl
 
 interface KeyWriteFormProps {
   provider: ProviderStatus
+  instanceId?: string
   onSuccess: () => void
 }
 
-function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
+function KeyWriteForm({ provider, instanceId, onSuccess }: KeyWriteFormProps) {
   const [keyInput, setKeyInput] = useState('')
   const [showInput, setShowInput] = useState(false)
   const [pending, setPending] = useState(false)
@@ -216,10 +218,10 @@ function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
     setPending(true)
     clearFeedback()
     try {
-      await setProviderKey(provider.id, keyInput.trim())
+      const result = await setProviderKey(provider.id, keyInput.trim(), instanceId)
       setKeyInput('')
       setShowInput(false)
-      setFeedback({ kind: 'ok', msg: 'Key saved.' })
+      setFeedback({ kind: 'ok', msg: result.restartRequired ? 'Key saved to the instance env. Restart the instance to apply.' : 'Key saved.' })
       onSuccess()
     } catch (e) {
       setFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to save key.' })
@@ -233,8 +235,8 @@ function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
     setPending(true)
     clearFeedback()
     try {
-      await removeProviderKey(provider.id)
-      setFeedback({ kind: 'ok', msg: 'Key removed.' })
+      const result = await removeProviderKey(provider.id, instanceId)
+      setFeedback({ kind: 'ok', msg: result.restartRequired ? 'Key removed from the instance env. Restart the instance to apply.' : 'Key removed.' })
       onSuccess()
     } catch (e) {
       setFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to remove key.' })
@@ -318,16 +320,17 @@ function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
 // ---------------------------------------------------------------------------
 
 const ALL_CONFIGURABLE_PROVIDERS = Object.keys({
-  anthropic: true, openai: true, gemini: true, groq: true, mistral: true, together: true, ollama: true, mock: true,
+  claude: true, openai: true, gemini: true, groq: true, mistral: true, together: true, ollama: true, mock: true,
 })
 
 interface GlobalConfigProps {
   defaultProvider: string | null
   fallbackChain: string[]
+  instanceId?: string
   onSuccess: () => void
 }
 
-function GlobalConfigPanel({ defaultProvider, fallbackChain, onSuccess }: GlobalConfigProps) {
+function GlobalConfigPanel({ defaultProvider, fallbackChain, instanceId, onSuccess }: GlobalConfigProps) {
   const [selectedDefault, setSelectedDefault] = useState(defaultProvider ?? '')
   const [chain, setChain] = useState<string[]>(fallbackChain)
   const [addProvider, setAddProvider] = useState('')
@@ -345,11 +348,12 @@ function GlobalConfigPanel({ defaultProvider, fallbackChain, onSuccess }: Global
     setDefaultFeedback(null)
     try {
       if (selectedDefault) {
-        await setDefaultProvider(selectedDefault)
+        const result = await setDefaultProvider(selectedDefault, instanceId)
+        setDefaultFeedback({ kind: 'ok', msg: result.restartRequired ? 'Default provider saved. Restart the instance to apply.' : 'Default provider saved.' })
       } else {
-        await clearDefaultProvider()
+        const result = await clearDefaultProvider(instanceId)
+        setDefaultFeedback({ kind: 'ok', msg: result.restartRequired ? 'Default provider cleared. Restart the instance to apply.' : 'Default provider cleared.' })
       }
-      setDefaultFeedback({ kind: 'ok', msg: 'Default provider saved.' })
       onSuccess()
     } catch (e) {
       setDefaultFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to update default.' })
@@ -391,11 +395,12 @@ function GlobalConfigPanel({ defaultProvider, fallbackChain, onSuccess }: Global
     setChainFeedback(null)
     try {
       if (chain.length === 0) {
-        await clearFallbackChain()
+        const result = await clearFallbackChain(instanceId)
+        setChainFeedback({ kind: 'ok', msg: result.restartRequired ? 'Fallback chain cleared. Restart the instance to apply.' : 'Fallback chain cleared.' })
       } else {
-        await setFallbackChain(chain)
+        const result = await setFallbackChain(chain, instanceId)
+        setChainFeedback({ kind: 'ok', msg: result.restartRequired ? 'Fallback chain saved. Restart the instance to apply.' : 'Fallback chain saved.' })
       }
-      setChainFeedback({ kind: 'ok', msg: 'Fallback chain saved.' })
       onSuccess()
     } catch (e) {
       setChainFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Failed to update fallback chain.' })
@@ -531,6 +536,7 @@ function GlobalConfigPanel({ defaultProvider, fallbackChain, onSuccess }: Global
 
 interface DetailPanelProps {
   provider: ProviderStatus
+  instanceId?: string
   history: Array<{ reachable: boolean; checkedAt: string }>
   threshold: number | undefined
   onThresholdChange: (providerId: string, value: number) => void
@@ -541,6 +547,7 @@ interface DetailPanelProps {
 
 function DetailPanel({
   provider,
+  instanceId,
   history,
   threshold,
   onThresholdChange,
@@ -579,8 +586,8 @@ function DetailPanel({
 
   // Provider-specific quota note
   const quotaNote = (() => {
-    if (provider.id === 'anthropic') {
-      return 'Anthropic does not expose credits via API. Check your Anthropic Console for usage.'
+    if (provider.id === 'claude') {
+      return 'Claude does not expose credits via API. Check your Anthropic Console for usage.'
     }
     if (provider.id === 'openai') {
       return 'Live balance requires org:read scope. Check the OpenAI Usage dashboard directly.'
@@ -636,7 +643,7 @@ function DetailPanel({
           </p>
         )}
         {provider.id !== 'mock' && (
-          <KeyWriteForm provider={provider} onSuccess={onKeyChange} />
+          <KeyWriteForm provider={provider} instanceId={instanceId} onSuccess={onKeyChange} />
         )}
       </section>
 
@@ -720,7 +727,7 @@ function DetailPanel({
       )}
 
       {/* Model list — full, untruncated */}
-      {(state === 'connected' || provider.id === 'anthropic') && (
+      {(state === 'connected' || provider.id === 'claude') && (
         <section className={styles.detailSection}>
           <h3 className={styles.detailSectionTitle}>Models</h3>
           {provider.id === 'groq' && (
@@ -728,7 +735,7 @@ function DetailPanel({
               Rate limit snapshot (from last check) — reflects rate limit state at the time of the last API check, not a persistent balance.
             </p>
           )}
-          <FullModelList providerId={provider.id} reachable={provider.reachable} />
+          <FullModelList providerId={provider.id} reachable={provider.reachable} instanceId={instanceId} />
         </section>
       )}
     </div>
@@ -812,6 +819,7 @@ function ProviderCard({ provider, isSelected, onClick }: ProviderCardProps) {
 // ---------------------------------------------------------------------------
 
 export function ProviderManager() {
+  const { activeInstance } = useInstanceContext()
   const queryClient = useQueryClient()
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [thresholds, setThresholds] = useState<Record<string, number>>(loadThresholds)
@@ -820,8 +828,8 @@ export function ProviderManager() {
   historyRef.current = reachabilityHistory
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<ProvidersResponse, Error>({
-    queryKey: ['providers'],
-    queryFn: () => apiFetch<ProvidersResponse>('/providers'),
+    queryKey: ['providers', activeInstance?.id],
+    queryFn: () => apiFetch<ProvidersResponse>('/providers', { instanceId: activeInstance?.id }),
     staleTime: 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
@@ -853,13 +861,50 @@ export function ProviderManager() {
     void queryClient.invalidateQueries({ queryKey: ['providers'] })
   }
 
+  const needsClaudeMigration =
+    data?.rawDefaultProvider === 'anthropic' ||
+    Boolean(data?.rawFallbackChain?.includes('anthropic'))
+
+  const [migrationPending, setMigrationPending] = useState(false)
+  const [migrationFeedback, setMigrationFeedback] = useState<string | null>(null)
+
+  const handleNormalizeClaudeProviderIds = async () => {
+    if (!data) return
+    setMigrationPending(true)
+    setMigrationFeedback(null)
+    try {
+      if (data.rawDefaultProvider === 'anthropic') {
+        await setDefaultProvider('claude', activeInstance?.id)
+      }
+
+      if (data.rawFallbackChain?.includes('anthropic')) {
+        const normalized = data.rawFallbackChain.map(value => value === 'anthropic' ? 'claude' : value)
+        if (normalized.length === 0) {
+          await clearFallbackChain(activeInstance?.id)
+        } else {
+          await setFallbackChain(normalized, activeInstance?.id)
+        }
+      }
+
+      setMigrationFeedback('Provider IDs normalized to claude. Restart the instance to apply.')
+      handleWriteSuccess()
+    } catch (e) {
+      setMigrationFeedback(e instanceof Error ? e.message : 'Failed to normalize provider IDs.')
+    } finally {
+      setMigrationPending(false)
+    }
+  }
+
   const selectedProvider = data?.providers.find(p => p.id === selectedProviderId) ?? null
 
   // Auto-select first configured provider on load
   useEffect(() => {
-    if (!selectedProviderId && data?.providers) {
-      const first = data.providers.find(p => p.keyPresent) ?? data.providers[0]
-      if (first) setSelectedProviderId(first.id)
+    if (data?.providers) {
+      const stillExists = selectedProviderId && data.providers.some(p => p.id === selectedProviderId)
+      if (!stillExists) {
+        const first = data.providers.find(p => p.keyPresent) ?? data.providers[0]
+        setSelectedProviderId(first?.id ?? null)
+      }
     }
   }, [data, selectedProviderId])
 
@@ -883,6 +928,7 @@ export function ProviderManager() {
             <h1 className={styles.pageTitle}>Providers</h1>
             <p className={styles.pageSubtitle}>
               API key presence, reachability, models, and warning thresholds
+              {data?.scope ? ` for ${data.scope.instanceName}` : ''}
             </p>
           </div>
         </div>
@@ -897,11 +943,27 @@ export function ProviderManager() {
         </button>
       </div>
 
+      {!isLoading && needsClaudeMigration && (
+        <div className={styles.errorState}>
+          <span aria-hidden="true">âš </span> This instance still uses legacy `anthropic` provider IDs.
+          <button
+            type="button"
+            className={styles.writeBtn}
+            onClick={() => void handleNormalizeClaudeProviderIds()}
+            disabled={migrationPending}
+          >
+            {migrationPending ? 'Fixingâ€¦' : 'Normalize to claude'}
+          </button>
+          {migrationFeedback && <span>{migrationFeedback}</span>}
+        </div>
+      )}
+
       {/* Global config: default provider + fallback chain */}
       {!isLoading && data && (
         <GlobalConfigPanel
           defaultProvider={data.defaultProvider}
           fallbackChain={data.fallbackChain}
+          instanceId={activeInstance?.id}
           onSuccess={handleWriteSuccess}
         />
       )}
@@ -931,7 +993,7 @@ export function ProviderManager() {
               <p className={styles.emptyTitle}>No providers detected</p>
               <p className={styles.emptyBody}>
                 Add a provider key with this page or run{' '}
-                <code>iranti add api-key &lt;provider&gt; --instance local</code>. Ollama uses{' '}
+                <code>{`iranti add api-key <provider> --instance ${activeInstance?.name ?? 'local'}`}</code>. Ollama uses{' '}
                 <code>OLLAMA_BASE_URL</code> in the live instance env.
               </p>
             </div>
@@ -965,6 +1027,7 @@ export function ProviderManager() {
               onRefresh={handleDetailRefresh}
               isRefreshing={isFetching}
               onKeyChange={handleWriteSuccess}
+              instanceId={activeInstance?.id}
             />
           )}
         </div>

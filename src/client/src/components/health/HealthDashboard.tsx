@@ -7,12 +7,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch, fetchVersionSync, startInstance } from '../../api/client'
-import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, ProvidersResponse, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult, VersionSyncResult } from '../../api/types'
+import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult, VersionSyncResult } from '../../api/types'
 import { getRemediation } from './remediationText'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { ProviderStatusSection } from './ProviderStatus'
 import { AttendantDebugPanel } from './AttendantDebugPanel'
-import { OpenFileButton } from '../ui/OpenFileButton'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './HealthDashboard.module.css'
 import { Spinner } from '../ui/Spinner'
@@ -31,7 +30,7 @@ const CHECK_LABELS: Record<string, string> = {
   db_reachability: 'Database Connection',
   db_schema_version: 'Schema Version',
   vector_backend: 'Vector Backend (pgvector)',
-  anthropic_key: 'Anthropic API Key',
+  anthropic_key: 'Claude API Key',
   openai_key: 'OpenAI API Key',
   default_provider_configured: 'Default Provider',
   mcp_integration: 'MCP Integration',
@@ -474,10 +473,6 @@ function HealthCard({
             {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
           </span>
           <p className={styles.remediationText}>{remediation}</p>
-          {/* CP-T084: Open .env.iranti in system editor when the remediation mentions it */}
-          {remediation.includes('.env.iranti') && (
-            <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
-          )}
         </div>
       )}
 
@@ -917,10 +912,6 @@ function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
                 <div className={styles.diagMessageCell}>
                   <span className={styles.diagMessage}>{check.message}</span>
                   {check.fixHint && <DiagFixHint hint={check.fixHint} />}
-                  {/* CP-T084: Open .env.iranti when the fix hint references it */}
-                  {check.fixHint && check.fixHint.includes('.env.iranti') && (
-                    <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
-                  )}
                 </div>
               </td>
               <td className={styles.diagDuration}>{check.durationMs}ms</td>
@@ -1125,6 +1116,8 @@ export function HealthDashboard() {
     refetchInterval: 5 * 60 * 1000,
   })
 
+  const unreachableProviders: Array<never> = []
+
   manualRefetchRef.current = refetch
 
   // CP-T059: Listen for `iranti:run-diagnostics` event dispatched by command palette
@@ -1314,7 +1307,7 @@ export function HealthDashboard() {
         <DiagnosticsPanel externalRunSignal={diagRunSignal} instanceId={activeInstance?.id} />
 
         {/* CP-T034: Provider status section — key presence, reachability, models */}
-        {!isLoading && <ProviderStatusSection />}
+        {!isLoading && <ProviderStatusSection instanceId={activeInstance?.id} />}
 
         {/* CP-T096: Attendant Debug Tools — collapsed by default */}
         <AttendantDebugPanel />

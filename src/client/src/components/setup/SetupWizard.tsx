@@ -411,17 +411,16 @@ function Step3Start({ instanceName, onAdvance, onSkip }: Step3Props) {
 /* ------------------------------------------------------------------ */
 
 interface Step4Props {
+  instanceName: string
   onDone: () => void
   onGoToProviders: () => void
 }
 
-const ENV_EXAMPLE = `IRANTI_API_KEY=your-key-here\nIRANTI_API_PROVIDER=anthropic`
-
-function Step4ApiKey({ onDone, onGoToProviders }: Step4Props) {
-  const [openingFile, setOpeningFile] = useState(false)
+function Step4ApiKey({ instanceName, onDone, onGoToProviders }: Step4Props) {
   const [authPassing, setAuthPassing] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const advancedRef = useRef(false)
+  const cliCommand = `iranti add api-key openai --instance ${instanceName} --set-default`
 
   // Poll health every 3s for auth status
   useEffect(() => {
@@ -439,27 +438,15 @@ function Step4ApiKey({ onDone, onGoToProviders }: Step4Props) {
     }
   }, [])
 
-  const handleOpenFile = useCallback(() => {
-    setOpeningFile(true)
-    void fetch('/api/control-plane/open-file', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: '.env.iranti' }),
-    }).finally(() => {
-      setOpeningFile(false)
-    })
-  }, [])
-
   return (
     <div className={styles.stepContent}>
       <h2 className={styles.stepTitle}>Configure your API key</h2>
       <p className={styles.stepBody}>
-        Iranti needs an API key to connect to your LLM provider.
-        Add your Anthropic or OpenAI API key in the Provider Manager,
-        or set it directly in your <code className={styles.inlineCode}>.env.iranti</code> file:
+        Iranti needs a provider credential in the instance env.
+        Add it from the Provider Manager, or run the equivalent CLI command for <code className={styles.inlineCode}>{instanceName}</code>:
       </p>
 
-      <CommandBlock command={ENV_EXAMPLE} />
+      <CommandBlock command={cliCommand} />
 
       {authPassing && (
         <div className={styles.successBanner} role="status">
@@ -475,14 +462,6 @@ function Step4ApiKey({ onDone, onGoToProviders }: Step4Props) {
           onClick={onGoToProviders}
         >
           Go to Provider Manager →
-        </button>
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          onClick={handleOpenFile}
-          disabled={openingFile}
-        >
-          {openingFile ? 'Opening…' : 'Open .env.iranti'}
         </button>
       </div>
       <button type="button" className={styles.skipLink} onClick={onDone}>
@@ -670,6 +649,7 @@ export function SetupWizard({ onDismiss }: SetupWizardProps) {
             )}
             {step === 3 && (
               <Step4ApiKey
+                instanceName={instanceName}
                 onDone={handleDone}
                 onGoToProviders={handleGoToProviders}
               />

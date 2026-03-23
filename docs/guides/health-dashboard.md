@@ -2,7 +2,11 @@
 
 ## What the Health Dashboard Shows
 
-The Health Dashboard (`/health`) runs a set of checks against your local Iranti setup and displays the results in a structured card layout. Each check reports one of four severity levels:
+The Health Dashboard (`/health`) runs a set of checks against the currently selected Iranti instance and displays the results in a structured card layout. The backend response includes a `scope` object so the target instance is explicit in both the API and UI.
+
+Project integration checks (`MCP Integration`, `CLAUDE.md`) are derived from projects explicitly bound to that instance. If no projects are bound, the dashboard reports that directly instead of inferring authority from the control plane working directory.
+
+Each check reports one of four severity levels:
 
 | Severity | Meaning |
 |---|---|

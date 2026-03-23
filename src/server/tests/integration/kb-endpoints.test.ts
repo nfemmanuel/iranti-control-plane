@@ -828,20 +828,19 @@ describe('GET /instances', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /instances/:instanceId/projects', () => {
-  it('PR-001: returns 200 with Phase 1 stub shape for any instanceId', async () => {
-    const { status, body } = await get('/instances/any-instance-id/projects')
-    expect(status).toBe(200)
-    const b = body as Record<string, unknown>
-    expect(b).toHaveProperty('instanceId')
-    expect(b.instanceId).toBe('any-instance-id')
-    expect(b.projects).toEqual([])
-    expect(b.projectBindingsUnavailable).toBe(true)
+  it('PR-001: returns 404 for an unknown instance', async () => {
+    // The real project-bindings handler checks for the instance env file on disk.
+    // Non-existent instances return 404, not a stub 200.
+    const { status } = await get('/instances/no-such-instance-xyz/projects')
+    expect(status).toBe(404)
   })
 
-  it('PR-002: stub note field is present and non-empty', async () => {
-    const { body } = await get('/instances/test-id/projects')
+  it('PR-002: returns 200 with {instanceName, projects} for the local instance', async () => {
+    // Requires ~/.iranti-runtime/instances/local/.env to exist (standard dev setup).
+    const { status, body } = await get('/instances/local/projects')
+    expect(status).toBe(200)
     const b = body as Record<string, unknown>
-    expect(typeof b.note).toBe('string')
-    expect((b.note as string).length).toBeGreaterThan(0)
+    expect(b).toHaveProperty('instanceName', 'local')
+    expect(Array.isArray(b.projects)).toBe(true)
   })
 })

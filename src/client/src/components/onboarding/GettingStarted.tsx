@@ -98,13 +98,6 @@ function CopyableCommand({ command }: { command: string }) {
 /*  CLI command per step                                                */
 /* ------------------------------------------------------------------ */
 
-const STEP_CLI: Record<string, string | null> = {
-  database:          'iranti setup --repair-db',
-  provider:          'ANTHROPIC_API_KEY=sk-... iranti restart',
-  project_binding:   'iranti bind /path/to/your/project',
-  claude_integration: 'iranti setup --mcp /path/to/your/project',
-}
-
 /* ------------------------------------------------------------------ */
 /*  Individual step row                                                 */
 /* ------------------------------------------------------------------ */
@@ -119,7 +112,7 @@ interface StepRowProps {
 function StepRow({ step, stepNumber, expanded, onToggle }: StepRowProps) {
   const isActionable = step.status === 'incomplete' || step.status === 'warning'
   const isDone = step.status === 'complete'
-  const cliCommand = STEP_CLI[step.id] ?? null
+  const cliCommand = step.cliCommand ?? null
 
   return (
     <div
@@ -190,7 +183,7 @@ export function GettingStarted() {
   const queryClient = useQueryClient()
   const { activeInstance } = useInstanceContext()
   const [dismissed, setDismissed] = useState(false)
-  const instanceId = activeInstance?.name ?? activeInstance?.id ?? 'local'
+  const instanceId = activeInstance?.id ?? activeInstance?.name ?? 'local'
 
   const { data, isLoading, error } = useQuery<SetupStatusResponse, Error>({
     queryKey: ['setup-status', instanceId],
@@ -283,6 +276,7 @@ export function GettingStarted() {
           <h1 className={styles.title}>Getting Started</h1>
           <p className={styles.subtitle}>
             Complete these steps to set up your Iranti instance.
+            {data?.scope ? ` Current scope: ${data.scope.instanceName}.` : ''}
             {incompleteCount > 0 && (
               <span className={styles.incompleteCount}> {incompleteCount} step{incompleteCount !== 1 ? 's' : ''} remaining.</span>
             )}
@@ -355,7 +349,7 @@ export function GettingStarted() {
  */
 export function useSetupStatus() {
   const { activeInstance } = useInstanceContext()
-  const instanceId = activeInstance?.name ?? activeInstance?.id ?? 'local'
+  const instanceId = activeInstance?.id ?? activeInstance?.name ?? 'local'
   const { data, isLoading } = useQuery<SetupStatusResponse, Error>({
     queryKey: ['setup-status', instanceId],
     queryFn: () => fetchSetupStatus(instanceId),

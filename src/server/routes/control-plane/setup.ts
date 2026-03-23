@@ -2,21 +2,21 @@
  * Setup status routes
  *
  * GET  /:instanceId/setup-status          — 4-step guided setup check
+ * POST /:instanceId/setup-status/refresh  — rerun the checks
  * POST /:instanceId/setup-status/complete — mark first-run wizard complete
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { access, writeFile, constants } from 'fs/promises'
 import { join } from 'path'
-import { query, env } from '../../db.js'
-import { ApiError } from '../../types.js'
-import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
+import pg from 'pg'
+import { ApiError, InstanceScopeSummary } from '../../types.js'
+import { inspectProjectIntegration } from '../../lib/project-integration.js'
+import { resolveInstanceAuthority, ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
+
+const { Pool } = pg
 
 export const setupRouter = Router()
-
-// ---------------------------------------------------------------------------
-// Step result type
-// ---------------------------------------------------------------------------
 
 interface SetupStep {
   id: string
@@ -24,380 +24,349 @@ interface SetupStep {
   status: 'complete' | 'incomplete' | 'warning' | 'not_applicable'
   message: string
   actionRequired: string | null
+  cliCommand: string | null
   repairAction: string | null
 }
 
-// ---------------------------------------------------------------------------
-// Individual step checks
-// ---------------------------------------------------------------------------
+function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
+  return {
+    instanceId: scope.instanceId,
+    instanceName: scope.instanceName,
+    source: scope.source,
+  }
+}
 
-async function checkDatabase(): Promise<SetupStep> {
-  const step: SetupStep = {
-    id: 'database',
-    label: 'Database connection',
-    status: 'incomplete',
-    message: '',
-    actionRequired: null,
-    repairAction: null,
+async function resolveScopeOrThrow(instanceRef: string): Promise<ResolvedInstanceAuthority> {
+  const scope = await resolveInstanceAuthority(instanceRef)
+  if (!scope) {
+    const err = new Error('Instance not found') as ApiError
+    err.statusCode = 404
+    err.code = 'INSTANCE_NOT_FOUND'
+    throw err
+  }
+  return scope
+}
+
+async function withScopedPool<T>(
+  databaseUrl: string | null,
+  fn: (pool: pg.Pool | null) => Promise<T>
+): Promise<T> {
+  if (!databaseUrl) return fn(null)
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    idleTimeoutMillis: 1000,
+    connectionTimeoutMillis: 3000,
+  })
+
+  try {
+    return await fn(pool)
+  } finally {
+    await pool.end().catch(() => {})
+  }
+}
+
+function setupCompleteFlagPath(scope: ResolvedInstanceAuthority): string {
+  return join(scope.runtimeRoot, '.iranti-cp-setup-complete')
+}
+
+async function readFirstRunDetected(scope: ResolvedInstanceAuthority): Promise<boolean> {
+  try {
+    await access(setupCompleteFlagPath(scope), constants.F_OK)
+    return false
+  } catch {
+    return true
+  }
+}
+
+function normalizeProviderId(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'anthropic' ? 'claude' : normalized
+}
+
+function providerLabel(providerId: string): string {
+  switch (normalizeProviderId(providerId)) {
+    case 'claude': return 'Claude'
+    case 'openai': return 'OpenAI'
+    case 'gemini': return 'Gemini'
+    case 'groq': return 'Groq'
+    case 'mistral': return 'Mistral'
+    case 'together': return 'Together AI'
+    case 'ollama': return 'Ollama'
+    case 'mock': return 'Mock'
+    default: return providerId
+  }
+}
+
+async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | null): Promise<SetupStep> {
+  const cliCommand = `iranti doctor --instance ${scope.instanceName} --debug`
+
+  if (!pool) {
+    return {
+      id: 'database',
+      label: 'Database connection',
+      status: 'incomplete',
+      message: 'DATABASE_URL is not configured for this instance.',
+      actionRequired: `Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.`,
+      cliCommand,
+      repairAction: null,
+    }
   }
 
   try {
     await Promise.race([
-      query('SELECT 1'),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('DB query timeout after 2s')), 2000)
-      ),
+      pool.query('SELECT 1'),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DB query timeout after 2s')), 2000)),
     ])
 
-    // Connected — try to count KB facts
     let count = '0'
     try {
-      const countResult = await query<{ count: string }>(
+      const countResult = await pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM knowledge_base`
       )
       count = countResult.rows[0]?.count ?? '0'
     } catch {
-      // Default to 0 if count fails
+      // Keep the connectivity pass even if the fact count query fails.
     }
 
-    step.status = 'complete'
-    step.message = `Connected to PostgreSQL. ${count} facts in knowledge base.`
+    return {
+      id: 'database',
+      label: 'Database connection',
+      status: 'complete',
+      message: `Connected to PostgreSQL for ${scope.instanceName}. ${count} facts in knowledge base.`,
+      actionRequired: null,
+      cliCommand,
+      repairAction: null,
+    }
   } catch {
-    step.status = 'incomplete'
-    step.message = `Database not reachable. Iranti cannot store or retrieve memory without a database connection.`
-    step.actionRequired =
-      'Check your `.env.iranti` DATABASE_URL or run `iranti setup --repair-db` from your terminal.'
+    return {
+      id: 'database',
+      label: 'Database connection',
+      status: 'incomplete',
+      message: 'Database not reachable for this instance.',
+      actionRequired: `Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.`,
+      cliCommand,
+      repairAction: null,
+    }
   }
-
-  return step
 }
 
-async function checkProvider(): Promise<SetupStep> {
-  const step: SetupStep = {
+function checkProvider(scope: ResolvedInstanceAuthority): SetupStep {
+  const rawProvider = (scope.env['LLM_PROVIDER'] ?? '').trim()
+  const normalizedProvider = rawProvider ? normalizeProviderId(rawProvider) : ''
+  const cliCommand = `iranti add api-key openai --instance ${scope.instanceName} --set-default`
+
+  const providerKeys = {
+    claude: (scope.env['ANTHROPIC_API_KEY'] ?? '').trim() !== '',
+    openai: (scope.env['OPENAI_API_KEY'] ?? '').trim() !== '',
+    gemini: (scope.env['GEMINI_API_KEY'] ?? '').trim() !== '',
+    groq: (scope.env['GROQ_API_KEY'] ?? '').trim() !== '',
+    mistral: (scope.env['MISTRAL_API_KEY'] ?? '').trim() !== '',
+    together: (scope.env['TOGETHER_API_KEY'] ?? '').trim() !== '',
+    ollama: (scope.env['OLLAMA_BASE_URL'] ?? '').trim() !== '',
+  }
+
+  if (rawProvider === 'anthropic') {
+    return {
+      id: 'provider',
+      label: 'Provider configuration',
+      status: 'warning',
+      message: 'LLM_PROVIDER is set to anthropic. Iranti expects claude as the provider ID.',
+      actionRequired: 'Update the default provider to Claude and restart the instance so routing matches the runtime.',
+      cliCommand: `iranti add api-key claude --instance ${scope.instanceName} --set-default`,
+      repairAction: null,
+    }
+  }
+
+  if (normalizedProvider) {
+    const hasRequiredKey = providerKeys[normalizedProvider as keyof typeof providerKeys] ?? false
+    if (normalizedProvider === 'mock' || hasRequiredKey) {
+      return {
+        id: 'provider',
+        label: 'Provider configuration',
+        status: 'complete',
+        message: `Provider ${providerLabel(normalizedProvider)} configured in the instance env.`,
+        actionRequired: null,
+        cliCommand: `iranti doctor --instance ${scope.instanceName}`,
+        repairAction: null,
+      }
+    }
+
+    return {
+      id: 'provider',
+      label: 'Provider configuration',
+      status: 'warning',
+      message: `Provider ${providerLabel(normalizedProvider)} is selected but its credential is missing from the instance env.`,
+      actionRequired: `Store the ${providerLabel(normalizedProvider)} credential in ${scope.instanceEnvPath}, then restart the instance.`,
+      cliCommand: `iranti add api-key ${normalizedProvider} --instance ${scope.instanceName} --set-default`,
+      repairAction: null,
+    }
+  }
+
+  const anyProviderKey = Object.values(providerKeys).some(Boolean)
+  if (anyProviderKey) {
+    return {
+      id: 'provider',
+      label: 'Provider configuration',
+      status: 'warning',
+      message: 'Provider credentials exist, but LLM_PROVIDER is not set in the instance env.',
+      actionRequired: 'Choose a default provider for this instance and restart it so runtime routing is deterministic.',
+      cliCommand,
+      repairAction: null,
+    }
+  }
+
+  return {
     id: 'provider',
     label: 'Provider configuration',
     status: 'incomplete',
-    message: '',
-    actionRequired: null,
+    message: 'No LLM provider configured for this instance.',
+    actionRequired: 'Store a provider key in the instance env and set the default provider before expecting writes or task routing to work.',
+    cliCommand,
     repairAction: null,
   }
-
-  const anthropicKey = env['ANTHROPIC_API_KEY'] || process.env['ANTHROPIC_API_KEY'] || ''
-  const openaiKey = env['OPENAI_API_KEY'] || process.env['OPENAI_API_KEY'] || ''
-  // LLM_PROVIDER is the authoritative instance runtime var — set in the instance .env
-  // and merged into the CP env by db.ts. Project-binding vars (IRANTI_DEFAULT_PROVIDER,
-  // DEFAULT_PROVIDER) have been removed; they had no runtime authority.
-  const explicitProvider =
-    env['LLM_PROVIDER'] ||
-    process.env['LLM_PROVIDER'] ||
-    ''
-
-  const hasAnthropicKey = anthropicKey.trim() !== ''
-  const hasOpenaiKey = openaiKey.trim() !== ''
-
-  let name: string | null = null
-  if (explicitProvider.trim()) {
-    name = explicitProvider.trim()
-  } else if (hasAnthropicKey) {
-    name = 'anthropic'
-  } else if (hasOpenaiKey) {
-    name = 'openai'
-  }
-
-  if (name) {
-    step.status = 'complete'
-    step.message = `Provider ${name} configured.`
-  } else {
-    step.status = 'incomplete'
-    step.message = `No LLM provider configured. Iranti cannot process writes without a provider key.`
-    step.actionRequired =
-      'Add your API key to `.env.iranti` as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, then restart Iranti.'
-  }
-
-  return step
 }
 
-async function checkProjectBinding(): Promise<SetupStep> {
-  const step: SetupStep = {
+function checkProjectBinding(scope: ResolvedInstanceAuthority): SetupStep {
+  if (scope.boundProjects.length > 0) {
+    return {
+      id: 'project_binding',
+      label: 'Project binding',
+      status: 'complete',
+      message: `${scope.boundProjects.length} project${scope.boundProjects.length === 1 ? '' : 's'} bound to ${scope.instanceName}.`,
+      actionRequired: null,
+      cliCommand: `iranti doctor --instance ${scope.instanceName}`,
+      repairAction: null,
+    }
+  }
+
+  return {
     id: 'project_binding',
     label: 'Project binding',
     status: 'incomplete',
-    message: '',
-    actionRequired: null,
+    message: `No projects are bound to ${scope.instanceName}.`,
+    actionRequired: 'Bind a project before expecting MCP or Claude integration files to be discoverable.',
+    cliCommand: `iranti project init . --instance ${scope.instanceName}`,
     repairAction: null,
   }
-
-  try {
-    const result = await query<{ count: string }>(
-      `SELECT COUNT(DISTINCT "entityId")::text AS count FROM knowledge_base WHERE "entityType" = 'project'`
-    )
-    const count = parseInt(result.rows[0]?.count ?? '0', 10)
-
-    if (count > 0) {
-      step.status = 'complete'
-      step.message = `${count} project${count !== 1 ? 's' : ''} bound.`
-    } else {
-      step.status = 'incomplete'
-      step.message = `No projects bound to this Iranti instance.`
-      step.actionRequired = 'Run `iranti bind [path/to/project]` from your terminal.'
-    }
-  } catch {
-    step.status = 'incomplete'
-    step.message = `Could not check project bindings — database unavailable.`
-    step.actionRequired = 'Run `iranti bind [path/to/project]` from your terminal.'
-  }
-
-  return step
 }
 
-async function checkClaudeIntegration(projectStep: SetupStep): Promise<SetupStep> {
-  const step: SetupStep = {
-    id: 'claude_integration',
-    label: 'Claude / Codex integration',
-    status: 'incomplete',
-    message: '',
-    actionRequired: null,
-    repairAction: null,
-  }
+function buildRepairAction(scope: ResolvedInstanceAuthority, projectPath: string, kind: 'mcp-json' | 'claude-md'): string {
+  return `/api/control-plane/instances/${encodeURIComponent(scope.instanceId)}/projects/${encodeURIComponent(projectPath)}/repair/${kind}`
+}
 
+function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: SetupStep): SetupStep {
   if (projectStep.status === 'incomplete') {
-    step.status = 'not_applicable'
-    step.message = 'Complete Step 3 (project binding) first.'
-    return step
+    return {
+      id: 'claude_integration',
+      label: 'Project integration',
+      status: 'not_applicable',
+      message: 'Bind a project first.',
+      actionRequired: null,
+      cliCommand: null,
+      repairAction: null,
+    }
   }
 
-  try {
-    await access(join(process.cwd(), '.mcp.json'), constants.F_OK)
-    step.status = 'complete'
-    step.message = `.mcp.json present for this instance.`
-  } catch {
-    const configured = getConfiguredInstanceIdentifiers()
-    step.status = 'incomplete'
-    step.message = `.mcp.json not found. Claude will not have access to Iranti memory tools.`
-    step.actionRequired =
-      'Run `iranti setup --mcp [path/to/project]` or use the Regenerate button.'
-    step.repairAction = `/api/control-plane/instances/${configured.instanceId}/repair/mcp-json`
+  const statuses = scope.boundProjects.map((project) => ({
+    projectPath: project.projectPath,
+    integration: inspectProjectIntegration(project.projectPath),
+  }))
+
+  const missing = statuses.filter(({ integration }) => !(integration.mcpJsonPresent && integration.mcpJsonHasIranti && integration.claudeMdPresent && integration.claudeMdHasIranti))
+  if (missing.length === 0) {
+    return {
+      id: 'claude_integration',
+      label: 'Project integration',
+      status: 'complete',
+      message: `Claude integration files are present for all ${statuses.length} bound project${statuses.length === 1 ? '' : 's'}.`,
+      actionRequired: null,
+      cliCommand: statuses.length === 1 ? `iranti claude-setup "${statuses[0]!.projectPath}"` : `iranti doctor --instance ${scope.instanceName}`,
+      repairAction: null,
+    }
   }
 
-  return step
+  const [firstMissing] = missing
+  const missingMcp = firstMissing ? !(firstMissing.integration.mcpJsonPresent && firstMissing.integration.mcpJsonHasIranti) : false
+  const missingClaudeMd = firstMissing ? !(firstMissing.integration.claudeMdPresent && firstMissing.integration.claudeMdHasIranti) : false
+
+  return {
+    id: 'claude_integration',
+    label: 'Project integration',
+    status: 'warning',
+    message: `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} are missing Iranti Claude integration files.`,
+    actionRequired: firstMissing
+      ? `Run Claude setup for ${firstMissing.projectPath}, or repair the missing files from the Instance Manager.`
+      : null,
+    cliCommand: firstMissing ? `iranti claude-setup "${firstMissing.projectPath}"` : null,
+    repairAction:
+      firstMissing && missingMcp && !missingClaudeMd
+        ? buildRepairAction(scope, firstMissing.projectPath, 'mcp-json')
+        : firstMissing && missingClaudeMd && !missingMcp
+        ? buildRepairAction(scope, firstMissing.projectPath, 'claude-md')
+        : null,
+  }
 }
 
-// ---------------------------------------------------------------------------
-// GET /:instanceId/setup-status
-// ---------------------------------------------------------------------------
+async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
+  const firstRunDetected = await readFirstRunDetected(scope)
+
+  return withScopedPool(scope.databaseUrl, async (pool) => {
+    const databaseStep = await checkDatabase(scope, pool)
+    const providerStep = checkProvider(scope)
+    const projectStep = checkProjectBinding(scope)
+    const integrationStep = checkProjectIntegration(scope, projectStep)
+
+    const steps: SetupStep[] = [databaseStep, providerStep, projectStep, integrationStep]
+    const isFullyConfigured = steps.every((step) => step.status === 'complete' || step.status === 'not_applicable')
+
+    return {
+      instanceId: scope.instanceId,
+      scope: scopeSummary(scope),
+      steps,
+      isFullyConfigured,
+      firstRunDetected,
+    }
+  })
+}
 
 setupRouter.get(
   '/:instanceId/setup-status',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { instanceId } = req.params
-      const configured = getConfiguredInstanceIdentifiers()
-      if (!configured.matches(instanceId)) {
-        res.status(404).json({
-          error: 'Instance not found',
-          code: 'INSTANCE_NOT_FOUND',
-        })
-        return
-      }
-
-      // Determine first-run flag
-      const completeFlagPath = join(process.cwd(), '.iranti-cp-setup-complete')
-      let firstRunDetected = true
-      try {
-        await access(completeFlagPath, constants.F_OK)
-        firstRunDetected = false
-      } catch {
-        firstRunDetected = true
-      }
-
-      // Run steps 1–3 in parallel
-      const [dbSettled, providerSettled, projectSettled] = await Promise.allSettled([
-        checkDatabase(),
-        checkProvider(),
-        checkProjectBinding(),
-      ])
-
-      const dbStep: SetupStep =
-        dbSettled.status === 'fulfilled'
-          ? dbSettled.value
-          : {
-              id: 'database',
-              label: 'Database connection',
-              status: 'incomplete',
-              message: 'Database check failed unexpectedly.',
-              actionRequired: 'Check your `.env.iranti` DATABASE_URL.',
-              repairAction: null,
-            }
-
-      const providerStep: SetupStep =
-        providerSettled.status === 'fulfilled'
-          ? providerSettled.value
-          : {
-              id: 'provider',
-              label: 'Provider configuration',
-              status: 'incomplete',
-              message: 'Provider check failed unexpectedly.',
-              actionRequired: null,
-              repairAction: null,
-            }
-
-      const projectStep: SetupStep =
-        projectSettled.status === 'fulfilled'
-          ? projectSettled.value
-          : {
-              id: 'project_binding',
-              label: 'Project binding',
-              status: 'incomplete',
-              message: 'Project binding check failed unexpectedly.',
-              actionRequired: 'Run `iranti bind [path/to/project]` from your terminal.',
-              repairAction: null,
-            }
-
-      // Step 4 depends on step 3 result
-      const claudeStep = await checkClaudeIntegration(projectStep)
-
-      const steps: SetupStep[] = [dbStep, providerStep, projectStep, claudeStep]
-
-      const isFullyConfigured = steps.every(
-        (s) => s.status === 'complete' || s.status === 'not_applicable'
-      )
-
-      res.json({
-        instanceId: configured.instanceId,
-        steps,
-        isFullyConfigured,
-        firstRunDetected,
-      })
+      const scope = await resolveScopeOrThrow(req.params['instanceId'] ?? '')
+      res.json(await buildSetupStatus(scope))
     } catch (err) {
       next(err)
     }
   }
 )
-
-// ---------------------------------------------------------------------------
-// POST /:instanceId/setup-status/refresh
-// Re-checks provider and other step statuses without page reload.
-// ---------------------------------------------------------------------------
 
 setupRouter.post(
   '/:instanceId/setup-status/refresh',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { instanceId } = req.params
-      const configured = getConfiguredInstanceIdentifiers()
-      if (!configured.matches(instanceId)) {
-        res.status(404).json({
-          error: 'Instance not found',
-          code: 'INSTANCE_NOT_FOUND',
-        })
-        return
-      }
-
-      // Determine first-run flag
-      const completeFlagPath = join(process.cwd(), '.iranti-cp-setup-complete')
-      let firstRunDetected = true
-      try {
-        await access(completeFlagPath, constants.F_OK)
-        firstRunDetected = false
-      } catch {
-        firstRunDetected = true
-      }
-
-      // Run all steps fresh
-      const [dbSettled, providerSettled, projectSettled] = await Promise.allSettled([
-        checkDatabase(),
-        checkProvider(),
-        checkProjectBinding(),
-      ])
-
-      const dbStep: SetupStep =
-        dbSettled.status === 'fulfilled'
-          ? dbSettled.value
-          : {
-              id: 'database',
-              label: 'Database connection',
-              status: 'incomplete',
-              message: 'Database check failed unexpectedly.',
-              actionRequired: 'Check your `.env.iranti` DATABASE_URL.',
-              repairAction: null,
-            }
-
-      const providerStep: SetupStep =
-        providerSettled.status === 'fulfilled'
-          ? providerSettled.value
-          : {
-              id: 'provider',
-              label: 'Provider configuration',
-              status: 'incomplete',
-              message: 'Provider check failed unexpectedly.',
-              actionRequired: null,
-              repairAction: null,
-            }
-
-      const projectStep: SetupStep =
-        projectSettled.status === 'fulfilled'
-          ? projectSettled.value
-          : {
-              id: 'project_binding',
-              label: 'Project binding',
-              status: 'incomplete',
-              message: 'Project binding check failed unexpectedly.',
-              actionRequired: 'Run `iranti bind [path/to/project]` from your terminal.',
-              repairAction: null,
-            }
-
-      const claudeStep = await checkClaudeIntegration(projectStep)
-
-      const steps: SetupStep[] = [dbStep, providerStep, projectStep, claudeStep]
-
-      const isFullyConfigured = steps.every(
-        (s) => s.status === 'complete' || s.status === 'not_applicable'
-      )
-
-      res.json({
-        instanceId: configured.instanceId,
-        steps,
-        isFullyConfigured,
-        firstRunDetected,
-      })
+      const scope = await resolveScopeOrThrow(req.params['instanceId'] ?? '')
+      res.json(await buildSetupStatus(scope))
     } catch (err) {
       next(err)
     }
   }
 )
-
-// ---------------------------------------------------------------------------
-// POST /:instanceId/setup-status/complete
-// ---------------------------------------------------------------------------
 
 setupRouter.post(
   '/:instanceId/setup-status/complete',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { instanceId } = req.params
-      const configured = getConfiguredInstanceIdentifiers()
-      if (!configured.matches(instanceId)) {
-        res.status(404).json({
-          error: 'Instance not found',
-          code: 'INSTANCE_NOT_FOUND',
-        })
-        return
-      }
-
+      const scope = await resolveScopeOrThrow(req.params['instanceId'] ?? '')
       const completedAt = new Date().toISOString()
-      const completeFlagPath = join(process.cwd(), '.iranti-cp-setup-complete')
-      await writeFile(completeFlagPath, JSON.stringify({ completedAt }), 'utf8')
-
-      res.json({ success: true, completedAt })
+      await writeFile(setupCompleteFlagPath(scope), JSON.stringify({ completedAt, instanceId: scope.instanceId }), 'utf8')
+      res.json({ success: true, completedAt, scope: scopeSummary(scope) })
     } catch (err) {
       next(err)
     }
   }
 )
-
-// ---------------------------------------------------------------------------
-// Error handler
-// ---------------------------------------------------------------------------
 
 setupRouter.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const apiErr = err as ApiError

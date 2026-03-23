@@ -36,8 +36,8 @@ export const REMEDIATION: Record<string, Record<string, string>> = {
   },
   anthropic_key: {
     warn:
-      'ANTHROPIC_API_KEY is not set but Anthropic is your active provider. ' +
-      'Add the key via the Provider Manager, or run: `iranti add api-key anthropic --instance local` ' +
+      'ANTHROPIC_API_KEY is not set but Claude is your active provider. ' +
+      'Add the key via the Provider Manager, or run: `iranti add api-key claude --instance local` ' +
       'to store it in your instance config.',
   },
   openai_key: {
@@ -50,22 +50,22 @@ export const REMEDIATION: Record<string, Record<string, string>> = {
     warn:
       'LLM_PROVIDER is not set in the instance .env file. ' +
       'Iranti will use its built-in fallback, which may not match your preferred provider. ' +
-      'Set LLM_PROVIDER=openai (or anthropic) in the instance .env file ' +
+      'Set LLM_PROVIDER=openai (or claude) in the instance .env file ' +
       '(e.g. ~/.iranti-runtime/instances/local/.env) and restart Iranti.',
     error:
       'LLM_PROVIDER is set to an unrecognized value in the instance .env file. ' +
-      'Valid values are: anthropic, openai, ollama, groq, mistral, together, gemini. ' +
+      'Valid values are: claude, openai, ollama, groq, mistral, together, gemini. ' +
       'Update LLM_PROVIDER in the instance .env file and restart Iranti.',
   },
   mcp_integration: {
     warn:
-      'No .mcp.json was found in the current project, or the file does not include an Iranti server entry. ' +
-      'Add an .mcp.json file to your project root with an Iranti server entry. See the Iranti docs for the correct format.',
+      'No bound project for this instance has a valid .mcp.json with an Iranti entry. ' +
+      'Bind the project first if needed, then add or repair .mcp.json in the bound project directory.',
   },
   claude_md_integration: {
     warn:
-      'CLAUDE.md is absent from the current project, or it does not reference Iranti. ' +
-      'Add a CLAUDE.md to your project root and include an Iranti context section so Claude Code has access to Iranti instructions.',
+      'No bound project for this instance has a CLAUDE.md that references Iranti. ' +
+      'Bind the project first if needed, then add or repair CLAUDE.md in the bound project directory.',
   },
   runtime_version: {
     warn:

@@ -111,20 +111,13 @@ export async function openFile(filePath: string): Promise<OpenFileResult> {
 // Provider write path (CP-T085, CP-T086)
 // ---------------------------------------------------------------------------
 
-async function providerPut<T>(path: string, body: unknown): Promise<T> {
+async function providerDelete<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
   const url = new URL(`${BASE}${path}`, window.location.origin)
-  const res = await fetch(url.toString(), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json().catch(() => ({ error: res.statusText }))
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
-  return data as T
-}
-
-async function providerDelete<T>(path: string): Promise<T> {
-  const url = new URL(`${BASE}${path}`, window.location.origin)
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== '') url.searchParams.set(k, String(v))
+    }
+  }
   const res = await fetch(url.toString(), { method: 'DELETE' })
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
@@ -132,33 +125,60 @@ async function providerDelete<T>(path: string): Promise<T> {
 }
 
 /** Set or update a provider API key. CP-T085 */
-export function setProviderKey(provider: string, key: string): Promise<ProviderWriteKeyResult> {
-  return providerPut<ProviderWriteKeyResult>(`/providers/${encodeURIComponent(provider)}/key`, { key })
+export async function setProviderKey(provider: string, key: string, instanceId?: string): Promise<ProviderWriteKeyResult> {
+  const url = new URL(`${BASE}/providers/${encodeURIComponent(provider)}/key`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
+  const res = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as ProviderWriteKeyResult
 }
 
 /** Remove a provider API key. CP-T085 */
-export function removeProviderKey(provider: string): Promise<ProviderWriteKeyResult> {
-  return providerDelete<ProviderWriteKeyResult>(`/providers/${encodeURIComponent(provider)}/key`)
+export function removeProviderKey(provider: string, instanceId?: string): Promise<ProviderWriteKeyResult> {
+  return providerDelete<ProviderWriteKeyResult>(`/providers/${encodeURIComponent(provider)}/key`, { instanceId })
 }
 
 /** Set the default provider (writes LLM_PROVIDER). CP-T086 */
-export function setDefaultProvider(provider: string): Promise<ProviderSetDefaultResult> {
-  return providerPut<ProviderSetDefaultResult>('/providers/default', { provider })
+export async function setDefaultProvider(provider: string, instanceId?: string): Promise<ProviderSetDefaultResult> {
+  const url = new URL(`${BASE}/providers/default`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
+  const res = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider }),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as ProviderSetDefaultResult
 }
 
 /** Clear the default provider. CP-T086 */
-export function clearDefaultProvider(): Promise<ProviderSetDefaultResult> {
-  return providerDelete<ProviderSetDefaultResult>('/providers/default')
+export function clearDefaultProvider(instanceId?: string): Promise<ProviderSetDefaultResult> {
+  return providerDelete<ProviderSetDefaultResult>('/providers/default', { instanceId })
 }
 
 /** Set the provider fallback chain (writes LLM_PROVIDER_FALLBACK). CP-T086 */
-export function setFallbackChain(chain: string[]): Promise<ProviderFallbackResult> {
-  return providerPut<ProviderFallbackResult>('/providers/fallback', { chain })
+export async function setFallbackChain(chain: string[], instanceId?: string): Promise<ProviderFallbackResult> {
+  const url = new URL(`${BASE}/providers/fallback`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
+  const res = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chain }),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as ProviderFallbackResult
 }
 
 /** Clear the provider fallback chain. CP-T086 */
-export function clearFallbackChain(): Promise<ProviderFallbackResult> {
-  return providerDelete<ProviderFallbackResult>('/providers/fallback')
+export function clearFallbackChain(instanceId?: string): Promise<ProviderFallbackResult> {
+  return providerDelete<ProviderFallbackResult>('/providers/fallback', { instanceId })
 }
 
 // ---------------------------------------------------------------------------
@@ -169,16 +189,17 @@ export function clearFallbackChain(): Promise<ProviderFallbackResult> {
  * Fetch routing defaults for a given provider — what model each task would use
  * with no overrides set. CP-T087.
  */
-export function fetchRoutingDefaults(provider: string): Promise<RoutingDefaultsResponse> {
-  return apiFetch<RoutingDefaultsResponse>('/providers/routing-defaults', { provider })
+export function fetchRoutingDefaults(provider: string, instanceId?: string): Promise<RoutingDefaultsResponse> {
+  return apiFetch<RoutingDefaultsResponse>('/providers/routing-defaults', { provider, instanceId })
 }
 
 /**
  * Update task-model routing overrides.
  * Pass null for a task to clear its override. CP-T087.
  */
-export async function updateTaskRouting(overrides: Record<string, string | null>): Promise<TaskRoutingUpdateResult> {
+export async function updateTaskRouting(overrides: Record<string, string | null>, instanceId?: string): Promise<TaskRoutingUpdateResult> {
   const url = new URL(`${BASE}/providers/task-routing`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
   const res = await fetch(url.toString(), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -192,8 +213,9 @@ export async function updateTaskRouting(overrides: Record<string, string | null>
 /**
  * Clear all 6 task-model routing overrides, reverting to provider defaults. CP-T087.
  */
-export async function resetTaskRouting(): Promise<TaskRoutingUpdateResult> {
+export async function resetTaskRouting(instanceId?: string): Promise<TaskRoutingUpdateResult> {
   const url = new URL(`${BASE}/providers/task-routing`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
   const res = await fetch(url.toString(), { method: 'DELETE' })
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)

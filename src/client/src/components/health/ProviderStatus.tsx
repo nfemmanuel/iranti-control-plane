@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { ProvidersResponse, ProviderStatus, ProviderModelsResponse } from '../../api/types'
-import { OpenFileButton } from '../ui/OpenFileButton'
 import styles from './ProviderStatus.module.css'
 
 // ---------------------------------------------------------------------------
@@ -15,7 +14,7 @@ import styles from './ProviderStatus.module.css'
 
 function providerIcon(id: string): string {
   switch (id) {
-    case 'anthropic': return 'A'
+    case 'claude': return 'C'
     case 'openai':    return 'OA'
     case 'ollama':    return 'OL'
     default:          return id.slice(0, 2).toUpperCase()
@@ -55,12 +54,12 @@ function ReachabilityBadge({ state }: { state: ReachabilityState }) {
 // Model list panel (lazy-loaded per provider card)
 // ---------------------------------------------------------------------------
 
-function ModelList({ providerId, reachable }: { providerId: string; reachable: boolean }) {
+function ModelList({ providerId, reachable, instanceId }: { providerId: string; reachable: boolean; instanceId?: string }) {
   const { data, isLoading, error } = useQuery<ProviderModelsResponse, Error>({
-    queryKey: ['provider-models', providerId],
-    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${providerId}/models`),
+    queryKey: ['provider-models', instanceId, providerId],
+    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${providerId}/models`, { instanceId }),
     staleTime: 5 * 60 * 1000,
-    enabled: reachable || providerId === 'anthropic', // Anthropic always static
+    enabled: reachable || providerId === 'claude', // Claude list is static
   })
 
   if (isLoading) {
@@ -104,7 +103,7 @@ function ModelList({ providerId, reachable }: { providerId: string; reachable: b
 // Provider card
 // ---------------------------------------------------------------------------
 
-function ProviderCard({ provider }: { provider: ProviderStatus }) {
+function ProviderCard({ provider, instanceId }: { provider: ProviderStatus; instanceId?: string }) {
   const [expanded, setExpanded] = useState(false)
   const state = resolveReachabilityState(provider)
 
@@ -150,7 +149,7 @@ function ProviderCard({ provider }: { provider: ProviderStatus }) {
         <span className={styles.lastChecked}>
           Checked: {new Date(provider.lastChecked).toLocaleTimeString()}
         </span>
-        {(state === 'connected' || provider.id === 'anthropic') && (
+        {(state === 'connected' || provider.id === 'claude') && (
           <button
             className={styles.expandBtn}
             onClick={() => setExpanded((v) => !v)}
@@ -165,7 +164,7 @@ function ProviderCard({ provider }: { provider: ProviderStatus }) {
 
       {expanded && (
         <div id={`models-${provider.id}`} className={styles.modelsPanel}>
-          <ModelList providerId={provider.id} reachable={provider.reachable} />
+          <ModelList providerId={provider.id} reachable={provider.reachable} instanceId={instanceId} />
         </div>
       )}
     </div>
@@ -182,11 +181,8 @@ function EmptyState() {
       <span className={styles.emptyIcon} aria-hidden="true">⬡</span>
       <p className={styles.emptyTitle}>No providers configured</p>
       <p className={styles.emptyBody}>
-        Set <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or{' '}
-        <code>OLLAMA_BASE_URL</code> in your <code>.env.iranti</code> file to connect a provider.
+        Configure provider credentials in the selected instance env, or use the Provider Manager to write them.
       </p>
-      {/* CP-T084: Open .env.iranti directly in the system editor */}
-      <OpenFileButton filePath=".env.iranti" label="Open .env.iranti" />
     </div>
   )
 }
@@ -195,10 +191,10 @@ function EmptyState() {
 // Main exported component
 // ---------------------------------------------------------------------------
 
-export function ProviderStatusSection() {
+export function ProviderStatusSection({ instanceId }: { instanceId?: string }) {
   const { data, isLoading, error, refetch, isFetching } = useQuery<ProvidersResponse, Error>({
-    queryKey: ['providers'],
-    queryFn: () => apiFetch<ProvidersResponse>('/providers'),
+    queryKey: ['providers', instanceId],
+    queryFn: () => apiFetch<ProvidersResponse>('/providers', { instanceId }),
     staleTime: 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
@@ -213,7 +209,7 @@ export function ProviderStatusSection() {
         <h2 id="providers-heading" className={styles.sectionTitle}>Providers</h2>
         {data && (
           <span className={styles.sectionMeta}>
-            {configuredProviders.length} configured
+            {configuredProviders.length} configured{data.scope ? ` for ${data.scope.instanceName}` : ''}
           </span>
         )}
         <button
@@ -243,7 +239,7 @@ export function ProviderStatusSection() {
       {!isLoading && data && data.providers.length > 0 && (
         <div className={styles.grid}>
           {data.providers.map((p) => (
-            <ProviderCard key={p.id} provider={p} />
+            <ProviderCard key={p.id} provider={p} instanceId={instanceId} />
           ))}
         </div>
       )}

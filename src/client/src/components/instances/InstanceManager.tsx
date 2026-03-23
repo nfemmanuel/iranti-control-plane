@@ -1308,7 +1308,7 @@ export function InstanceManager() {
   // CP-T081: Version sync — shared cache with HealthDashboard via same query key
   const { data: versionSync } = useQuery<VersionSyncResult, Error>({
     queryKey: ['version-sync'],
-    queryFn: fetchVersionSync,
+    queryFn: () => fetchVersionSync(),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })

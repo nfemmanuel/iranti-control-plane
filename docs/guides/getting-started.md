@@ -48,15 +48,13 @@ Before you start, you need the following already running:
 
 - **PostgreSQL with pgvector.** Iranti stores facts in PostgreSQL and uses pgvector for semantic search. Both must be running. In the default local setup, Iranti's database is named `iranti`, running on `localhost:5432`, accessible as the `postgres` user with no password. If you're using Docker, the container is typically named `iranti_db`.
 
-- **Your `.env.iranti` file at the project root.** The control plane reads `.env.iranti` from the `iranti-control-plane/` project root at startup. This file must contain `DATABASE_URL` at minimum. Provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are read for health checks but are never displayed.
+- **An Iranti runtime root at `~/.iranti-runtime`.** The control plane discovers instances from `~/.iranti-runtime/instances/<name>/`. Each live instance keeps its runtime authority in `~/.iranti-runtime/instances/<name>/.env`.
 
-  **Important:** If you have Iranti installed, your credentials are at `~/.iranti/instances/local/.env` (or `~/.iranti/.env.iranti` in older installs). You must copy them to the project root:
+  Important:
 
-  ```bash
-  cp ~/.iranti/instances/local/.env .env.iranti
-  ```
-
-  If the file is missing or `DATABASE_URL` is absent, all data views will fail with a database connection error. See KI-008 in `docs/reference/known-issues.md` for details.
+  - Provider keys, `LLM_PROVIDER`, and `LLM_PROVIDER_FALLBACK` belong in the instance `.env`, not the control-plane project root.
+  - Project `.env.iranti` files are bindings to an instance. They are not the runtime authority for provider configuration.
+  - The control plane can still use a bound project `.env.iranti` to discover which instance is currently selected when no explicit instance is chosen.
 
 ---
 
@@ -215,9 +213,9 @@ The Health dashboard (`/health`) shows a list of checks run against your local s
 | **DB Reachability** | Can the control plane connect to PostgreSQL? If this is `error`, nothing else works. |
 | **DB Schema Version** | Is the database schema up to date? A `warn` here means you may be running a newer version of the control plane against an older Iranti schema. |
 | **Vector Backend** | Is pgvector configured and reachable? Required for Iranti's semantic search. |
-| **Anthropic Key** | Is `ANTHROPIC_API_KEY` present in `.env.iranti`? `warn` if missing — Iranti will fall back to another provider or fail writes that require LLM calls. |
+| **Claude Key** | Is `ANTHROPIC_API_KEY` present in the selected instance env? `warn` if missing while Claude is the active provider. |
 | **OpenAI Key** | Same check for `OPENAI_API_KEY`. |
-| **Default Provider** | Is `IRANTI_DEFAULT_PROVIDER` set? If not, Iranti uses a built-in fallback. |
+| **Default Provider** | Is `LLM_PROVIDER` set in the selected instance env? If not, runtime routing is ambiguous. |
 | **MCP Integration** | Does your project have a `.mcp.json` with an Iranti server entry? |
 | **CLAUDE.md Integration** | Does your project have a `CLAUDE.md` that references Iranti? |
 | **Runtime Version** | What version of Iranti is running? |
@@ -282,30 +280,31 @@ If `iranti doctor` reports green across the board but the control plane still sh
 The control plane cannot connect to PostgreSQL. Things to check:
 
 1. Is PostgreSQL running? On most local setups: `pg_isready -h localhost -p 5432`. If not running, start it — or if you use Docker, start the `iranti_db` container.
-2. Does `DATABASE_URL` in your `.env` file match exactly what Iranti uses in its `.env.iranti`? A common mismatch is the database name (`iranti` vs `iranti_dev`) or the port.
+2. Does `DATABASE_URL` in the selected instance env match the actual PostgreSQL connection for that instance? A common mismatch is the database name (`iranti` vs `iranti_dev`) or the port.
 3. Does the PostgreSQL user in `DATABASE_URL` have read access to the `iranti` database? The control plane is read-only, but it still needs `SELECT` permissions on all tables.
 
 ### "No provider key found" warning
 
-The Health dashboard shows `warn` for `anthropic_key` and `openai_key`. This means neither `ANTHROPIC_API_KEY` nor `OPENAI_API_KEY` was found in your `.env.iranti` file.
+The Health dashboard shows `warn` for `anthropic_key` and `openai_key`. This means the selected instance is missing the credential required by its active provider.
 
-The control plane itself does not make LLM calls — this is a warning about Iranti's own configuration. Without a provider key, Iranti's write operations that require an LLM call will fail. To fix it, open your `.env.iranti` file (typically at `~/.iranti/.env.iranti`) and add:
+The control plane itself does not make LLM calls — this is a warning about Iranti's runtime configuration. Without a provider key, Iranti's write operations that require an LLM call will fail. Fix it in the selected instance env, typically `~/.iranti-runtime/instances/<name>/.env`, or use the Provider Manager:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+LLM_PROVIDER=claude
 ```
 
-Then reload the Health dashboard.
+Then restart the instance and reload the Health dashboard.
 
 ### "No instances found" on the Instances page
 
-The control plane discovers Iranti instances by reading a registry file at `~/.iranti/instances.json` (on macOS/Linux) or `%USERPROFILE%\.iranti\instances.json` (on Windows). If that file doesn't exist, it falls back to scanning a short list of candidate paths for a `.env.iranti` file.
+The control plane discovers Iranti instances by scanning `~/.iranti-runtime/instances/` and reading each instance directory directly. It does not require a separate registry file.
 
 If the Instances page shows an empty list:
 
-1. Check whether `~/.iranti/instances.json` exists. If it doesn't, Iranti hasn't written its registry yet. This is common if you installed Iranti before this feature was added.
-2. Confirm that your Iranti runtime root (the directory containing `.env.iranti`) is one of the scanned candidates: `~/.iranti/`, `~/iranti/`, or the control plane's working directory.
-3. If your Iranti instance lives somewhere else, you can manually add an entry to `~/.iranti/instances.json`. See the schema in the architecture overview for the expected format.
+1. Check whether `~/.iranti-runtime/instances/` exists.
+2. Confirm that each instance directory contains a `.env` file.
+3. If you launched Iranti with a custom runtime root, set `IRANTI_HOME` before starting the control plane so discovery points at the right directory.
 
 Even with no instances found, the Health dashboard and Memory Explorer still work — they connect directly to the database specified in the control plane's own `.env` file.
 

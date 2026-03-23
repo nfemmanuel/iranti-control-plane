@@ -48,9 +48,13 @@ function parseMinConfidence(val: string | undefined): number | undefined {
   return n
 }
 
+// ISO 8601 requires a dash-separated date prefix: YYYY-MM-DD.
+// Date.parse() is too permissive (accepts "2026/01/01", "Jan 1 2026", etc.).
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/
+
 function parseIsoDate(val: string | undefined, field: string): Date | undefined {
   if (val === undefined) return undefined
-  if (isNaN(Date.parse(val))) {
+  if (!ISO_DATE_RE.test(val) || isNaN(Date.parse(val))) {
     throw createApiError(`${field} must be a valid ISO 8601 timestamp`, 'INVALID_PARAM', 400, {
       field,
       received: val,

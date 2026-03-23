@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch, fetchRoutingDefaults, updateTaskRouting, resetTaskRouting } from '../../api/client'
 import type { ProviderModelsResponse, RoutingDefaultsResponse } from '../../api/types'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './RoutingEditor.module.css'
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,7 @@ interface RoutingEditorProps {
 }
 
 export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: RoutingEditorProps) {
+  const { activeInstance } = useInstanceContext()
   const provider = activeProvider ?? 'mock'
   const isOllama = provider === 'ollama'
 
@@ -173,15 +175,15 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
 
   // Fetch routing defaults for the active provider
   const { data: defaultsData } = useQuery<RoutingDefaultsResponse, Error>({
-    queryKey: ['routing-defaults', provider],
-    queryFn: () => fetchRoutingDefaults(provider),
+    queryKey: ['routing-defaults', activeInstance?.id, provider],
+    queryFn: () => fetchRoutingDefaults(provider, activeInstance?.id),
     staleTime: 10 * 60 * 1000,
   })
 
   // Fetch model list for the active provider (for dropdown options)
   const { data: modelsData } = useQuery<ProviderModelsResponse, Error>({
-    queryKey: ['provider-models', provider],
-    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${provider}/models`),
+    queryKey: ['provider-models', activeInstance?.id, provider],
+    queryFn: () => apiFetch<ProviderModelsResponse>(`/providers/${provider}/models`, { instanceId: activeInstance?.id }),
     staleTime: 5 * 60 * 1000,
     enabled: !!provider && provider !== 'mock',
   })
@@ -197,7 +199,7 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
     setPending(true)
     setFeedback(null)
     try {
-      const result = await updateTaskRouting(overrides)
+      const result = await updateTaskRouting(overrides, activeInstance?.id)
       const msg = result.warnings.length > 0
         ? `Saved to the live instance env. Restart the instance to apply. ${result.warnings.length} compatibility warning(s).`
         : 'Task routing saved to the live instance env. Restart the instance to apply.'
@@ -215,7 +217,7 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
     setPending(true)
     setFeedback(null)
     try {
-      await resetTaskRouting()
+      await resetTaskRouting(activeInstance?.id)
       setFeedback({ kind: 'ok', msg: 'All overrides cleared from the live instance env. Restart the instance to apply.' })
       onSuccess()
     } catch (e) {

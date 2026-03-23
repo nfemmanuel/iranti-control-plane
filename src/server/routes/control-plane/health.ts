@@ -76,6 +76,11 @@ function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
   }
 }
 
+function normalizeProviderId(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'anthropic' ? 'claude' : normalized
+}
+
 async function resolveScopeOrThrow(instanceRef?: string): Promise<ResolvedInstanceAuthority> {
   const scope = await resolveInstanceAuthority(instanceRef)
   if (!scope) {
@@ -330,10 +335,10 @@ function makeProviderKeyCheck(
     return { name: checkName, status: 'ok', message: `${keyName} is set` }
   }
 
-  const activeProvider = (scope.env['LLM_PROVIDER'] ?? '').trim().toLowerCase()
+  const activeProvider = normalizeProviderId((scope.env['LLM_PROVIDER'] ?? '').trim().toLowerCase())
   const fallbackChain = (scope.env['LLM_PROVIDER_FALLBACK'] ?? '')
     .split(',')
-    .map((item) => item.trim().toLowerCase())
+    .map((item) => normalizeProviderId(item))
     .filter(Boolean)
 
   if (activeProvider !== providerName && !fallbackChain.includes(providerName)) {
@@ -354,7 +359,8 @@ function makeProviderKeyCheck(
 }
 
 function checkDefaultProvider(scope: ResolvedInstanceAuthority): HealthCheck {
-  const value = (scope.env['LLM_PROVIDER'] ?? '').trim().toLowerCase()
+  const rawValue = (scope.env['LLM_PROVIDER'] ?? '').trim().toLowerCase()
+  const value = normalizeProviderId(rawValue)
   if (!value) {
     return {
       name: 'default_provider_configured',
@@ -363,7 +369,16 @@ function checkDefaultProvider(scope: ResolvedInstanceAuthority): HealthCheck {
     }
   }
 
-  const knownProviders = ['anthropic', 'openai', 'ollama', 'groq', 'mistral', 'together', 'gemini']
+  if (rawValue === 'anthropic') {
+    return {
+      name: 'default_provider_configured',
+      status: 'warn',
+      message: 'Default provider is set to anthropic. Iranti expects claude.',
+      detail: { value: rawValue, expected: 'claude' },
+    }
+  }
+
+  const knownProviders = ['claude', 'openai', 'ollama', 'groq', 'mistral', 'together', 'gemini']
   const known = knownProviders.includes(value)
   return {
     name: 'default_provider_configured',
@@ -620,7 +635,7 @@ export async function runAllHealthChecks(instanceRef?: string): Promise<HealthRe
         checkDbReachability(pool),
         checkDbSchemaVersion(pool),
         checkVectorBackend(scope, pool),
-        Promise.resolve(makeProviderKeyCheck(scope, 'ANTHROPIC_API_KEY', 'anthropic_key', 'anthropic')),
+        Promise.resolve(makeProviderKeyCheck(scope, 'ANTHROPIC_API_KEY', 'anthropic_key', 'claude')),
         Promise.resolve(makeProviderKeyCheck(scope, 'OPENAI_API_KEY', 'openai_key', 'openai')),
         Promise.resolve(checkDefaultProvider(scope)),
         Promise.resolve(summarizeProjectIntegration(scope, 'mcp_integration')),
@@ -632,7 +647,7 @@ export async function runAllHealthChecks(instanceRef?: string): Promise<HealthRe
       buildAttendantStatus(scope),
     ])
 
-    return {
+    const response = {
       overall: computeOverall(checks),
       checks,
       checkedAt,
@@ -642,11 +657,9 @@ export async function runAllHealthChecks(instanceRef?: string): Promise<HealthRe
       decay: buildDecayConfig(scope),
       vectorBackend,
       attendant,
-    } as HealthResponse & {
-      decay: DecayConfig
-      vectorBackend: VectorBackendInfo
-      attendant: AttendantStatus
     }
+
+    return response as unknown as HealthResponse
   })
 }
 

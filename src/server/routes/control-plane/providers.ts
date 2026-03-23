@@ -17,8 +17,8 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { homedir } from 'os'
 import { env } from '../../db.js'
-import { ApiError } from '../../types.js'
-import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
+import { ApiError, InstanceScopeSummary } from '../../types.js'
+import { resolveInstanceAuthority, ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
 
 export const providersRouter = Router()
 
@@ -27,7 +27,7 @@ export const providersRouter = Router()
 // ---------------------------------------------------------------------------
 
 const PROVIDER_KEY_VARS: Record<string, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
+  claude:    'ANTHROPIC_API_KEY',
   openai:    'OPENAI_API_KEY',
   gemini:    'GEMINI_API_KEY',
   groq:      'GROQ_API_KEY',
@@ -51,6 +51,33 @@ const PLACEHOLDER_PATTERNS = [
 
 export function isPlaceholderKey(val: string): boolean {
   return PLACEHOLDER_PATTERNS.some(p => p.test(val.trim()))
+}
+
+function normalizeProviderId(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'anthropic' ? 'claude' : normalized
+}
+
+function providerLabel(providerId: string): string {
+  switch (normalizeProviderId(providerId)) {
+    case 'claude': return 'Claude'
+    case 'openai': return 'OpenAI'
+    case 'gemini': return 'Gemini'
+    case 'groq': return 'Groq'
+    case 'mistral': return 'Mistral'
+    case 'together': return 'Together AI'
+    case 'ollama': return 'Ollama'
+    case 'mock': return 'Mock'
+    default: return providerId
+  }
+}
+
+function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
+  return {
+    instanceId: scope.instanceId,
+    instanceName: scope.instanceName,
+    source: scope.source,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -92,11 +119,18 @@ export function getPreferredEnvFilePath(): string {
  * Updates the in-memory env object so subsequent reads reflect the change immediately.
  */
 export function writeEnvVar(key: string, value: string | null): void {
-  const filePath = getPreferredEnvFilePath()
-  let rawLines: string[] = []
+  writeEnvVarAtPath(getPreferredEnvFilePath(), key, value, true)
+}
+
+function writeEnvVarAtPath(filePath: string, key: string, value: string | null, syncLiveEnv: boolean): void {
+  let raw = ''
   if (existsSync(filePath)) {
-    rawLines = readFileSync(filePath, 'utf8').split('\n')
+    raw = readFileSync(filePath, 'utf8')
   }
+
+  // Detect original line ending style so we preserve it on write (CRLF on Windows, LF on Unix).
+  const lineEnding = raw.includes('\r\n') ? '\r\n' : '\n'
+  const rawLines = raw.split(/\r?\n/)
 
   let found = false
   const updated: string[] = []
@@ -119,19 +153,23 @@ export function writeEnvVar(key: string, value: string | null): void {
 
   if (!found && value !== null) {
     // Append: ensure there's a trailing newline separator before the new entry
-    if (updated.length > 0 && updated[updated.length - 1] !== '') {
+    const lastLine = updated[updated.length - 1] ?? ''
+    if (updated.length > 0 && lastLine.trim() !== '') {
       updated.push('')
     }
     updated.push(`${key}=${value}`)
   }
 
-  writeFileSync(filePath, updated.join('\n'), 'utf8')
+  writeFileSync(filePath, updated.join(lineEnding), 'utf8')
 
-  // Sync in-memory env object so getEnvVar() reflects the change without restart
-  if (value !== null) {
-    env[key] = value
-  } else {
-    delete env[key]
+  if (syncLiveEnv) {
+    if (value !== null) {
+      env[key] = value
+      process.env[key] = value
+    } else {
+      delete env[key]
+      delete process.env[key]
+    }
   }
 }
 
@@ -163,15 +201,31 @@ const REACHABILITY_TTL_MS = 60 * 1000 // 1 minute
 // Helpers
 // ---------------------------------------------------------------------------
 
-function validateInstance(instanceId: string, res: Response): boolean {
-  if (!getConfiguredInstanceIdentifiers().matches(instanceId)) {
-    res.status(404).json({
-      error: 'Instance not found',
-      code: 'INSTANCE_NOT_FOUND',
-    })
-    return false
+function currentBindingEnvPath(): string | null {
+  const configured = env['IRANTI_INSTANCE_ENV'] ?? process.env['IRANTI_INSTANCE_ENV'] ?? ''
+  return configured.trim() ? resolve(configured) : null
+}
+
+async function resolveScopeFromRequest(req: Request): Promise<ResolvedInstanceAuthority> {
+  const paramInstance = typeof req.params['instanceId'] === 'string' ? req.params['instanceId'] : ''
+  const queryInstance = typeof req.query['instanceId'] === 'string' ? req.query['instanceId'] : ''
+  const scope = await resolveInstanceAuthority(paramInstance || queryInstance || undefined)
+  if (!scope) {
+    const err = new Error('Instance not found') as ApiError
+    err.statusCode = 404
+    err.code = 'INSTANCE_NOT_FOUND'
+    throw err
   }
-  return true
+  return scope
+}
+
+function shouldSyncLiveEnv(scope: ResolvedInstanceAuthority): boolean {
+  const bindingEnvPath = currentBindingEnvPath()
+  return bindingEnvPath !== null && bindingEnvPath === resolve(scope.instanceEnvPath)
+}
+
+function writeEnvVarForScope(scope: ResolvedInstanceAuthority, key: string, value: string | null): void {
+  writeEnvVarAtPath(scope.instanceEnvPath, key, value, shouldSyncLiveEnv(scope))
 }
 
 function maskKey(keyValue: string): string | null {
@@ -179,28 +233,35 @@ function maskKey(keyValue: string): string | null {
   return key.length > 4 ? 'sk-...' + key.slice(-4) : null
 }
 
-function getEnvVar(name: string): string {
-  return env[name] || process.env[name] || ''
+function getEnvVar(scopeOrName: ResolvedInstanceAuthority | string, maybeName?: string): string {
+  if (typeof scopeOrName === 'string') {
+    return env[scopeOrName] || process.env[scopeOrName] || ''
+  }
+  return scopeOrName.env[maybeName ?? ''] || ''
+}
+
+function getClaudeKey(scope: ResolvedInstanceAuthority): string {
+  return getEnvVar(scope, 'ANTHROPIC_API_KEY')
 }
 
 function getAnthropicKey(): string {
   return getEnvVar('ANTHROPIC_API_KEY')
 }
 
-function getOpenaiKey(): string {
-  return getEnvVar('OPENAI_API_KEY')
+function getOpenaiKey(scope: ResolvedInstanceAuthority): string {
+  return getEnvVar(scope, 'OPENAI_API_KEY')
 }
 
-function getOllamaBaseUrl(): string {
-  return getEnvVar('OLLAMA_BASE_URL')
+function getOllamaBaseUrl(scope: ResolvedInstanceAuthority): string {
+  return getEnvVar(scope, 'OLLAMA_BASE_URL')
 }
 
-function getTogetherKey(): string {
-  return getEnvVar('TOGETHER_API_KEY')
+function getTogetherKey(scope: ResolvedInstanceAuthority): string {
+  return getEnvVar(scope, 'TOGETHER_API_KEY')
 }
 
-function getGroqKey(): string {
-  return getEnvVar('GROQ_API_KEY')
+function getGroqKey(scope: ResolvedInstanceAuthority): string {
+  return getEnvVar(scope, 'GROQ_API_KEY')
 }
 
 function getDefaultProvider(): string | null {
@@ -216,6 +277,35 @@ function getFallbackChain(): string[] {
   const val = getEnvVar('LLM_PROVIDER_FALLBACK')
   if (!val.trim()) return []
   return val.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function getScopedDefaultProvider(scope: ResolvedInstanceAuthority): string | null {
+  const raw = getEnvVar(scope, 'LLM_PROVIDER').trim().toLowerCase()
+  return raw ? normalizeProviderId(raw) : null
+}
+
+function getScopedRawDefaultProvider(scope: ResolvedInstanceAuthority): string | null {
+  const raw = getEnvVar(scope, 'LLM_PROVIDER').trim().toLowerCase()
+  return raw || null
+}
+
+function getScopedFallbackChain(scope: ResolvedInstanceAuthority): string[] {
+  const raw = getEnvVar(scope, 'LLM_PROVIDER_FALLBACK')
+  if (!raw.trim()) return []
+  return raw
+    .split(',')
+    .map((value) => normalizeProviderId(value))
+    .filter(Boolean)
+}
+
+function getScopedRawFallbackChain(scope: ResolvedInstanceAuthority): string[] {
+  const raw = getEnvVar(scope, 'LLM_PROVIDER_FALLBACK')
+  if (!raw.trim()) return []
+  return raw.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+}
+
+function normalizeProviderChain(values: string[]): string[] {
+  return values.map((value) => normalizeProviderId(value)).filter(Boolean)
 }
 
 // ---------------------------------------------------------------------------
@@ -286,12 +376,23 @@ function getTaskRouting(): Record<string, string | null> {
   return result
 }
 
+function getScopedTaskRouting(scope: ResolvedInstanceAuthority): Record<string, string | null> {
+  const result: Record<string, string | null> = {}
+  for (const task of TASK_TYPES) {
+    const val = getEnvVar(scope, TASK_ROUTING_VARS[task])
+    result[task] = val.trim() || null
+  }
+  return result
+}
+
 // ---------------------------------------------------------------------------
 // Reachability checks — lightweight, with per-provider caching
 // ---------------------------------------------------------------------------
 
-async function checkReachability(providerId: string): Promise<boolean> {
-  const cached = reachabilityCache.get(providerId)
+async function checkReachability(scope: ResolvedInstanceAuthority, providerId: string): Promise<boolean> {
+  const normalizedProviderId = normalizeProviderId(providerId)
+  const cacheKey = `${scope.instanceId}:${normalizedProviderId}`
+  const cached = reachabilityCache.get(cacheKey)
   if (cached && Date.now() - cached.checkedAt.getTime() < REACHABILITY_TTL_MS) {
     return cached.reachable
   }
@@ -303,9 +404,9 @@ async function checkReachability(providerId: string): Promise<boolean> {
     const timeout = setTimeout(() => controller.abort(), 5000)
 
     try {
-      switch (providerId) {
-        case 'anthropic': {
-          const key = getAnthropicKey()
+      switch (normalizedProviderId) {
+        case 'claude': {
+          const key = getClaudeKey(scope)
           if (!key.trim()) {
             reachable = false
             break
@@ -324,7 +425,7 @@ async function checkReachability(providerId: string): Promise<boolean> {
         }
 
         case 'openai': {
-          const key = getOpenaiKey()
+          const key = getOpenaiKey(scope)
           if (!key.trim()) {
             reachable = false
             break
@@ -339,7 +440,7 @@ async function checkReachability(providerId: string): Promise<boolean> {
         }
 
         case 'ollama': {
-          const baseUrl = getOllamaBaseUrl()
+          const baseUrl = getOllamaBaseUrl(scope)
           if (!baseUrl.trim()) {
             reachable = false
             break
@@ -355,7 +456,7 @@ async function checkReachability(providerId: string): Promise<boolean> {
 
         case 'together': {
           try {
-            const key = getTogetherKey()
+            const key = getTogetherKey(scope)
             if (!key.trim()) { reachable = false; break }
             const res = await fetch('https://api.together.xyz/v1/models', {
               method: 'GET',
@@ -371,7 +472,7 @@ async function checkReachability(providerId: string): Promise<boolean> {
 
         case 'groq': {
           try {
-            const key = getGroqKey()
+            const key = getGroqKey(scope)
             if (!key.trim()) { reachable = false; break }
             const res = await fetch('https://api.groq.com/openai/v1/models', {
               method: 'GET',
@@ -395,7 +496,7 @@ async function checkReachability(providerId: string): Promise<boolean> {
     reachable = false
   }
 
-  reachabilityCache.set(providerId, { reachable, checkedAt: new Date() })
+  reachabilityCache.set(cacheKey, { reachable, checkedAt: new Date() })
   return reachable
 }
 
@@ -444,23 +545,21 @@ interface ProviderStatus {
 
 providersRouter.get(
   '/providers',
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const anthropicKey = getAnthropicKey()
-      const openaiKey = getOpenaiKey()
-      const ollamaBaseUrl = getOllamaBaseUrl()
-      const togetherKey = getTogetherKey()
-      const groqKey = getGroqKey()
-      const defaultProvider = getDefaultProvider()
+      const scope = await resolveScopeFromRequest(req)
+      const claudeKey = getClaudeKey(scope)
+      const openaiKey = getOpenaiKey(scope)
+      const ollamaBaseUrl = getOllamaBaseUrl(scope)
+      const togetherKey = getTogetherKey(scope)
+      const groqKey = getGroqKey(scope)
+      const defaultProvider = getScopedDefaultProvider(scope)
+      const rawDefaultProvider = getScopedRawDefaultProvider(scope)
       const checkedAt = new Date().toISOString()
 
       const detections: Array<{ id: string; name: string; envVar: string; key: string }> = []
 
-      if (anthropicKey.trim()) {
-        detections.push({ id: 'anthropic', name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY', key: anthropicKey })
-      } else {
-        detections.push({ id: 'anthropic', name: 'Anthropic', envVar: 'ANTHROPIC_API_KEY', key: '' })
-      }
+      detections.push({ id: 'claude', name: 'Claude', envVar: 'ANTHROPIC_API_KEY', key: claudeKey })
 
       if (openaiKey.trim()) {
         detections.push({ id: 'openai', name: 'OpenAI', envVar: 'OPENAI_API_KEY', key: openaiKey })
@@ -486,7 +585,7 @@ providersRouter.get(
       const reachabilityResults = await Promise.allSettled(
         detections.map(async (p) => {
           const keyPresent = p.key.trim() !== ''
-          const reachable = keyPresent ? await checkReachability(p.id) : false
+          const reachable = keyPresent ? await checkReachability(scope, p.id) : false
           return { id: p.id, reachable }
         })
       )
@@ -501,7 +600,7 @@ providersRouter.get(
       // Compute default: explicit env var wins; fallback to first present key
       let computedDefault: string | null = defaultProvider
       if (!computedDefault) {
-        if (anthropicKey.trim()) computedDefault = 'anthropic'
+        if (claudeKey.trim()) computedDefault = 'claude'
         else if (openaiKey.trim()) computedDefault = 'openai'
         else if (ollamaBaseUrl.trim()) computedDefault = 'ollama'
       }
@@ -526,9 +625,12 @@ providersRouter.get(
       res.json({
         providers,
         checkedAt,
+        scope: scopeSummary(scope),
         defaultProvider: computedDefault,
-        fallbackChain: getFallbackChain(),
-        taskRouting: getTaskRouting(),
+        rawDefaultProvider,
+        fallbackChain: getScopedFallbackChain(scope),
+        rawFallbackChain: getScopedRawFallbackChain(scope),
+        taskRouting: getScopedTaskRouting(scope),
       })
     } catch (err) {
       next(err)
@@ -637,15 +739,16 @@ providersRouter.get(
   '/providers/:providerId/models',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params
+      const scope = await resolveScopeFromRequest(req)
+      const providerId = normalizeProviderId(req.params['providerId'] ?? '')
       const fetchedAt = new Date().toISOString()
 
       let response: ModelsResponse
 
       switch (providerId) {
-        case 'anthropic': {
+        case 'claude': {
           response = {
-            providerId: 'anthropic',
+            providerId: 'claude',
             models: ANTHROPIC_MODELS,
             source: 'static',
             fetchedAt,
@@ -654,7 +757,7 @@ providersRouter.get(
         }
 
         case 'openai': {
-          const key = getOpenaiKey()
+          const key = getOpenaiKey(scope)
           if (!key.trim()) {
             response = {
               providerId: 'openai',
@@ -684,7 +787,7 @@ providersRouter.get(
         }
 
         case 'ollama': {
-          const baseUrl = getOllamaBaseUrl()
+          const baseUrl = getOllamaBaseUrl(scope)
           if (!baseUrl.trim()) {
             response = {
               providerId: 'ollama',
@@ -714,7 +817,7 @@ providersRouter.get(
         }
 
         case 'together': {
-          const key = getTogetherKey()
+          const key = getTogetherKey(scope)
           if (!key.trim()) {
             response = { providerId: 'together', models: [], source: 'fallback', fetchedAt }
           } else {
@@ -757,7 +860,7 @@ providersRouter.get(
         }
 
         case 'groq': {
-          const key = getGroqKey()
+          const key = getGroqKey(scope)
           if (!key.trim()) {
             response = { providerId: 'groq', models: [], source: 'fallback', fetchedAt }
           } else {
@@ -826,24 +929,22 @@ interface ProviderEntry {
 
 providersRouter.get(
   '/:instanceId/providers',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { instanceId } = req.params
-      if (!validateInstance(instanceId, res)) return
-
-      const anthropicKey = getAnthropicKey()
-      const openaiKey = getOpenaiKey()
-      const defaultProvider = getDefaultProvider()
+      const scope = await resolveScopeFromRequest(req)
+      const claudeKey = getClaudeKey(scope)
+      const openaiKey = getOpenaiKey(scope)
+      const defaultProvider = getScopedDefaultProvider(scope)
 
       const providers: ProviderEntry[] = [
         {
-          id: 'anthropic',
-          name: 'Anthropic',
-          keyPresent: anthropicKey.trim() !== '',
-          keyMasked: maskKey(anthropicKey),
+          id: 'claude',
+          name: 'Claude',
+          keyPresent: claudeKey.trim() !== '',
+          keyMasked: maskKey(claudeKey),
           isDefault:
-            defaultProvider === 'anthropic' ||
-            (!defaultProvider && anthropicKey.trim() !== '' && openaiKey.trim() === ''),
+            defaultProvider === 'claude' ||
+            (!defaultProvider && claudeKey.trim() !== '' && openaiKey.trim() === ''),
         },
         {
           id: 'openai',
@@ -852,7 +953,7 @@ providersRouter.get(
           keyMasked: maskKey(openaiKey),
           isDefault:
             defaultProvider === 'openai' ||
-            (!defaultProvider && openaiKey.trim() !== '' && anthropicKey.trim() === ''),
+            (!defaultProvider && openaiKey.trim() !== '' && claudeKey.trim() === ''),
         },
       ]
 
@@ -871,11 +972,12 @@ providersRouter.get(
   '/:instanceId/providers/:providerId/quota',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { instanceId, providerId } = req.params
-      if (!validateInstance(instanceId, res)) return
+      const scope = await resolveScopeFromRequest(req)
+      const providerId = normalizeProviderId(req.params['providerId'] ?? '')
+      const cacheKey = `${scope.instanceId}:${providerId}`
 
       // Check cache
-      const cached = quotaCache.get(providerId)
+      const cached = quotaCache.get(cacheKey)
       if (cached && Date.now() - cached.cachedAt.getTime() < CACHE_TTL_MS) {
         res.json({ ...cached.data, cached: true })
         return
@@ -885,19 +987,20 @@ providersRouter.get(
 
       switch (providerId) {
         case 'anthropic':
+        case 'claude':
           result = {
             supported: false,
-            providerId: 'anthropic',
-            providerName: 'Anthropic',
+            providerId: 'claude',
+            providerName: 'Claude',
             reason:
-              'Anthropic does not expose credits via public API. Check your Anthropic Console for usage.',
+              'Claude does not expose credits via public API. Check your Anthropic Console for usage.',
             cached: false,
             cachedAt: null,
           }
           break
 
         case 'openai': {
-          const openaiKey = getOpenaiKey()
+          const openaiKey = getOpenaiKey(scope)
           if (!openaiKey.trim()) {
             result = {
               supported: false,
@@ -921,13 +1024,13 @@ providersRouter.get(
               message:
                 'Key presence confirmed. Live balance requires org:read scope — check OpenAI Usage dashboard directly.',
             }
-            quotaCache.set(providerId, { data: result, cachedAt: new Date() })
+            quotaCache.set(cacheKey, { data: result, cachedAt: new Date() })
           }
           break
         }
 
         case 'groq': {
-          const groqKey = getGroqKey()
+          const groqKey = getGroqKey(scope)
           if (!groqKey.trim()) {
             result = {
               supported: false,
@@ -981,14 +1084,14 @@ providersRouter.get(
                 : undefined,
             }
             if (rateLimits !== null) {
-              quotaCache.set(providerId, { data: result, cachedAt: new Date() })
+              quotaCache.set(cacheKey, { data: result, cachedAt: new Date() })
             }
           }
           break
         }
 
         case 'together': {
-          const togetherKey = getTogetherKey()
+          const togetherKey = getTogetherKey(scope)
           if (!togetherKey.trim()) {
             result = {
               supported: false,
@@ -1046,7 +1149,7 @@ providersRouter.get(
               reason: togetherReason,
             }
             if (balance !== null) {
-              quotaCache.set(providerId, { data: result, cachedAt: new Date() })
+              quotaCache.set(cacheKey, { data: result, cachedAt: new Date() })
             }
           }
           break
@@ -1089,9 +1192,10 @@ providersRouter.get(
 
 providersRouter.put(
   '/providers/:providerId/key',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params
+      const scope = await resolveScopeFromRequest(req)
+      const providerId = normalizeProviderId(req.params['providerId'] ?? '')
 
       if (NO_KEY_PROVIDERS.has(providerId)) {
         return res.status(400).json({
@@ -1114,10 +1218,17 @@ providersRouter.put(
         return res.status(400).json({ error: 'Key value looks like a placeholder. Provide the real API key.', code: 'PLACEHOLDER_KEY' })
       }
 
-      writeEnvVar(envVar, key)
-      reachabilityCache.delete(providerId)
+      writeEnvVarForScope(scope, envVar, key)
+      reachabilityCache.delete(`${scope.instanceId}:${providerId}`)
 
-      return res.json({ ok: true, provider: providerId, envVar, keyMasked: maskKey(key) })
+      return res.json({
+        ok: true,
+        provider: providerId,
+        envVar,
+        keyMasked: providerId === 'ollama' ? key : maskKey(key),
+        restartRequired: true,
+        scope: scopeSummary(scope),
+      })
     } catch (err) {
       next(err)
     }
@@ -1130,9 +1241,10 @@ providersRouter.put(
 
 providersRouter.delete(
   '/providers/:providerId/key',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params
+      const scope = await resolveScopeFromRequest(req)
+      const providerId = normalizeProviderId(req.params['providerId'] ?? '')
 
       if (NO_KEY_PROVIDERS.has(providerId)) {
         return res.status(400).json({
@@ -1146,10 +1258,17 @@ providersRouter.delete(
         return res.status(404).json({ error: `Unknown provider: ${providerId}`, code: 'PROVIDER_NOT_FOUND' })
       }
 
-      writeEnvVar(envVar, null)
-      reachabilityCache.delete(providerId)
+      writeEnvVarForScope(scope, envVar, null)
+      reachabilityCache.delete(`${scope.instanceId}:${providerId}`)
 
-      return res.json({ ok: true, provider: providerId, envVar, keyMasked: null })
+      return res.json({
+        ok: true,
+        provider: providerId,
+        envVar,
+        keyMasked: null,
+        restartRequired: true,
+        scope: scopeSummary(scope),
+      })
     } catch (err) {
       next(err)
     }
@@ -1164,10 +1283,11 @@ providersRouter.delete(
 
 providersRouter.put(
   '/providers/default',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const scope = await resolveScopeFromRequest(req)
       const body = req.body as { provider?: unknown }
-      const provider = typeof body.provider === 'string' ? body.provider.trim() : ''
+      const provider = typeof body.provider === 'string' ? normalizeProviderId(body.provider) : ''
       if (!provider) {
         return res.status(400).json({ error: 'provider is required', code: 'VALIDATION_ERROR' })
       }
@@ -1177,9 +1297,9 @@ providersRouter.put(
         return res.status(400).json({ error: `Unknown provider: ${provider}`, code: 'PROVIDER_NOT_FOUND' })
       }
 
-      writeEnvVar('LLM_PROVIDER', provider)
+      writeEnvVarForScope(scope, 'LLM_PROVIDER', provider)
 
-      return res.json({ ok: true, provider })
+      return res.json({ ok: true, provider, restartRequired: true, scope: scopeSummary(scope) })
     } catch (err) {
       next(err)
     }
@@ -1192,10 +1312,11 @@ providersRouter.put(
 
 providersRouter.delete(
   '/providers/default',
-  (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      writeEnvVar('LLM_PROVIDER', null)
-      return res.json({ ok: true, provider: null })
+      const scope = await resolveScopeFromRequest(req)
+      writeEnvVarForScope(scope, 'LLM_PROVIDER', null)
+      return res.json({ ok: true, provider: null, restartRequired: true, scope: scopeSummary(scope) })
     } catch (err) {
       next(err)
     }
@@ -1209,8 +1330,9 @@ providersRouter.delete(
 
 providersRouter.put(
   '/providers/fallback',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const scope = await resolveScopeFromRequest(req)
       const body = req.body as { chain?: unknown }
       if (!Array.isArray(body.chain)) {
         return res.status(400).json({ error: 'chain must be an array of provider IDs', code: 'VALIDATION_ERROR' })
@@ -1218,7 +1340,8 @@ providersRouter.put(
 
       const allKnownProviders = new Set([...Object.keys(PROVIDER_KEY_VARS), ...NO_KEY_PROVIDERS])
       for (const p of body.chain) {
-        if (typeof p !== 'string' || !allKnownProviders.has(p)) {
+        const normalized = typeof p === 'string' ? normalizeProviderId(p) : ''
+        if (!normalized || !allKnownProviders.has(normalized)) {
           return res.status(400).json({
             error: `Invalid provider in chain: ${String(p)}`,
             code: 'VALIDATION_ERROR',
@@ -1226,14 +1349,14 @@ providersRouter.put(
         }
       }
 
-      const chain = body.chain as string[]
+      const chain = normalizeProviderChain(body.chain as string[])
       if (chain.length === 0) {
-        writeEnvVar('LLM_PROVIDER_FALLBACK', null)
+        writeEnvVarForScope(scope, 'LLM_PROVIDER_FALLBACK', null)
       } else {
-        writeEnvVar('LLM_PROVIDER_FALLBACK', chain.join(','))
+        writeEnvVarForScope(scope, 'LLM_PROVIDER_FALLBACK', chain.join(','))
       }
 
-      return res.json({ ok: true, chain })
+      return res.json({ ok: true, chain, restartRequired: true, scope: scopeSummary(scope) })
     } catch (err) {
       next(err)
     }
@@ -1246,10 +1369,11 @@ providersRouter.put(
 
 providersRouter.delete(
   '/providers/fallback',
-  (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      writeEnvVar('LLM_PROVIDER_FALLBACK', null)
-      return res.json({ ok: true, chain: [] })
+      const scope = await resolveScopeFromRequest(req)
+      writeEnvVarForScope(scope, 'LLM_PROVIDER_FALLBACK', null)
+      return res.json({ ok: true, chain: [], restartRequired: true, scope: scopeSummary(scope) })
     } catch (err) {
       next(err)
     }
@@ -1266,15 +1390,16 @@ providersRouter.delete(
 
 providersRouter.put(
   '/providers/task-routing',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const scope = await resolveScopeFromRequest(req)
       const body = req.body as { overrides?: unknown }
       if (typeof body.overrides !== 'object' || body.overrides === null || Array.isArray(body.overrides)) {
         return res.status(400).json({ error: 'overrides must be an object mapping task types to model strings or null', code: 'VALIDATION_ERROR' })
       }
 
       const overrides = body.overrides as Record<string, unknown>
-      const activeProvider = getDefaultProvider() ?? 'mock'
+      const activeProvider = getScopedDefaultProvider(scope) ?? 'mock'
       const written: Record<string, string | null> = {}
       const warnings: string[] = []
 
@@ -1286,7 +1411,7 @@ providersRouter.put(
         const envVar = TASK_ROUTING_VARS[task as RoutingTaskType]
 
         if (model === null) {
-          writeEnvVar(envVar, null)
+          writeEnvVarForScope(scope, envVar, null)
           written[task] = null
           continue
         }
@@ -1303,7 +1428,7 @@ providersRouter.put(
           warnings.push(`Model '${modelTrimmed}' may be incompatible with provider '${activeProvider}' for task '${task}'. Iranti will warn at runtime and use the provider default instead.`)
         }
 
-        writeEnvVar(envVar, modelTrimmed)
+        writeEnvVarForScope(scope, envVar, modelTrimmed)
         written[task] = modelTrimmed
       }
 
@@ -1312,7 +1437,8 @@ providersRouter.put(
         written,
         warnings,
         restartRequired: true,
-        taskRouting: getTaskRouting(),
+        taskRouting: getScopedTaskRouting(scope),
+        scope: scopeSummary(scope),
       })
     } catch (err) {
       next(err)
@@ -1327,12 +1453,18 @@ providersRouter.put(
 
 providersRouter.delete(
   '/providers/task-routing',
-  (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const scope = await resolveScopeFromRequest(req)
       for (const task of TASK_TYPES) {
-        writeEnvVar(TASK_ROUTING_VARS[task], null)
+        writeEnvVarForScope(scope, TASK_ROUTING_VARS[task], null)
       }
-      return res.json({ ok: true, taskRouting: getTaskRouting(), restartRequired: true })
+      return res.json({
+        ok: true,
+        taskRouting: getScopedTaskRouting(scope),
+        restartRequired: true,
+        scope: scopeSummary(scope),
+      })
     } catch (err) {
       next(err)
     }
@@ -1346,9 +1478,12 @@ providersRouter.delete(
 
 providersRouter.get(
   '/providers/routing-defaults',
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const provider = (req.query['provider'] as string | undefined) ?? getDefaultProvider() ?? 'mock'
+      const scope = await resolveScopeFromRequest(req)
+      const provider = normalizeProviderId(
+        (req.query['provider'] as string | undefined) ?? getScopedDefaultProvider(scope) ?? 'mock'
+      )
       const defaults: Record<string, string> = {}
       for (const task of TASK_TYPES) {
         defaults[task] = defaultModelForTask(task, provider)

@@ -449,10 +449,15 @@ export interface ProviderStatus {
 export interface ProvidersResponse {
   providers: ProviderStatus[]
   checkedAt: string
+  scope?: InstanceScopeSummary
   /** Canonical default provider (LLM_PROVIDER env var), or null if not set */
   defaultProvider: string | null
+  /** Raw env value before canonicalization (for legacy drift warnings) */
+  rawDefaultProvider?: string | null
   /** Ordered fallback chain (LLM_PROVIDER_FALLBACK env var), empty if not set */
   fallbackChain: string[]
+  /** Raw env values before canonicalization (for legacy drift warnings) */
+  rawFallbackChain?: string[]
   /**
    * CP-T087: current task-model routing overrides.
    * Key = task type, value = env var override (null = use provider default).
@@ -490,16 +495,22 @@ export interface ProviderWriteKeyResult {
   provider: string
   envVar: string
   keyMasked: string | null
+  restartRequired: boolean
+  scope?: InstanceScopeSummary
 }
 
 export interface ProviderSetDefaultResult {
   ok: boolean
   provider: string | null
+  restartRequired: boolean
+  scope?: InstanceScopeSummary
 }
 
 export interface ProviderFallbackResult {
   ok: boolean
   chain: string[]
+  restartRequired: boolean
+  scope?: InstanceScopeSummary
 }
 
 export interface ProviderModelEntry {
@@ -526,11 +537,13 @@ export interface SetupStep {
   status: 'complete' | 'incomplete' | 'warning' | 'not_applicable'
   message: string
   actionRequired: string | null
+  cliCommand?: string | null
   repairAction: string | null
 }
 
 export interface SetupStatusResponse {
   instanceId: string
+  scope?: InstanceScopeSummary
   steps: SetupStep[]
   isFullyConfigured: boolean
   firstRunDetected: boolean

@@ -96,9 +96,12 @@ function validateEventFilters(queryParams: Record<string, unknown>): EventFilter
     )
   }
 
+  // ISO 8601 requires a dash-separated date prefix: YYYY-MM-DD (same guard as kb.ts).
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/
+
   let sinceDate: Date | undefined
   if (since) {
-    if (isNaN(Date.parse(since))) {
+    if (!ISO_DATE_RE.test(since) || isNaN(Date.parse(since))) {
       throw createApiError(`since must be a valid ISO 8601 timestamp`, 'INVALID_PARAM', 400, { field: 'since', received: since })
     }
     sinceDate = new Date(since)
@@ -106,7 +109,7 @@ function validateEventFilters(queryParams: Record<string, unknown>): EventFilter
 
   let untilDate: Date | undefined
   if (until) {
-    if (isNaN(Date.parse(until))) {
+    if (!ISO_DATE_RE.test(until) || isNaN(Date.parse(until))) {
       throw createApiError(`until must be a valid ISO 8601 timestamp`, 'INVALID_PARAM', 400, { field: 'until', received: until })
     }
     untilDate = new Date(until)
