@@ -198,7 +198,7 @@ async function probeIrantiSessionList(
 // ---------------------------------------------------------------------------
 
 // knowledge_base uses camelCase column names (Iranti's Prisma schema)
-interface LegacyKBSessionRow {
+export interface LegacyKBSessionRow {
   entityId: string
   key: string
   valueSummary: string | null
@@ -209,7 +209,7 @@ interface LegacyKBSessionRow {
   properties: Record<string, unknown> | null
 }
 
-interface AttendantStateRow {
+export interface AttendantStateRow {
   entityId: string
   valueRaw: unknown
   createdAt: Date | string
@@ -222,7 +222,7 @@ function coerceDate(d: Date | string | null | undefined): string | null {
   return String(d)
 }
 
-function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): SessionRecord[] {
+export function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): SessionRecord[] {
   // Group by entityId (sessionId)
   const bySession = new Map<string, LegacyKBSessionRow[]>()
   for (const row of rows) {
@@ -274,7 +274,7 @@ function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): SessionRecord
   return sessions
 }
 
-function buildSessionsFromAttendantStateRows(rows: AttendantStateRow[]): SessionRecord[] {
+export function buildSessionsFromAttendantStateRows(rows: AttendantStateRow[]): SessionRecord[] {
   const sessions: SessionRecord[] = []
 
   for (const row of rows) {
