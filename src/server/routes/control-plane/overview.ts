@@ -96,7 +96,7 @@ interface KnowledgeBaseSummaryRow {
   active_agents_last_7d: string
 }
 
-async function fetchKBSummary(): Promise<OverviewKBSummary> {
+export async function fetchKBSummary(): Promise<OverviewKBSummary> {
   const fetchedAt = new Date().toISOString()
   const fallbackFromKnowledgeBase = async (truncated: boolean): Promise<OverviewKBSummary> => {
     try {

@@ -111,7 +111,7 @@ interface InstanceMetadata {
 const REQUIRED_KEYS = ['DATABASE_URL', 'IRANTI_PORT'] as const
 const PROVIDER_KEY_RE = /^(ANTHROPIC|OPENAI)_API_KEY$/
 
-function parseEnvContent(content: string): Record<string, string> {
+export function parseEnvContent(content: string): Record<string, string> {
   const result: Record<string, string> = {}
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
@@ -134,6 +134,7 @@ function summarizeEnvKeys(raw: Record<string, string> | null, keyCompleteness: E
   const importantKeys = new Set<string>([
     ...REQUIRED_KEYS,
     'IRANTI_INSTANCE',
+    'IRANTI_INSTANCE_NAME',
     'IRANTI_INSTANCE_ENV',
     'IRANTI_PROJECT_MODE',
     'LLM_PROVIDER',
@@ -283,7 +284,7 @@ async function parseInstanceEnvFile(instanceDir: string, runtimeRoot: string): P
 // DATABASE_URL redaction
 // ---------------------------------------------------------------------------
 
-function parseAndRedactDbUrl(rawUrl: string | undefined): ParsedDbUrl {
+export function parseAndRedactDbUrl(rawUrl: string | undefined): ParsedDbUrl {
   if (!rawUrl) return { host: null, port: null, name: null, urlRedacted: null }
   try {
     const parsed = new URL(rawUrl)
@@ -468,6 +469,7 @@ async function aggregateInstance(
 ): Promise<InstanceMetadata> {
   const envResult = await parseInstanceEnvFile(instanceDir, runtimeRoot)
   const effectiveRuntimeRoot = envResult.resolvedRuntimeRoot
+  // Iranti writes IRANTI_INSTANCE_NAME; the binding file uses IRANTI_INSTANCE. Check both.
   const instanceId = envResult.raw?.['IRANTI_INSTANCE']?.trim() || deriveInstanceId(instanceDir)
 
   const rawPort = envResult.raw?.['IRANTI_PORT'] ?? envResult.raw?.['PORT']
@@ -484,7 +486,7 @@ async function aggregateInstance(
 
   const irantVersion = probe.irantVersion ?? versionFallback
   const { keysPresent, keysMissing } = summarizeEnvKeys(envResult.raw, envResult.keyCompleteness)
-  const name = envResult.raw?.['IRANTI_INSTANCE']?.trim() || basename(instanceDir)
+  const name = envResult.raw?.['IRANTI_INSTANCE']?.trim() || envResult.raw?.['IRANTI_INSTANCE_NAME']?.trim() || basename(instanceDir)
   const setupState = deriveSetupState(envResult, probe.runningStatus)
 
   return {
@@ -534,7 +536,7 @@ async function aggregateInstance(
   }
 }
 
-function buildErrorInstance(
+export function buildErrorInstance(
   runtimeRoot: string,
   instanceDir: string,
   registeredAt: string | null,
@@ -627,7 +629,7 @@ async function scanCandidatePaths(): Promise<string[]> {
   return Array.from(found)
 }
 
-function normalizeRuntimeRootCandidate(candidate: string): string {
+export function normalizeRuntimeRootCandidate(candidate: string): string {
   const resolved = resolve(candidate)
   const leaf = basename(resolved).toLowerCase()
   const parentLeaf = basename(dirname(resolved)).toLowerCase()

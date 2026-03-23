@@ -96,7 +96,7 @@ interface KnowledgeBaseSummaryRow {
   active_agents_last_7d: string
 }
 
-async function fetchKnowledgeBaseSummaryFallback(): Promise<{
+export async function fetchKnowledgeBaseSummaryFallback(): Promise<{
   totalFacts: number
   factsLast24h: number
   activeAgentsLast7d: number
