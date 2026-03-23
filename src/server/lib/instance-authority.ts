@@ -52,7 +52,15 @@ export function parseSimpleEnv(content: string): Record<string, string> {
 }
 
 function configuredBindingInstanceName(): string | null {
-  const explicit = controlPlaneEnv['IRANTI_INSTANCE'] ?? process.env['IRANTI_INSTANCE'] ?? ''
+  // IRANTI_INSTANCE is the binding-file name; IRANTI_INSTANCE_NAME is written by the Iranti CLI
+  // into instance envs. Accept either so that servers started from the instance env (no binding
+  // file in cwd) can still resolve their own instance.
+  const explicit =
+    controlPlaneEnv['IRANTI_INSTANCE'] ??
+    controlPlaneEnv['IRANTI_INSTANCE_NAME'] ??
+    process.env['IRANTI_INSTANCE'] ??
+    process.env['IRANTI_INSTANCE_NAME'] ??
+    ''
   if (explicit.trim()) return explicit.trim()
 
   const instanceEnvPath = controlPlaneEnv['IRANTI_INSTANCE_ENV'] ?? process.env['IRANTI_INSTANCE_ENV'] ?? ''

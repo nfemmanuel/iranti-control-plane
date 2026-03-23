@@ -243,7 +243,7 @@ function checkProjectBinding(scope: ResolvedInstanceAuthority): SetupStep {
   return {
     id: 'project_binding',
     label: 'Project binding',
-    status: 'incomplete',
+    status: 'warning',
     message: `No projects are bound to ${scope.instanceName}.`,
     actionRequired: 'Bind a project before expecting MCP or Claude integration files to be discoverable.',
     cliCommand: `iranti project init . --instance ${scope.instanceName}`,
@@ -256,7 +256,7 @@ function buildRepairAction(scope: ResolvedInstanceAuthority, projectPath: string
 }
 
 function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: SetupStep): SetupStep {
-  if (projectStep.status === 'incomplete') {
+  if (projectStep.status === 'incomplete' || (projectStep.status === 'warning' && scope.boundProjects.length === 0)) {
     return {
       id: 'claude_integration',
       label: 'Project integration',
@@ -318,7 +318,7 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
     const integrationStep = checkProjectIntegration(scope, projectStep)
 
     const steps: SetupStep[] = [databaseStep, providerStep, projectStep, integrationStep]
-    const isFullyConfigured = steps.every((step) => step.status === 'complete' || step.status === 'not_applicable')
+    const isFullyConfigured = steps.every((step) => step.status === 'complete' || step.status === 'not_applicable' || step.status === 'warning')
 
     return {
       instanceId: scope.instanceId,

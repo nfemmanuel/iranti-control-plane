@@ -258,7 +258,7 @@ export function GettingStarted() {
 
   const steps = data?.steps ?? []
   const allComplete = data?.isFullyConfigured ?? false
-  const incompleteCount = steps.filter(s => s.status === 'incomplete' || s.status === 'warning').length
+  const incompleteCount = steps.filter(s => s.status === 'incomplete').length
 
   if (allComplete) {
     return (
@@ -357,7 +357,7 @@ export function useSetupStatus() {
   })
 
   const incompleteCount = data?.steps.filter(
-    s => s.status === 'incomplete' || s.status === 'warning'
+    s => s.status === 'incomplete'
   ).length ?? 0
 
   return {

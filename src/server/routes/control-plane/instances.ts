@@ -705,7 +705,7 @@ async function discoverAndAggregate(): Promise<{
     )
   ).flat()
 
-  const instances = await Promise.all(
+  const aggregated = await Promise.all(
     instanceRefs.map(({ runtimeRoot, registeredAt, instanceDir }) =>
       aggregateInstance(runtimeRoot, instanceDir, registeredAt).catch((err: unknown) => {
         console.error(`[instances] Failed to aggregate ${instanceDir}:`, err)
@@ -713,6 +713,22 @@ async function discoverAndAggregate(): Promise<{
       })
     )
   )
+
+  // De-duplicate by instance name. When the same name appears in multiple runtime roots
+  // (e.g. ~/.iranti and ~/.iranti-runtime), prefer: running > configured > incomplete.
+  const setupPriority = { running: 0, configured: 1, incomplete: 2 }
+  const byName = new Map<string, InstanceMetadata>()
+  for (const inst of aggregated) {
+    const existing = byName.get(inst.name)
+    if (!existing) {
+      byName.set(inst.name, inst)
+      continue
+    }
+    const existingPri = setupPriority[existing.setupState] ?? 3
+    const newPri = setupPriority[inst.setupState] ?? 3
+    if (newPri < existingPri) byName.set(inst.name, inst)
+  }
+  const instances = Array.from(byName.values())
 
   return { instances, discoverySource: source, discoveredAt: new Date().toISOString() }
 }

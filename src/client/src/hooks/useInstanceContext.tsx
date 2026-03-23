@@ -70,7 +70,9 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
       // Preserve the current active selection if still valid, otherwise pick first
       setActiveInstance(prev => {
         if (prev && fetched.some(i => i.id === prev.id)) return prev
-        return fetched[0] ?? STUB_INSTANCE
+        // Prefer a running instance over stopped/unreachable when auto-selecting
+        const running = fetched.find(i => i.status === 'running')
+        return running ?? fetched[0] ?? STUB_INSTANCE
       })
     } catch (err) {
       // CP-T011 not yet ready — fall back to stub instance with error logged

@@ -1209,7 +1209,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
         <div className={styles.errorBanner}>
           <strong>Could not connect.</strong>{' '}
           Iranti runtime could not be reached at the configured port (:{instance.configuredPort}).
-          {' '}Start the runtime with <code className={styles.inlineCode}>iranti start</code> and refresh.
+          {' '}Start the runtime with <code className={styles.inlineCode}>iranti run --instance {instance.name}</code> and refresh.
           {instance.runningStatusCheckedAt && (
             <span className={styles.errorBannerTime}>
               {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
