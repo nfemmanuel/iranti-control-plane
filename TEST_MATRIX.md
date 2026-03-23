@@ -1,6 +1,6 @@
 # TEST_MATRIX.md — Test Coverage Matrix
 
-**Updated:** 2026-03-23 (revised post-Wave 20 + hostile audit test pass)
+**Updated:** 2026-03-23 (revised post-Wave 20 + all P0/P1 test suites complete)
 
 ---
 
@@ -21,10 +21,12 @@
 | `tests/unit/providers-write.test.ts` | ✅ NEW — isPlaceholderKey, getPreferredEnvFilePath, writeEnvVar | Provider write path + authority model | ADEQUATE |
 | `tests/unit/sessions-parser.test.ts` | ✅ NEW — buildSessionsFromAttendantStateRows, buildSessionFromLegacyKBRows | Session data parsing | ADEQUATE |
 | `tests/unit/snake-to-camel.test.ts` | Column name conversion | DB field normalization | THIN |
-| `tests/integration/kb-endpoints.test.ts` | KB read/filter API | KB HTTP endpoints | PARTIAL |
+| `tests/unit/instances-discovery.test.ts` | ✅ NEW — parseEnvContent, parseAndRedactDbUrl, normalizeRuntimeRootCandidate, buildErrorInstance | Instance discovery pure functions | ADEQUATE |
+| `tests/unit/overview-fallback.test.ts` | ✅ NEW — fetchKBSummary fallback logic, fetchKnowledgeBaseSummaryFallback row parsing | Overview/metrics fallback paths | ADEQUATE |
+| `tests/integration/kb-endpoints.test.ts` | KB read/filter API | KB HTTP endpoints | ADEQUATE |
 | `tests/integration/kb-active-only.test.ts` | active_only filter | KB filtering | PARTIAL |
 
-**Total unit tests as of 2026-03-23: 275 passing across 13 test files.**
+**Total tests as of 2026-03-23: 412 passing across 19 test files (17 unit + 2 integration).**
 
 ---
 
@@ -65,8 +67,7 @@
 
 ## Tests to Write (Priority Order)
 
-> **Note:** Items 1-4 below have been written and are passing as of 2026-03-23.
-> Items 5-6 remain open.
+> **Note:** All 6 items below have been written and are passing as of 2026-03-23.
 
 ### ✅ 1. `instance-identifiers.test.ts` (P0) — DONE
 ```
@@ -107,21 +108,23 @@
 - checkRuntimeVersion() returns 'ok' when HTTP probe succeeds with version
 ```
 
-### 5. `instances-discovery.test.ts` (P1)
+### ✅ 5. `instances-discovery.test.ts` (P1) — DONE
 ```
-- discoverInstances() reads instances from registry if present
-- discoverInstances() scans candidate paths if registry empty
-- normalizeRuntimeRootCandidate() strips trailing /instances/ segment
-- buildErrorInstance() returns safe fallback when instance dir unreadable
-- probeInstance() handles stopped instance (connection refused)
-- probeInstance() handles unreachable instance (timeout)
+- parseEnvContent: CRLF/LF, comments, quoting, Windows paths (25 tests)
+- parseAndRedactDbUrl: credentials redacted, port defaults, unparsable URL
+- normalizeRuntimeRootCandidate: strips /instances and instance-dir double-hop
+- buildErrorInstance: safe shape, error in notes, zero provider keys
+Note: discoverInstances() and probeInstance() require live HTTP/FS; integration tests only.
 ```
 
-### 6. `overview-fallback.test.ts` (P1)
+### ✅ 6. `overview-fallback.test.ts` (P1) — DONE
 ```
-- fetchKBSummary() returns real facts count from knowledge_base when staff_events absent
-- fetchKBSummary() handles knowledge_base query failure gracefully
-- metrics/summary returns real facts from knowledge_base when staff_events absent
+- fetchKBSummary(): staff_events absent → falls back to knowledge_base (truncated=true)
+- fetchKBSummary(): staff_events zero net facts → falls back to knowledge_base
+- fetchKBSummary(): staff_events query throws → falls back to knowledge_base
+- fetchKBSummary(): both queries throw → all-zero with truncated=true
+- fetchKBSummary(): real data path with net positive facts
+- fetchKnowledgeBaseSummaryFallback(): null/undefined rows default to 0
 ```
 
 ---
