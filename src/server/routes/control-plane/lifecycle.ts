@@ -20,16 +20,42 @@
 
 import { Router, Request, Response } from 'express'
 import { spawn, ChildProcess } from 'child_process'
+import { dirname, join } from 'path'
+import { readFile } from 'fs/promises'
+import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
 
-// ---------------------------------------------------------------------------
-// Health probe — check if an Iranti instance is already reachable
-// Uses IRANTI_URL env var (the bound instance). Returns true if reachable.
-// ---------------------------------------------------------------------------
+function parseEnvContent(content: string): Record<string, string> {
+  const parsed: Record<string, string> = {}
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const idx = trimmed.indexOf('=')
+    if (idx === -1) continue
+    const key = trimmed.slice(0, idx).trim()
+    const value = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
+    parsed[key] = value
+  }
+  return parsed
+}
 
-async function probeIrantiHealth(): Promise<boolean> {
-  const irantiUrl = process.env['IRANTI_URL'] ?? 'http://localhost:3001'
+async function resolveInstancePort(name: string): Promise<number> {
+  const configured = getConfiguredInstanceIdentifiers()
+  const envPath = join(configured.runtimeRoot, 'instances', name, '.env')
+  const content = await readFile(envPath, 'utf8')
+  const parsed = parseEnvContent(content)
+  const rawPort = parsed['IRANTI_PORT'] ?? parsed['PORT'] ?? '3001'
+  const port = Number.parseInt(rawPort, 10)
+
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error(`Invalid IRANTI_PORT for instance ${name}: ${rawPort}`)
+  }
+
+  return port
+}
+
+async function probeIrantiHealth(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`${irantiUrl}/health`, {
+    const res = await fetch(`http://localhost:${port}/health`, {
       signal: AbortSignal.timeout(1500),
     })
     return res.ok
@@ -54,26 +80,65 @@ function isValidInstanceName(name: string): boolean {
 // CLI availability check (mirrors upgrade.ts pattern)
 // ---------------------------------------------------------------------------
 
-function checkCliAvailable(): Promise<boolean> {
+function findCliCandidates(): Promise<string[]> {
   return new Promise((resolve) => {
     const checker = process.platform === 'win32' ? 'where' : 'which'
-    const child = spawn(checker, ['iranti'], { stdio: 'ignore' })
+    const child = spawn(checker, ['iranti'], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let stdout = ''
 
     const timer = setTimeout(() => {
       child.kill()
-      resolve(false)
+      resolve([])
     }, 3000)
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString()
+    })
 
     child.on('exit', (code) => {
       clearTimeout(timer)
-      resolve(code === 0)
+      if (code !== 0) {
+        resolve([])
+        return
+      }
+      resolve(
+        stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+      )
     })
 
     child.on('error', () => {
       clearTimeout(timer)
-      resolve(false)
+      resolve([])
     })
   })
+}
+
+async function checkCliAvailable(): Promise<boolean> {
+  const candidates = await findCliCandidates()
+  return candidates.length > 0
+}
+
+function resolveCliLaunch(candidates: string[]): { command: string; args: string[] } {
+  if (process.platform === 'win32') {
+    const cmdShim =
+      candidates.find((candidate) => candidate.toLowerCase().endsWith('\\iranti.cmd')) ??
+      candidates[0]
+
+    const installDir = dirname(cmdShim)
+    const cliEntry = join(installDir, 'node_modules', 'iranti', 'bin', 'iranti.js')
+    return {
+      command: process.execPath,
+      args: [cliEntry],
+    }
+  }
+
+  return {
+    command: candidates[0] ?? 'iranti',
+    args: [],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +183,8 @@ lifecycleRouter.post('/:name/start', async (req: Request, res: Response): Promis
   }
 
   // Check iranti CLI is available
-  const cliAvailable = await checkCliAvailable()
-  if (!cliAvailable) {
+  const cliCandidates = await findCliCandidates()
+  if (cliCandidates.length === 0) {
     res.status(400).json({
       error: 'iranti CLI not found on PATH. Install iranti to start instances from the control plane.',
       code: 'CLI_NOT_FOUND',
@@ -144,28 +209,33 @@ lifecycleRouter.post('/:name/start', async (req: Request, res: Response): Promis
     managedProcesses.delete(name)
   }
 
-  // Probe the bound Iranti URL — if it's already reachable, don't spawn a
-  // duplicate process. This catches externally-started instances that aren't
-  // in the in-memory map (e.g. after a control plane restart).
-  const alreadyReachable = await probeIrantiHealth()
-  if (alreadyReachable) {
-    res.status(409).json({
-      error: 'Iranti is already running and reachable. No new process was started.',
-      code: 'ALREADY_RUNNING',
-      instanceName: name,
-    })
-    return
-  }
-
   try {
     const startedAt = new Date().toISOString()
+    const launch = resolveCliLaunch(cliCandidates)
+    const configured = getConfiguredInstanceIdentifiers()
+    const instancePort = await resolveInstancePort(name)
+
+    const alreadyReachable = await probeIrantiHealth(instancePort)
+    if (alreadyReachable) {
+      res.status(409).json({
+        error: `Instance ${name} is already reachable on port ${instancePort}. No new process was started.`,
+        code: 'ALREADY_RUNNING',
+        instanceName: name,
+      })
+      return
+    }
 
     // Spawn as detached + unref'd so the control plane process does not hold
     // a reference to it. The spawned Iranti process survives CP restarts.
-    const child = spawn('iranti', ['run', '--instance', name], {
-      detached: true,
-      stdio: 'ignore',
-    })
+    const child = spawn(
+      launch.command,
+      [...launch.args, 'run', '--instance', name, '--root', configured.runtimeRoot],
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      }
+    )
 
     // Let the event loop exit without waiting for this child
     child.unref()

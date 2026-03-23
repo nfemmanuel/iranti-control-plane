@@ -13,12 +13,12 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
-import { createHash } from 'crypto'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { homedir } from 'os'
 import { env } from '../../db.js'
 import { ApiError } from '../../types.js'
+import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
 
 export const providersRouter = Router()
 
@@ -65,8 +65,8 @@ function findEnvFilePath(): string | null {
   const candidates = [
     ...(isSea ? [resolve(dirname(process.execPath), '.env.iranti')] : []),
     resolve(process.cwd(), '.env.iranti'),
-    resolve(homedir(), '.iranti', '.env.iranti'),
-    resolve(homedir(), '.iranti', 'instances', 'local', '.env'),
+    resolve(homedir(), '.iranti-runtime', '.env.iranti'),
+    resolve(homedir(), '.iranti-runtime', 'instances', 'local', '.env'),
   ]
   for (const p of candidates) {
     if (existsSync(p)) return p
@@ -136,17 +136,6 @@ function writeEnvVar(key: string, value: string | null): void {
 }
 
 // ---------------------------------------------------------------------------
-// Instance ID derivation
-// ---------------------------------------------------------------------------
-
-function deriveInstanceId(runtimeRoot: string): string {
-  const normalized = runtimeRoot.toLowerCase().replace(/\\/g, '/')
-  return createHash('sha256').update(normalized).digest('hex').slice(0, 8)
-}
-
-const THIS_INSTANCE_ID = deriveInstanceId(process.cwd())
-
-// ---------------------------------------------------------------------------
 // In-memory quota cache
 // ---------------------------------------------------------------------------
 
@@ -175,7 +164,7 @@ const REACHABILITY_TTL_MS = 60 * 1000 // 1 minute
 // ---------------------------------------------------------------------------
 
 function validateInstance(instanceId: string, res: Response): boolean {
-  if (instanceId !== THIS_INSTANCE_ID) {
+  if (!getConfiguredInstanceIdentifiers().matches(instanceId)) {
     res.status(404).json({
       error: 'Instance not found',
       code: 'INSTANCE_NOT_FOUND',

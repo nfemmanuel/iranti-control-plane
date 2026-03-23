@@ -456,9 +456,8 @@ export function SessionsView() {
             <span className={styles.emptyStateIcon} aria-hidden="true">⊙</span>
             <p className={styles.emptyStateTitle}>No sessions found</p>
             <p className={styles.emptyStateBody}>
-              Sessions appear when agents use the Iranti SDK checkpoint flow (
-              <code className={styles.inlineCode}>iranti_ingest</code> or{' '}
-              <code className={styles.inlineCode}>POST /memory/checkpoint</code>).{' '}
+              Sessions appear when agents persist checkpoint state through the Iranti SDK or{' '}
+              <code className={styles.inlineCode}>POST /memory/checkpoint</code>.{' '}
               <Link to="/getting-started" style={{ color: 'var(--color-accent-primary)' }}>
                 View the Getting Started guide
               </Link>
@@ -535,3 +534,4 @@ export function SessionsView() {
     </div>
   )
 }
+

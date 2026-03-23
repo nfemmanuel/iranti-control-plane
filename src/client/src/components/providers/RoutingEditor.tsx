@@ -199,8 +199,8 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
     try {
       const result = await updateTaskRouting(overrides)
       const msg = result.warnings.length > 0
-        ? `Saved. ${result.warnings.length} compatibility warning(s).`
-        : 'Task routing saved.'
+        ? `Saved to the live instance env. Restart the instance to apply. ${result.warnings.length} compatibility warning(s).`
+        : 'Task routing saved to the live instance env. Restart the instance to apply.'
       setFeedback({ kind: 'ok', msg, warnings: result.warnings })
       onSuccess()
     } catch (e) {
@@ -216,7 +216,7 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
     setFeedback(null)
     try {
       await resetTaskRouting()
-      setFeedback({ kind: 'ok', msg: 'All overrides cleared.' })
+      setFeedback({ kind: 'ok', msg: 'All overrides cleared from the live instance env. Restart the instance to apply.' })
       onSuccess()
     } catch (e) {
       setFeedback({ kind: 'err', msg: e instanceof Error ? e.message : 'Reset failed.' })
@@ -262,7 +262,7 @@ export function RoutingEditor({ taskRouting, activeProvider, onSuccess }: Routin
       {/* Restart notice — all vars are static at Iranti startup */}
       <div className={styles.restartNotice} role="note">
         <span className={styles.restartIcon} aria-hidden="true">↺</span>
-        <span>These settings take effect after restarting the Iranti instance.</span>
+        <span>These settings are written to the live instance env and take effect after restarting the Iranti instance.</span>
       </div>
 
       <table className={styles.routingTable} aria-label="Task-model routing overrides">

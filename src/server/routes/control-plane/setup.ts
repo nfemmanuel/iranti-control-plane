@@ -8,22 +8,11 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { access, writeFile, constants } from 'fs/promises'
 import { join } from 'path'
-import { createHash } from 'crypto'
 import { query, env } from '../../db.js'
 import { ApiError } from '../../types.js'
+import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
 
 export const setupRouter = Router()
-
-// ---------------------------------------------------------------------------
-// Instance ID derivation (mirrors instances.ts)
-// ---------------------------------------------------------------------------
-
-function deriveInstanceId(runtimeRoot: string): string {
-  const normalized = runtimeRoot.toLowerCase().replace(/\\/g, '/')
-  return createHash('sha256').update(normalized).digest('hex').slice(0, 8)
-}
-
-const THIS_INSTANCE_ID = deriveInstanceId(process.cwd())
 
 // ---------------------------------------------------------------------------
 // Step result type
@@ -140,7 +129,7 @@ async function checkProjectBinding(): Promise<SetupStep> {
 
   try {
     const result = await query<{ count: string }>(
-      `SELECT COUNT(DISTINCT entity_id)::text AS count FROM knowledge_base WHERE entity_type = 'project'`
+      `SELECT COUNT(DISTINCT "entityId")::text AS count FROM knowledge_base WHERE "entityType" = 'project'`
     )
     const count = parseInt(result.rows[0]?.count ?? '0', 10)
 
@@ -182,11 +171,12 @@ async function checkClaudeIntegration(projectStep: SetupStep): Promise<SetupStep
     step.status = 'complete'
     step.message = `.mcp.json present for this instance.`
   } catch {
+    const configured = getConfiguredInstanceIdentifiers()
     step.status = 'incomplete'
     step.message = `.mcp.json not found. Claude will not have access to Iranti memory tools.`
     step.actionRequired =
       'Run `iranti setup --mcp [path/to/project]` or use the Regenerate button.'
-    step.repairAction = `/api/control-plane/instances/${THIS_INSTANCE_ID}/repair/mcp-json`
+    step.repairAction = `/api/control-plane/instances/${configured.instanceId}/repair/mcp-json`
   }
 
   return step
@@ -201,7 +191,8 @@ setupRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { instanceId } = req.params
-      if (instanceId !== THIS_INSTANCE_ID) {
+      const configured = getConfiguredInstanceIdentifiers()
+      if (!configured.matches(instanceId)) {
         res.status(404).json({
           error: 'Instance not found',
           code: 'INSTANCE_NOT_FOUND',
@@ -272,7 +263,7 @@ setupRouter.get(
       )
 
       res.json({
-        instanceId,
+        instanceId: configured.instanceId,
         steps,
         isFullyConfigured,
         firstRunDetected,
@@ -293,7 +284,8 @@ setupRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { instanceId } = req.params
-      if (instanceId !== THIS_INSTANCE_ID) {
+      const configured = getConfiguredInstanceIdentifiers()
+      if (!configured.matches(instanceId)) {
         res.status(404).json({
           error: 'Instance not found',
           code: 'INSTANCE_NOT_FOUND',
@@ -363,7 +355,7 @@ setupRouter.post(
       )
 
       res.json({
-        instanceId,
+        instanceId: configured.instanceId,
         steps,
         isFullyConfigured,
         firstRunDetected,
@@ -383,7 +375,8 @@ setupRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { instanceId } = req.params
-      if (instanceId !== THIS_INSTANCE_ID) {
+      const configured = getConfiguredInstanceIdentifiers()
+      if (!configured.matches(instanceId)) {
         res.status(404).json({
           error: 'Instance not found',
           code: 'INSTANCE_NOT_FOUND',

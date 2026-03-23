@@ -222,17 +222,6 @@
   background: var(--color-status-error);
 }
 
-.statusClickable {
-  cursor: pointer;
-  display: block;
-  flex: 1;
-  text-decoration: none;
-  color: inherit;
-}
-
-.statusClickable:hover .statusPill {
-  color: var(--color-text-primary);
-}
 
 /* ──────────────────────────────────────────────────────────────────
    KB summary stats

@@ -120,6 +120,12 @@ export interface IrantiRuntimeMetadata {
 
 export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
 
+export interface InstanceScopeSummary {
+  instanceId: string
+  instanceName: string
+  source: 'query' | 'binding'
+}
+
 // ---------------------------------------------------------------------------
 // CP-T073: Upgrade job response types
 // ---------------------------------------------------------------------------
@@ -145,6 +151,10 @@ export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checks: HealthCheck[]
   checkedAt: string
+  scope?: InstanceScopeSummary
+  decay?: Record<string, unknown>
+  vectorBackend?: Record<string, unknown>
+  attendant?: Record<string, unknown>
   /** CP-T072: Runtime metadata from Iranti /health, null if ad-hoc or unreachable */
   runtime?: IrantiRuntimeMetadata | null
   /** CP-T072: Derived staleness status */

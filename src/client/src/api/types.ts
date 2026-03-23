@@ -210,6 +210,12 @@ export interface IrantiRuntimeMetadata {
  *  needs to compare timestamps. 'unknown' means no runtime data (ad-hoc mode). */
 export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
 
+export interface InstanceScopeSummary {
+  instanceId: string
+  instanceName: string
+  source: 'query' | 'binding'
+}
+
 /** @deprecated Use IrantiRuntimeMetadata instead — kept for backwards compat */
 export type InstanceRuntimeInfo = IrantiRuntimeMetadata
 
@@ -217,6 +223,7 @@ export interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'error'
   checkedAt: string
   checks: HealthCheck[]
+  scope?: InstanceScopeSummary
   /** CP-T052: Memory Decay configuration */
   decay?: HealthDecay
   /** CP-T052: Vector backend reachability */
@@ -242,7 +249,9 @@ export interface DatabaseMeta {
 
 export interface EnvFileMeta {
   present: boolean
+  bindingPresent?: boolean
   path: string | null
+  instanceEnvPath?: string | null
   keysPresent: string[]
   keysMissing: string[]
 }
@@ -274,6 +283,7 @@ export interface ProjectBinding {
 export interface InstanceMetadata {
   instanceId: string
   name: string
+  setupState?: 'running' | 'configured' | 'incomplete'
   runtimeRoot: string
   configuredPort: number
   runningStatus: 'running' | 'stopped' | 'unreachable' | 'unknown'
@@ -647,6 +657,7 @@ export interface DiagnosticRunResult {
   overallStatus: 'pass' | 'warn' | 'fail'
   checks: DiagnosticCheckResult[]
   totalDurationMs: number
+  scope?: InstanceScopeSummary
 }
 
 /* ------------------------------------------------------------------ */
@@ -1024,3 +1035,4 @@ export interface HandshakeResult {
 export interface AttendResult {
   [key: string]: unknown
 }
+

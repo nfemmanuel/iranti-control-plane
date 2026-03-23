@@ -14,7 +14,7 @@
  */
 
 import { Router, Request, Response } from 'express'
-import { env } from '../../db.js'
+import { resolveInstanceAuthority } from '../../lib/instance-authority.js'
 
 export const versionSyncRouter = Router()
 
@@ -40,18 +40,18 @@ const RELEASE_URL = 'https://github.com/nfemmanuel/iranti/releases'
  * Mirrors the same pattern as fetchIrantiRuntime() in health.ts.
  * Returns null if unreachable, missing, or malformed.
  */
-async function fetchInstalledVersion(): Promise<string | null> {
-  const baseUrl = (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
-  const apiKey = env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+async function fetchInstalledVersion(instanceRef?: string): Promise<string | null> {
+  const scope = await resolveInstanceAuthority(instanceRef)
+  if (!scope) return null
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (apiKey) headers['X-Iranti-Key'] = apiKey
+  if (scope.apiKey) headers['X-Iranti-Key'] = scope.apiKey
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 3000)
 
   try {
-    const res = await fetch(`${baseUrl}/health`, {
+    const res = await fetch(`${scope.apiBaseUrl}/health`, {
       method: 'GET',
       headers,
       signal: controller.signal,
@@ -111,9 +111,10 @@ async function fetchLatestVersion(): Promise<string | null> {
 // Route
 // ---------------------------------------------------------------------------
 
-versionSyncRouter.get('/', async (_req: Request, res: Response) => {
+versionSyncRouter.get('/', async (req: Request, res: Response) => {
+  const instanceId = typeof req.query['instanceId'] === 'string' ? req.query['instanceId'] : undefined
   const [installedVersion, latestVersion] = await Promise.all([
-    fetchInstalledVersion(),
+    fetchInstalledVersion(instanceId),
     fetchLatestVersion(),
   ])
 

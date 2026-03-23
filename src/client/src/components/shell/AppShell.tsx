@@ -350,14 +350,17 @@ export function AppShell() {
   const sectionTitle = getSectionTitle(location.pathname)
 
   // CP-T035: Setup status for nav badge + auto-redirect on first run
-  const { incompleteCount, firstRunDetected } = useSetupStatus()
+  const { incompleteCount, firstRunDetected, isLoading: setupStatusLoading } = useSetupStatus()
+  const firstRunRedirectHandledRef = useRef(false)
 
   // CP-T035: Auto-redirect to /getting-started on first load when firstRunDetected
   useEffect(() => {
+    if (setupStatusLoading || firstRunRedirectHandledRef.current) return
+    firstRunRedirectHandledRef.current = true
     if (firstRunDetected && location.pathname !== '/getting-started') {
       navigate('/getting-started', { replace: true })
     }
-  }, [firstRunDetected, location.pathname, navigate])
+  }, [firstRunDetected, location.pathname, navigate, setupStatusLoading])
 
   // Root redirect handled by <Navigate to="/overview" replace /> in main.tsx (CP-T068)
 
@@ -469,7 +472,7 @@ export function AppShell() {
                 <span key={item.to} className={`${styles.navItem} ${styles.navItemDisabled}`} aria-disabled="true">
                   <span className={styles.navIcon} aria-hidden="true">{item.icon}</span>
                   <span className={styles.navLabel}>{item.label}</span>
-                  <span className={styles.navPhase2Badge}>Phase 2</span>
+                  <span className={styles.navPhase2Badge}>Soon</span>
                 </span>
               )
             }
@@ -564,3 +567,4 @@ export function AppShell() {
     </div>
   )
 }
+

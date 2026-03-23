@@ -28,8 +28,8 @@ export async function apiFetch<T>(
  * version against the latest published version on npm.
  * CP-T078
  */
-export function fetchVersionSync(): Promise<VersionSyncResult> {
-  return apiFetch<VersionSyncResult>('/version-sync')
+export function fetchVersionSync(instanceId?: string): Promise<VersionSyncResult> {
+  return apiFetch<VersionSyncResult>('/version-sync', { instanceId })
 }
 
 /**
@@ -69,9 +69,9 @@ export async function startInstance(name: string): Promise<StartInstanceResult> 
 export async function stopInstance(name: string): Promise<StopInstanceResult> {
   const url = new URL(`${BASE}/instances/${encodeURIComponent(name)}/stop`, window.location.origin)
   const res = await fetch(url.toString(), { method: 'POST' })
-  const body = await res.json() as StopInstanceResult
+  const body = await res.json().catch(() => ({ error: res.statusText })) as StopInstanceResult & { error?: string }
   if (!res.ok) {
-    throw new Error((body as { error?: string }).error ?? res.statusText)
+    throw new Error(body.error ?? res.statusText)
   }
   return body
 }

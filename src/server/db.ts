@@ -33,8 +33,8 @@ function loadEnv(): Record<string, string> {
     // SEA: next to the binary (most reliable when double-clicked)
     ...(isSea ? [resolve(dirname(process.execPath), '.env.iranti')] : []),
     resolve(process.cwd(), '.env.iranti'),
-    resolve(homedir(), '.iranti', '.env.iranti'),
-    resolve(homedir(), '.iranti', 'instances', 'local', '.env'),
+    resolve(homedir(), '.iranti-runtime', '.env.iranti'),
+    resolve(homedir(), '.iranti-runtime', 'instances', 'local', '.env'),
   ]
   for (const p of candidates) {
     if (existsSync(p)) {

@@ -8,20 +8,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SetupStatusResponse, SetupStep } from '../../api/types'
 import styles from './GettingStarted.module.css'
 import { Spinner } from '../ui/Spinner'
-
-/* ------------------------------------------------------------------ */
-/*  Constants                                                           */
-/* ------------------------------------------------------------------ */
-
-/** Use 'local' as the default instanceId for Phase 1 single-instance context */
-const INSTANCE_ID = 'local'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 
 /* ------------------------------------------------------------------ */
 /*  API helpers                                                         */
 /* ------------------------------------------------------------------ */
 
-async function fetchSetupStatus(): Promise<SetupStatusResponse> {
-  const res = await fetch(`/api/control-plane/instances/${INSTANCE_ID}/setup-status`)
+async function fetchSetupStatus(instanceId: string): Promise<SetupStatusResponse> {
+  const res = await fetch(`/api/control-plane/instances/${encodeURIComponent(instanceId)}/setup-status`)
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error((body as { error?: string }).error ?? res.statusText)
@@ -29,9 +23,9 @@ async function fetchSetupStatus(): Promise<SetupStatusResponse> {
   return res.json() as Promise<SetupStatusResponse>
 }
 
-async function markSetupComplete(): Promise<{ success: boolean; completedAt: string }> {
+async function markSetupComplete(instanceId: string): Promise<{ success: boolean; completedAt: string }> {
   const res = await fetch(
-    `/api/control-plane/instances/${INSTANCE_ID}/setup-status/complete`,
+    `/api/control-plane/instances/${encodeURIComponent(instanceId)}/setup-status/complete`,
     { method: 'POST' }
   )
   if (!res.ok) {
@@ -41,9 +35,9 @@ async function markSetupComplete(): Promise<{ success: boolean; completedAt: str
   return res.json() as Promise<{ success: boolean; completedAt: string }>
 }
 
-async function refreshSetupStatus(): Promise<SetupStatusResponse> {
+async function refreshSetupStatus(instanceId: string): Promise<SetupStatusResponse> {
   const res = await fetch(
-    `/api/control-plane/instances/${INSTANCE_ID}/setup-status/refresh`,
+    `/api/control-plane/instances/${encodeURIComponent(instanceId)}/setup-status/refresh`,
     { method: 'POST' }
   )
   if (!res.ok) {
@@ -194,11 +188,13 @@ function SuccessState({ onGoToMemory }: { onGoToMemory: () => void }) {
 export function GettingStarted() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { activeInstance } = useInstanceContext()
   const [dismissed, setDismissed] = useState(false)
+  const instanceId = activeInstance?.name ?? activeInstance?.id ?? 'local'
 
   const { data, isLoading, error } = useQuery<SetupStatusResponse, Error>({
-    queryKey: ['setup-status', INSTANCE_ID],
-    queryFn: fetchSetupStatus,
+    queryKey: ['setup-status', instanceId],
+    queryFn: () => fetchSetupStatus(instanceId),
     staleTime: 0,
   })
 
@@ -221,16 +217,16 @@ export function GettingStarted() {
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true)
     try {
-      const fresh = await refreshSetupStatus()
-      queryClient.setQueryData(['setup-status', INSTANCE_ID], fresh)
+      const fresh = await refreshSetupStatus(instanceId)
+      queryClient.setQueryData(['setup-status', instanceId], fresh)
     } finally {
       setRefreshing(false)
     }
-  }, [queryClient])
+  }, [instanceId, queryClient])
 
   // Mark complete mutation
   const completeMutation = useMutation({
-    mutationFn: markSetupComplete,
+    mutationFn: () => markSetupComplete(instanceId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['setup-status'] })
       navigate('/memory')
@@ -358,9 +354,11 @@ export function GettingStarted() {
  * Used by AppShell nav badge and header banner.
  */
 export function useSetupStatus() {
+  const { activeInstance } = useInstanceContext()
+  const instanceId = activeInstance?.name ?? activeInstance?.id ?? 'local'
   const { data, isLoading } = useQuery<SetupStatusResponse, Error>({
-    queryKey: ['setup-status', INSTANCE_ID],
-    queryFn: fetchSetupStatus,
+    queryKey: ['setup-status', instanceId],
+    queryFn: () => fetchSetupStatus(instanceId),
     staleTime: 60_000,
   })
 
@@ -375,3 +373,4 @@ export function useSetupStatus() {
     isLoading,
   }
 }
+

@@ -117,6 +117,13 @@
   font-size: 12px;
 }
 
+.routingTable td {
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .routingTable th {
   text-align: left;
   font-size: 11px;
@@ -143,7 +150,7 @@
 
 .taskRow td {
   padding: var(--space-2);
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .taskRowIncompatible {
@@ -154,6 +161,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .taskLabel {
@@ -164,10 +172,13 @@
 .taskDesc {
   font-size: 11px;
   color: var(--color-text-tertiary);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .defaultCell {
-  /* table cell — vertically centered via td style */
+  white-space: nowrap;
 }
 
 .defaultModel {
@@ -183,6 +194,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.clearCell {
+  white-space: nowrap;
 }
 
 .overrideSelect {

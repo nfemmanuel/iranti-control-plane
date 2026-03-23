@@ -42,6 +42,18 @@ export interface IrantiAgent {
   stats: IrantiAgentStats
 }
 
+interface IrantiAgentRecordBody {
+  profile: {
+    agentId: string
+    name: string
+    description?: string | null
+    capabilities?: string[]
+    model?: string | null
+    properties?: Record<string, unknown>
+  }
+  stats: IrantiAgentStats
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -72,6 +84,72 @@ function buildHeaders(req: Request): Record<string, string> {
 
 function isAuthError(status: number): boolean {
   return status === 401 || status === 403
+}
+
+function emptyStats(): IrantiAgentStats {
+  return {
+    totalWrites: 0,
+    totalRejections: 0,
+    totalEscalations: 0,
+    avgConfidence: 0,
+    lastSeen: null,
+    isActive: false,
+  }
+}
+
+function normalizeAgent(raw: unknown): IrantiAgent | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+
+  if (obj['profile'] && typeof obj['profile'] === 'object') {
+    const profile = obj['profile'] as IrantiAgentRecordBody['profile']
+    const stats = (obj['stats'] as IrantiAgentStats | undefined) ?? emptyStats()
+    return {
+      agentId: profile.agentId,
+      name: profile.name,
+      description: profile.description ?? null,
+      capabilities: Array.isArray(profile.capabilities) ? profile.capabilities : [],
+      model: profile.model ?? null,
+      properties: profile.properties ?? {},
+      stats,
+    }
+  }
+
+  if (typeof obj['agentId'] !== 'string' || typeof obj['name'] !== 'string') {
+    return null
+  }
+
+  return {
+    agentId: obj['agentId'],
+    name: obj['name'],
+    description: typeof obj['description'] === 'string' ? obj['description'] : null,
+    capabilities: Array.isArray(obj['capabilities']) ? obj['capabilities'] as string[] : [],
+    model: typeof obj['model'] === 'string' ? obj['model'] : null,
+    properties: typeof obj['properties'] === 'object' && obj['properties'] !== null
+      ? obj['properties'] as Record<string, unknown>
+      : {},
+    stats: typeof obj['stats'] === 'object' && obj['stats'] !== null
+      ? obj['stats'] as IrantiAgentStats
+      : emptyStats(),
+  }
+}
+
+async function fetchAgentDetails(baseUrl: string, headers: Record<string, string>, agentId: string): Promise<IrantiAgent | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  try {
+    const res = await fetch(`${baseUrl}/agents/${encodeURIComponent(agentId)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    })
+    if (!res.ok) return null
+    return normalizeAgent(await res.json() as unknown)
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -118,14 +196,28 @@ agentsRouter.get(
       // Normalise to { agents, total } per AC-1.
       let agents: IrantiAgent[]
       if (Array.isArray(body)) {
-        agents = body as IrantiAgent[]
+        agents = (await Promise.all(
+          body.map(async (item) => {
+            const normalized = normalizeAgent(item)
+            if (!normalized) return null
+            if (normalized.stats.lastSeen !== null || normalized.stats.totalWrites !== 0) return normalized
+            return await fetchAgentDetails(baseUrl, buildHeaders(req), normalized.agentId) ?? normalized
+          })
+        )).filter((agent): agent is IrantiAgent => agent !== null)
       } else if (
         body !== null &&
         typeof body === 'object' &&
         'agents' in (body as Record<string, unknown>) &&
         Array.isArray((body as Record<string, unknown>).agents)
       ) {
-        agents = (body as { agents: IrantiAgent[] }).agents
+        agents = (await Promise.all(
+          (body as { agents: unknown[] }).agents.map(async (item) => {
+            const normalized = normalizeAgent(item)
+            if (!normalized) return null
+            if (normalized.stats.lastSeen !== null || normalized.stats.totalWrites !== 0) return normalized
+            return await fetchAgentDetails(baseUrl, buildHeaders(req), normalized.agentId) ?? normalized
+          })
+        )).filter((agent): agent is IrantiAgent => agent !== null)
       } else {
         agents = []
       }
@@ -191,8 +283,8 @@ agentsRouter.get(
         return
       }
 
-      const body = await irantiRes.json() as IrantiAgent
-      res.json(body)
+      const body = await irantiRes.json() as unknown
+      res.json(normalizeAgent(body) ?? body)
     } catch (err: unknown) {
       const name = (err as Error)?.name
       if (name === 'AbortError' || name === 'TypeError') {

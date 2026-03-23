@@ -547,7 +547,7 @@ function VelocityCounter({ eventsPerMin }: { eventsPerMin: number }) {
   return (
     <span
       className={styles.velocityCounter}
-      title="Events from Staff in the last 60 seconds. Event timing may appear bursty — will improve with CP-T025."
+      title="Events recorded from Staff in the last 60 seconds."
       aria-label={`Event velocity: ${label}`}
     >
       {label}
@@ -658,13 +658,10 @@ export function ActivityStream() {
 
   return (
     <div className={styles.page}>
-      {/* CP-T037: Phase 2 coverage note — updated text */}
       <div className={styles.limitationBanner}>
         <span className={styles.limitationIcon} aria-hidden="true">ℹ</span>
         <span>
-          <strong>Phase 1 event coverage:</strong>{' '}
-          Librarian ✓ (polling, ~2s) &nbsp;|&nbsp; Archivist ✓ (polling, ~2s) &nbsp;|&nbsp; Attendant — Phase 2 (pending CP-T025) &nbsp;|&nbsp; Resolutionist — Phase 2 (pending CP-T025).{' '}
-          Full Staff observability ships in Phase 2.
+          This view shows Staff events recorded by the control plane event stream. Some components may have less history than others depending on what the running instance has emitted.
         </span>
       </div>
 
@@ -903,3 +900,4 @@ export function ActivityStream() {
     </div>
   )
 }
+

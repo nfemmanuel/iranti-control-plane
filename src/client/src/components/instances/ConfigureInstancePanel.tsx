@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Configure Instance Panel */
 /* CP-T090 — Compact edit panel for port, provider, provider key */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { configureInstance } from '../../api/client'
 import styles from './ConfigureInstancePanel.module.css'
 
@@ -44,6 +44,16 @@ export function ConfigureInstancePanel({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [restartWarning, setRestartWarning] = useState<string | null>(null)
   const [changedFields, setChangedFields] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    setPort(currentPort !== null ? String(currentPort) : '')
+    setProvider(currentProvider ?? 'claude')
+    setProviderKey('')
+    setPortError(null)
+    setSubmitError(null)
+    setRestartWarning(null)
+    setChangedFields(null)
+  }, [instanceName, currentPort, currentProvider])
 
   const needsKey = PROVIDERS_WITH_KEY.includes(provider)
 

@@ -542,10 +542,7 @@ function EmptyState({
           <span className={styles.emptyStateIcon} aria-hidden="true">◈</span>
           <p className={styles.emptyStateTitle}>No staff events recorded yet</p>
           <p className={styles.emptyStateBody}>
-            Events appear here once the Iranti Staff emitter is active.
-            If this is unexpected, run{' '}
-            <code className={styles.emptyStateCode}>npm run migrate</code> to ensure the{' '}
-            <code className={styles.emptyStateCode}>staff_events</code> table exists.
+            No events match the current view yet. If this is unexpected, confirm the instance has emitted recent staff activity and refresh the page.
           </p>
         </div>
       </td>
@@ -942,3 +939,4 @@ export function StaffLogs() {
     </div>
   )
 }
+

@@ -229,7 +229,7 @@ function KeyWriteForm({ provider, onSuccess }: KeyWriteFormProps) {
   }
 
   const handleRemove = async () => {
-    if (!window.confirm(`Remove the API key for ${provider.name}? This will clear ${provider.keyEnvVar} from .env.iranti.`)) return
+    if (!window.confirm(`Remove the API key for ${provider.name}? This will clear ${provider.keyEnvVar} from the live instance env.`)) return
     setPending(true)
     clearFeedback()
     try {
@@ -630,7 +630,10 @@ function DetailPanel({
             <span className={styles.keyPresent}>✓ Present</span>
           </div>
         ) : (
-          <p className={styles.keyAbsent}>No key configured — set <code>{provider.keyEnvVar}</code> in <code>.env.iranti</code> or use the form below.</p>
+          <p className={styles.keyAbsent}>
+            No key configured — add <code>{provider.keyEnvVar}</code> with the form below or run{' '}
+            <code>iranti add api-key {provider.id} --instance local</code>.
+          </p>
         )}
         {provider.id !== 'mock' && (
           <KeyWriteForm provider={provider} onSuccess={onKeyChange} />
@@ -927,9 +930,9 @@ export function ProviderManager() {
               <span className={styles.emptyIcon} aria-hidden="true">◈</span>
               <p className={styles.emptyTitle}>No providers detected</p>
               <p className={styles.emptyBody}>
-                Set <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>,{' '}
-                <code>TOGETHER_API_KEY</code>, <code>GROQ_API_KEY</code>, or{' '}
-                <code>OLLAMA_BASE_URL</code> in your <code>.env.iranti</code> file.
+                Add a provider key with this page or run{' '}
+                <code>iranti add api-key &lt;provider&gt; --instance local</code>. Ollama uses{' '}
+                <code>OLLAMA_BASE_URL</code> in the live instance env.
               </p>
             </div>
           )}

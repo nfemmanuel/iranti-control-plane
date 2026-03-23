@@ -85,7 +85,7 @@ createRoot(rootEl).render(
                 <Route path="providers" element={<ProviderManager />} />
                 <Route path="agents" element={<AgentRegistry />} />
                 <Route path="sessions" element={<SessionsView />} />
-                <Route path="settings" element={<PlaceholderView label="Settings — Phase 2" />} />
+                <Route path="settings" element={<PlaceholderView label="Settings" />} />
               </Route>
             </Routes>
           </BrowserRouter>

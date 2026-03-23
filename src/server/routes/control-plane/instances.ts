@@ -12,14 +12,14 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
-import { readFile, access, constants } from 'fs/promises'
-import { join } from 'path'
+import { readFile, access, constants, readdir } from 'fs/promises'
+import { join, basename, dirname, resolve } from 'path'
 import { homedir } from 'os'
-import { createHash } from 'crypto'
 import http from 'http'
 import { URL } from 'url'
 import { env } from '../../db.js'
 import { ApiError } from '../../types.js'
+import { deriveInstanceId } from '../../lib/instance-authority.js'
 import {
   IrantiRuntimeMetadata,
   RuntimeStatus,
@@ -40,7 +40,10 @@ interface RegistryEntry {
 
 interface ParsedEnv {
   present: boolean
-  path: string
+  bindingPresent: boolean
+  path: string | null
+  instanceEnvPath: string | null
+  resolvedRuntimeRoot: string
   raw: Record<string, string> | null
   keyCompleteness: EnvKeyCompleteness | null
 }
@@ -66,13 +69,23 @@ interface ProbeResult {
 
 interface InstanceMetadata {
   instanceId: string
+  name: string
+  setupState: 'running' | 'configured' | 'incomplete'
   runtimeRoot: string
   database: { host: string | null; port: number | null; name: string | null; urlRedacted: string | null } | null
   configuredPort: number | null
   runningStatus: 'running' | 'stopped' | 'unreachable'
   runningStatusCheckedAt: string
   irantVersion: string | null
-  envFile: { present: boolean; path: string; keyCompleteness: EnvKeyCompleteness | null }
+  envFile: {
+    present: boolean
+    bindingPresent: boolean
+    path: string | null
+    instanceEnvPath: string | null
+    keyCompleteness: EnvKeyCompleteness | null
+    keysPresent: string[]
+    keysMissing: string[]
+  }
   integration: {
     defaultProvider: string | null
     defaultModel: string | null
@@ -82,6 +95,7 @@ interface InstanceMetadata {
   /** CP-T058 H8 — IRANTI_PROJECT_MODE from the instance's .env.iranti; null if not set */
   projectMode: 'isolated' | 'shared' | null
   projects: []
+  discoveredAt: string
   registeredAt: string | null
   notes: string | null   // string | null — buildErrorInstance may set a string message
   /** CP-T072 — Runtime lifecycle metadata from Iranti /health; null if ad-hoc or unreachable */
@@ -91,20 +105,10 @@ interface InstanceMetadata {
 }
 
 // ---------------------------------------------------------------------------
-// Instance ID derivation
-// ---------------------------------------------------------------------------
-
-function deriveInstanceId(runtimeRoot: string): string {
-  // Normalize to lowercase + forward slashes before hashing for cross-platform stability
-  const normalized = runtimeRoot.toLowerCase().replace(/\\/g, '/')
-  return createHash('sha256').update(normalized).digest('hex').slice(0, 8)
-}
-
-// ---------------------------------------------------------------------------
 // Env file parsing
 // ---------------------------------------------------------------------------
 
-const REQUIRED_KEYS = ['DATABASE_URL', 'PORT']
+const REQUIRED_KEYS = ['DATABASE_URL', 'IRANTI_PORT'] as const
 const PROVIDER_KEY_RE = /^(ANTHROPIC|OPENAI)_API_KEY$/
 
 function parseEnvContent(content: string): Record<string, string> {
@@ -121,26 +125,92 @@ function parseEnvContent(content: string): Record<string, string> {
   return result
 }
 
-async function parseEnvFile(runtimeRoot: string): Promise<ParsedEnv> {
-  const envPath = join(runtimeRoot, '.env.iranti')
-  let raw: Record<string, string> | null = null
+function summarizeEnvKeys(raw: Record<string, string> | null, keyCompleteness: EnvKeyCompleteness | null): {
+  keysPresent: string[]
+  keysMissing: string[]
+} {
+  if (!raw) return { keysPresent: [], keysMissing: [] }
 
-  try {
-    const content = await readFile(envPath, 'utf8')
-    raw = parseEnvContent(content)
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { present: false, path: envPath, raw: null, keyCompleteness: null }
+  const importantKeys = new Set<string>([
+    ...REQUIRED_KEYS,
+    'IRANTI_INSTANCE',
+    'IRANTI_INSTANCE_ENV',
+    'IRANTI_PROJECT_MODE',
+    'LLM_PROVIDER',
+    'LLM_PROVIDER_FALLBACK',
+  ])
+
+  for (const key of Object.keys(raw)) {
+    if (key.endsWith('_API_KEY') || key.endsWith('_MODEL')) {
+      importantKeys.add(key)
     }
-    // Unexpected read error — surface as not-present with a null parse
-    console.warn(`[instances] Failed to read env file at ${envPath}:`, err)
-    return { present: false, path: envPath, raw: null, keyCompleteness: null }
   }
 
-  const requiredKeyResults = REQUIRED_KEYS.map((k) => ({
-    key: k,
-    present: k in raw! && (raw![k] ?? '').trim() !== '',
-  }))
+  return {
+    keysPresent: Array.from(importantKeys)
+      .filter((key) => (raw[key] ?? '').trim() !== '')
+      .sort(),
+    keysMissing: (keyCompleteness?.requiredKeys ?? [])
+      .filter((entry) => !entry.present)
+      .map((entry) => entry.key),
+  }
+}
+
+async function parseEnvFile(runtimeRoot: string): Promise<ParsedEnv> {
+  const bindingPath = join(runtimeRoot, '.env.iranti')
+  let bindingRaw: Record<string, string> | null = null
+
+  try {
+    const content = await readFile(bindingPath, 'utf8')
+    bindingRaw = parseEnvContent(content)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return {
+        present: false,
+        bindingPresent: false,
+        path: bindingPath,
+        instanceEnvPath: null,
+        resolvedRuntimeRoot: runtimeRoot,
+        raw: null,
+        keyCompleteness: null,
+      }
+    }
+    // Unexpected read error — surface as not-present with a null parse
+    console.warn(`[instances] Failed to read env file at ${bindingPath}:`, err)
+    return {
+      present: false,
+      bindingPresent: false,
+      path: bindingPath,
+      instanceEnvPath: null,
+      resolvedRuntimeRoot: runtimeRoot,
+      raw: null,
+      keyCompleteness: null,
+    }
+  }
+
+  const instanceEnvPath = bindingRaw?.['IRANTI_INSTANCE_ENV']?.trim() || null
+  let instanceRaw: Record<string, string> = {}
+  if (instanceEnvPath) {
+    try {
+      const content = await readFile(instanceEnvPath, 'utf8')
+      instanceRaw = parseEnvContent(content)
+    } catch (err: unknown) {
+      console.warn(`[instances] Failed to read instance env file at ${instanceEnvPath}:`, err)
+    }
+  }
+
+  const raw = { ...(bindingRaw ?? {}), ...instanceRaw }
+  const resolvedRuntimeRoot = instanceEnvPath
+    ? resolve(dirname(instanceEnvPath), '..', '..')
+    : runtimeRoot
+
+  const requiredKeyResults = REQUIRED_KEYS.map((key) => {
+    const aliases = key === 'IRANTI_PORT' ? ['IRANTI_PORT', 'PORT'] : [key]
+    return {
+      key,
+      present: aliases.some((alias) => (raw[alias] ?? '').trim() !== ''),
+    }
+  })
 
   const extraProviderKeys = Object.keys(raw).filter(
     (k) => k.endsWith('_API_KEY') && !PROVIDER_KEY_RE.test(k)
@@ -148,13 +218,64 @@ async function parseEnvFile(runtimeRoot: string): Promise<ParsedEnv> {
 
   return {
     present: true,
-    path: envPath,
+    bindingPresent: true,
+    path: bindingPath,
+    instanceEnvPath,
+    resolvedRuntimeRoot,
     raw,
     keyCompleteness: {
       allRequiredKeysPresent: requiredKeyResults.every((r) => r.present),
       requiredKeys: requiredKeyResults,
       extraProviderKeys,
     },
+  }
+}
+
+async function parseInstanceEnvFile(instanceDir: string, runtimeRoot: string): Promise<ParsedEnv> {
+  const instanceEnvPath = join(instanceDir, '.env')
+
+  try {
+    const content = await readFile(instanceEnvPath, 'utf8')
+    const raw = parseEnvContent(content)
+
+    const requiredKeyResults = REQUIRED_KEYS.map((key) => {
+      const aliases = key === 'IRANTI_PORT' ? ['IRANTI_PORT', 'PORT'] : [key]
+      return {
+        key,
+        present: aliases.some((alias) => (raw[alias] ?? '').trim() !== ''),
+      }
+    })
+
+    const extraProviderKeys = Object.keys(raw).filter(
+      (k) => k.endsWith('_API_KEY') && !PROVIDER_KEY_RE.test(k)
+    )
+
+    return {
+      present: true,
+      bindingPresent: false,
+      path: null,
+      instanceEnvPath,
+      resolvedRuntimeRoot: runtimeRoot,
+      raw,
+      keyCompleteness: {
+        allRequiredKeysPresent: requiredKeyResults.every((r) => r.present),
+        requiredKeys: requiredKeyResults,
+        extraProviderKeys,
+      },
+    }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`[instances] Failed to read instance env file at ${instanceEnvPath}:`, err)
+    }
+    return {
+      present: false,
+      bindingPresent: false,
+      path: null,
+      instanceEnvPath: null,
+      resolvedRuntimeRoot: runtimeRoot,
+      raw: null,
+      keyCompleteness: null,
+    }
   }
 }
 
@@ -192,14 +313,29 @@ function probeInstance(port: number): Promise<ProbeResult> {
         let body = ''
         res.on('data', (chunk) => { body += chunk })
         res.on('end', () => {
-          let version: string | null = null
-          if (res.statusCode === 200) {
-            try {
-              const parsed = JSON.parse(body) as Record<string, unknown>
-              version = typeof parsed.version === 'string' ? parsed.version : null
-            } catch { /* non-JSON health endpoint */ }
+          if (res.statusCode !== 200) {
+            resolve({ runningStatus: 'unreachable', irantVersion: null, checkedAt })
+            return
           }
-          resolve({ runningStatus: 'running', irantVersion: version, checkedAt })
+
+          try {
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            const status = parsed['status']
+            const runtime = parsed['runtime']
+            const looksLikeIranti =
+              status === 'ok' ||
+              (runtime !== null && typeof runtime === 'object')
+
+            if (!looksLikeIranti) {
+              resolve({ runningStatus: 'unreachable', irantVersion: null, checkedAt })
+              return
+            }
+
+            const version = typeof parsed.version === 'string' ? parsed.version : null
+            resolve({ runningStatus: 'running', irantVersion: version, checkedAt })
+          } catch {
+            resolve({ runningStatus: 'unreachable', irantVersion: null, checkedAt })
+          }
         })
       }
     )
@@ -307,14 +443,34 @@ function resolveProjectMode(raw: string | undefined): 'isolated' | 'shared' | nu
 // Per-instance aggregation
 // ---------------------------------------------------------------------------
 
+function looksPlaceholder(value: string | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase()
+  if (!normalized) return true
+  return normalized.includes('replace_me') || normalized.includes('placeholder')
+}
+
+function deriveSetupState(
+  envResult: ParsedEnv,
+  runningStatus: ProbeResult['runningStatus'],
+): 'running' | 'configured' | 'incomplete' {
+  if (runningStatus === 'running') return 'running'
+  const hasRequiredKeys = envResult.keyCompleteness?.allRequiredKeysPresent ?? false
+  if (!envResult.present || !hasRequiredKeys || looksPlaceholder(envResult.raw?.['IRANTI_API_KEY'])) {
+    return 'incomplete'
+  }
+  return 'configured'
+}
+
 async function aggregateInstance(
   runtimeRoot: string,
+  instanceDir: string,
   registeredAt: string | null
 ): Promise<InstanceMetadata> {
-  const instanceId = deriveInstanceId(runtimeRoot)
-  const envResult = await parseEnvFile(runtimeRoot)
+  const envResult = await parseInstanceEnvFile(instanceDir, runtimeRoot)
+  const effectiveRuntimeRoot = envResult.resolvedRuntimeRoot
+  const instanceId = envResult.raw?.['IRANTI_INSTANCE']?.trim() || deriveInstanceId(instanceDir)
 
-  const rawPort = envResult.raw?.['PORT']
+  const rawPort = envResult.raw?.['IRANTI_PORT'] ?? envResult.raw?.['PORT']
   const port =
     rawPort && !isNaN(parseInt(rawPort, 10)) ? parseInt(rawPort, 10) : 3001
 
@@ -322,15 +478,20 @@ async function aggregateInstance(
 
   const [probe, versionFallback, runtime] = await Promise.all([
     probeInstance(port),
-    envResult.present ? readVersionFromPackageJson(runtimeRoot) : Promise.resolve(null),
+    envResult.present ? readVersionFromPackageJson(effectiveRuntimeRoot) : Promise.resolve(null),
     fetchInstanceRuntime(port),
   ])
 
   const irantVersion = probe.irantVersion ?? versionFallback
+  const { keysPresent, keysMissing } = summarizeEnvKeys(envResult.raw, envResult.keyCompleteness)
+  const name = envResult.raw?.['IRANTI_INSTANCE']?.trim() || basename(instanceDir)
+  const setupState = deriveSetupState(envResult, probe.runningStatus)
 
   return {
     instanceId,
-    runtimeRoot,
+    name,
+    setupState,
+    runtimeRoot: effectiveRuntimeRoot,
     database: envResult.raw?.['DATABASE_URL']
       ? { host: dbParsed.host, port: dbParsed.port, name: dbParsed.name, urlRedacted: dbParsed.urlRedacted }
       : null,
@@ -341,7 +502,11 @@ async function aggregateInstance(
     envFile: {
       present: envResult.present,
       path: envResult.path,
+      instanceEnvPath: envResult.instanceEnvPath,
+      bindingPresent: envResult.bindingPresent,
       keyCompleteness: envResult.keyCompleteness,
+      keysPresent,
+      keysMissing,
     },
     integration: {
       // SECURITY: only boolean presence and non-secret derived values returned
@@ -360,6 +525,7 @@ async function aggregateInstance(
     projectMode: resolveProjectMode(envResult.raw?.['IRANTI_PROJECT_MODE']),
     // Phase 1: project bindings are stubbed — CP-T006 spike required for binding source
     projects: [],
+    discoveredAt: registeredAt ?? probe.checkedAt,
     registeredAt: registeredAt ?? null,
     notes: null,
     // CP-T072: runtime lifecycle metadata — null for ad-hoc instances or when unreachable
@@ -370,18 +536,29 @@ async function aggregateInstance(
 
 function buildErrorInstance(
   runtimeRoot: string,
+  instanceDir: string,
   registeredAt: string | null,
   errorMsg: string
 ): InstanceMetadata {
   return {
-    instanceId: deriveInstanceId(runtimeRoot),
+    instanceId: deriveInstanceId(instanceDir),
+    name: basename(instanceDir),
+    setupState: 'incomplete',
     runtimeRoot,
     database: null,
     configuredPort: null,
     runningStatus: 'unreachable',
     runningStatusCheckedAt: new Date().toISOString(),
     irantVersion: null,
-    envFile: { present: false, path: join(runtimeRoot, '.env.iranti'), keyCompleteness: null },
+    envFile: {
+      present: false,
+      bindingPresent: false,
+      path: null,
+      instanceEnvPath: null,
+      keyCompleteness: null,
+      keysPresent: [],
+      keysMissing: [],
+    },
     integration: {
       defaultProvider: null,
       defaultModel: null,
@@ -390,6 +567,7 @@ function buildErrorInstance(
     },
     projectMode: null,
     projects: [],
+    discoveredAt: registeredAt ?? new Date().toISOString(),
     registeredAt,
     notes: `Aggregation error: ${errorMsg}`,
     // CP-T072: runtime unavailable for error instances
@@ -423,19 +601,58 @@ async function scanCandidatePaths(): Promise<string[]> {
 
   const candidates = [
     join(home, '.iranti'),
+    join(home, '.iranti-runtime'),
     join(home, 'iranti'),
     cwd,
   ]
 
-  const found: string[] = []
+  const found = new Set<string>()
   for (const dir of candidates) {
+    try {
+      await access(join(dir, 'instances'), constants.F_OK)
+      found.add(dir)
+      continue
+    } catch { /* not a runtime root */ }
+
     const envPath = join(dir, '.env.iranti')
     try {
       await access(envPath, constants.F_OK)
-      found.push(dir)
+      const parsed = parseEnvContent(await readFile(envPath, 'utf8'))
+      const instanceEnvPath = parsed.IRANTI_INSTANCE_ENV?.trim()
+      if (instanceEnvPath) {
+        found.add(resolve(dirname(instanceEnvPath), '..', '..'))
+      }
     } catch { /* not found — skip */ }
   }
-  return found
+  return Array.from(found)
+}
+
+function normalizeRuntimeRootCandidate(candidate: string): string {
+  const resolved = resolve(candidate)
+  const leaf = basename(resolved).toLowerCase()
+  const parentLeaf = basename(dirname(resolved)).toLowerCase()
+
+  // Accept either the runtime root itself, the instances directory, or a
+  // concrete instance directory and normalize all of them back to the runtime root.
+  if (leaf === 'instances') return dirname(resolved)
+  if (parentLeaf === 'instances') return dirname(dirname(resolved))
+  return resolved
+}
+
+async function listInstanceDirs(runtimeRoot: string): Promise<string[]> {
+  const normalizedRoot = normalizeRuntimeRootCandidate(runtimeRoot)
+  const instancesDir = join(normalizedRoot, 'instances')
+
+  try {
+    await access(instancesDir, constants.F_OK)
+  } catch {
+    return []
+  }
+
+  const entries = await readdir(instancesDir, { withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(instancesDir, entry.name))
 }
 
 async function discoverInstances(): Promise<{
@@ -445,18 +662,28 @@ async function discoverInstances(): Promise<{
   const registryEntries = await readRegistry()
 
   if (registryEntries && registryEntries.length > 0) {
+    const deduped = new Map<string, string | null>()
+    for (const entry of registryEntries) {
+      const runtimeRoot = normalizeRuntimeRootCandidate(entry.runtimeRoot)
+      if (!deduped.has(runtimeRoot)) {
+        deduped.set(runtimeRoot, entry.registeredAt ?? null)
+      }
+    }
     return {
-      roots: registryEntries.map((e) => ({
-        runtimeRoot: e.runtimeRoot,
-        registeredAt: e.registeredAt ?? null,
+      roots: Array.from(deduped.entries()).map(([runtimeRoot, registeredAt]) => ({
+        runtimeRoot,
+        registeredAt,
       })),
       source: 'registry',
     }
   }
 
   const scannedRoots = await scanCandidatePaths()
+  const normalizedRoots = Array.from(
+    new Set(scannedRoots.map((root) => normalizeRuntimeRootCandidate(root)))
+  )
   return {
-    roots: scannedRoots.map((r) => ({ runtimeRoot: r, registeredAt: null })),
+    roots: normalizedRoots.map((r) => ({ runtimeRoot: r, registeredAt: null })),
     source: 'scan',
   }
 }
@@ -467,12 +694,20 @@ async function discoverAndAggregate(): Promise<{
   discoveredAt: string
 }> {
   const { roots, source } = await discoverInstances()
+  const instanceRefs = (
+    await Promise.all(
+      roots.map(async ({ runtimeRoot, registeredAt }) => {
+        const instanceDirs = await listInstanceDirs(runtimeRoot)
+        return instanceDirs.map((instanceDir) => ({ runtimeRoot, registeredAt, instanceDir }))
+      })
+    )
+  ).flat()
 
   const instances = await Promise.all(
-    roots.map(({ runtimeRoot, registeredAt }) =>
-      aggregateInstance(runtimeRoot, registeredAt).catch((err: unknown) => {
-        console.error(`[instances] Failed to aggregate ${runtimeRoot}:`, err)
-        return buildErrorInstance(runtimeRoot, registeredAt, String(err))
+    instanceRefs.map(({ runtimeRoot, registeredAt, instanceDir }) =>
+      aggregateInstance(runtimeRoot, instanceDir, registeredAt).catch((err: unknown) => {
+        console.error(`[instances] Failed to aggregate ${instanceDir}:`, err)
+        return buildErrorInstance(runtimeRoot, instanceDir, registeredAt, String(err))
       })
     )
   )
@@ -542,3 +777,6 @@ instancesRouter.use(
     })
   }
 )
+
+
+

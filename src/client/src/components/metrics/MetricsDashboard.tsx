@@ -166,14 +166,18 @@ function PeriodToggle({ period, onChange }: { period: Period; onChange: (p: Peri
 /*  Empty state (AC-9)                                                  */
 /* ------------------------------------------------------------------ */
 
-function MetricsEmptyState() {
+function MetricsEmptyState({
+  title = 'Not enough history yet',
+  body = 'Metrics will appear after at least 48 hours of activity.',
+}: {
+  title?: string
+  body?: string
+}) {
   return (
     <div className={styles.emptyState} role="status">
       <span className={styles.emptyStateIcon} aria-hidden="true">▦</span>
-      <p className={styles.emptyStateTitle}>Not enough history yet</p>
-      <p className={styles.emptyStateBody}>
-        Metrics will appear after at least 48 hours of activity.
-      </p>
+      <p className={styles.emptyStateTitle}>{title}</p>
+      <p className={styles.emptyStateBody}>{body}</p>
     </div>
   )
 }
@@ -565,7 +569,7 @@ function AgentActivityChart({ agents }: AgentActivityChartProps) {
 /*  KB Growth chart section — wraps query + period toggle (AC-6)       */
 /* ------------------------------------------------------------------ */
 
-function KbGrowthSection() {
+function KbGrowthSection({ summary }: { summary: MetricsSummaryResponse | undefined }) {
   const [period, setPeriod] = useState<Period>('30d')
 
   const { data, isLoading, error } = useQuery<KbGrowthResponse, Error>({
@@ -575,6 +579,12 @@ function KbGrowthSection() {
   })
 
   const isEmpty = data && (data.truncated || data.data.length < 2)
+  const emptyTitle = (summary?.totalFacts ?? 0) > 0
+    ? 'History is still warming up'
+    : 'Not enough history yet'
+  const emptyBody = (summary?.totalFacts ?? 0) > 0
+    ? 'This instance already has live KB data, but the event-backed growth history is still sparse.'
+    : 'Metrics will appear after the instance records enough event history.'
 
   return (
     <section className={styles.chartSection}>
@@ -599,7 +609,7 @@ function KbGrowthSection() {
       )}
 
       {!isLoading && !error && isEmpty && (
-        <MetricsEmptyState />
+        <MetricsEmptyState title={emptyTitle} body={emptyBody} />
       )}
 
       {!isLoading && !error && data && !isEmpty && (
@@ -613,7 +623,7 @@ function KbGrowthSection() {
 /*  Agent Activity chart section — wraps query + period toggle (AC-7)  */
 /* ------------------------------------------------------------------ */
 
-function AgentActivitySection() {
+function AgentActivitySection({ summary }: { summary: MetricsSummaryResponse | undefined }) {
   const [period, setPeriod] = useState<Period>('30d')
 
   const { data, isLoading, error } = useQuery<AgentActivityResponse, Error>({
@@ -623,6 +633,12 @@ function AgentActivitySection() {
   })
 
   const isEmpty = !data || data.agents.length === 0 || data.agents.every(a => a.data.length < 2)
+  const emptyTitle = (summary?.activeAgentsLast7d ?? 0) > 0
+    ? 'Recent history is sparse'
+    : 'No recent agent history yet'
+  const emptyBody = (summary?.activeAgentsLast7d ?? 0) > 0
+    ? 'Agents are active, but there is not enough recent event history in this time window to plot a chart yet.'
+    : 'Agent activity charts appear when recent write history is available for this instance.'
 
   return (
     <section className={styles.chartSection}>
@@ -647,7 +663,7 @@ function AgentActivitySection() {
       )}
 
       {!isLoading && !error && isEmpty && (
-        <MetricsEmptyState />
+        <MetricsEmptyState title={emptyTitle} body={emptyBody} />
       )}
 
       {!isLoading && !error && data && !isEmpty && (
@@ -700,9 +716,12 @@ export function MetricsDashboard() {
 
       {/* Charts */}
       <div className={styles.chartsArea}>
-        <KbGrowthSection />
-        <AgentActivitySection />
+        <KbGrowthSection summary={summary} />
+        <AgentActivitySection summary={summary} />
       </div>
     </div>
   )
 }
+
+
+

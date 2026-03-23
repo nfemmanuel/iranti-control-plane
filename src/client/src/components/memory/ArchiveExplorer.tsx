@@ -113,14 +113,14 @@ function parseConflictLog(raw: Record<string, unknown> | null): ConflictEntry[] 
   return []
 }
 
-const CONFLICT_TYPE_LABELS: Record<ConflictEntry['type'], string> = {
+const CONFLICT_TYPE_LABELS: Record<string, string> = {
   CONFLICT_ESCALATED: 'Escalated',
   CONFLICT_REJECTED: 'Rejected',
   CONFLICT_RESOLVED: 'Resolved',
   IDEMPOTENT_SKIP: 'Skipped',
 }
 
-function conflictTypeBadgeStyle(type: ConflictEntry['type']): CSSProperties {
+function conflictTypeBadgeStyle(type: string): CSSProperties {
   switch (type) {
     case 'CONFLICT_ESCALATED':
       return { color: 'var(--color-status-warning)', background: 'var(--color-status-warning-bg)', border: '1px solid var(--color-status-warning)' }
@@ -130,6 +130,8 @@ function conflictTypeBadgeStyle(type: ConflictEntry['type']): CSSProperties {
       return { color: 'var(--color-status-success)', background: 'var(--color-status-success-bg)', border: '1px solid var(--color-status-success)' }
     case 'IDEMPOTENT_SKIP':
       return { color: 'var(--color-text-tertiary)', background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-subtle)' }
+    default:
+      return { color: 'var(--color-text-tertiary)', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-subtle)' }
   }
 }
 
@@ -145,11 +147,11 @@ function ConflictTimeline({ conflictLog }: { conflictLog: Record<string, unknown
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
         {entries.map((entry, i) => (
           <li key={i} style={{ display: 'flex', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderBottom: i < entries.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
-            <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: conflictTypeBadgeStyle(entry.type).color ?? 'var(--color-text-tertiary)', marginTop: 5, display: 'inline-block', border: '1px solid var(--color-border-default)' }} aria-hidden="true" />
+            <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: conflictTypeBadgeStyle(String(entry.type)).color ?? 'var(--color-text-tertiary)', marginTop: 5, display: 'inline-block', border: '1px solid var(--color-border-default)' }} aria-hidden="true" />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                <span style={{ ...conflictTypeBadgeStyle(entry.type), fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', borderRadius: 'var(--border-radius-sm)', padding: '1px 5px', whiteSpace: 'nowrap' }}>
-                  {CONFLICT_TYPE_LABELS[entry.type]}
+                <span style={{ ...conflictTypeBadgeStyle(String(entry.type)), fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', borderRadius: 'var(--border-radius-sm)', padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                  {CONFLICT_TYPE_LABELS[String(entry.type)] ?? String(entry.type ?? 'Unknown')}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', cursor: 'default' }} title={entry.at}>
                   {formatRelativeTime(entry.at)}
@@ -267,7 +269,7 @@ function ArchivistHistory({ archiveId }: { archiveId: string }) {
                 No Archivist events recorded for this fact.
               </span>
               <span className={archiveStyles.archivistHistoryEmptyNote}>
-                Full event coverage requires CP-T025 native emitter injection.
+                Additional Archivist event details are unavailable for this fact.
               </span>
             </div>
           )}
@@ -1106,3 +1108,4 @@ export function ArchiveExplorer() {
     </div>
   )
 }
+

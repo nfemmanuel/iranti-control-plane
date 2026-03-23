@@ -34,6 +34,7 @@ type SessionState = 'interrupted' | 'checkpointed' | 'complete' | 'abandoned' | 
 const VALID_STATES: ReadonlySet<string> = new Set([
   'interrupted',
   'checkpointed',
+  'active',
   'complete',
   'abandoned',
   'all',
@@ -197,15 +198,22 @@ async function probeIrantiSessionList(
 // ---------------------------------------------------------------------------
 
 // knowledge_base uses camelCase column names (Iranti's Prisma schema)
-interface KBSessionRow {
+interface LegacyKBSessionRow {
   entityId: string
   key: string
   valueSummary: string | null
-  valueRaw: string | null
-  agentId: string | null
+  valueRaw: unknown
+  createdBy: string | null
   createdAt: Date | string
   updatedAt: Date | string | null
   properties: Record<string, unknown> | null
+}
+
+interface AttendantStateRow {
+  entityId: string
+  valueRaw: unknown
+  createdAt: Date | string
+  updatedAt: Date | string | null
 }
 
 function coerceDate(d: Date | string | null | undefined): string | null {
@@ -214,9 +222,9 @@ function coerceDate(d: Date | string | null | undefined): string | null {
   return String(d)
 }
 
-function buildSessionFromKBRows(rows: KBSessionRow[]): SessionRecord[] {
+function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): SessionRecord[] {
   // Group by entityId (sessionId)
-  const bySession = new Map<string, KBSessionRow[]>()
+  const bySession = new Map<string, LegacyKBSessionRow[]>()
   for (const row of rows) {
     const existing = bySession.get(row.entityId) ?? []
     existing.push(row)
@@ -227,7 +235,10 @@ function buildSessionFromKBRows(rows: KBSessionRow[]): SessionRecord[] {
   for (const [sessionId, sessionRows] of bySession) {
     const getVal = (key: string): string | null => {
       const row = sessionRows.find((r) => r.key === key)
-      return row?.valueSummary ?? row?.valueRaw ?? null
+      if (!row) return null
+      if (typeof row.valueSummary === 'string') return row.valueSummary
+      if (typeof row.valueRaw === 'string') return row.valueRaw
+      return null
     }
 
     // Derive state: look for a 'state' key
@@ -241,11 +252,11 @@ function buildSessionFromKBRows(rows: KBSessionRow[]): SessionRecord[] {
       else if (s === 'abandoned') state = 'abandoned'
     }
 
-    // Determine agentId: look in a dedicated key or fall back to the row's agentId column
+    // Determine agentId: look in a dedicated key or fall back to the row's createdBy column
     const anyRow = sessionRows[0]
     const agentId =
       getVal('agentId') ??
-      (typeof anyRow?.agentId === 'string' ? anyRow.agentId : null) ??
+      (typeof anyRow?.createdBy === 'string' ? anyRow.createdBy : null) ??
       ''
 
     sessions.push({
@@ -257,6 +268,48 @@ function buildSessionFromKBRows(rows: KBSessionRow[]): SessionRecord[] {
       lastCheckpointAt: getVal('lastCheckpointAt'),
       completedAt: getVal('completedAt'),
       abandonedAt: getVal('abandonedAt'),
+    })
+  }
+
+  return sessions
+}
+
+function buildSessionsFromAttendantStateRows(rows: AttendantStateRow[]): SessionRecord[] {
+  const sessions: SessionRecord[] = []
+
+  for (const row of rows) {
+    if (!row.valueRaw || typeof row.valueRaw !== 'object') continue
+
+    const raw = row.valueRaw as Record<string, unknown>
+    const checkpoint = raw['sessionCheckpoint']
+    if (!checkpoint || typeof checkpoint !== 'object') continue
+
+    const record = checkpoint as Record<string, unknown>
+    const rawState = typeof record['status'] === 'string' ? record['status'] : 'unknown'
+    const validSessionStates: ReadonlySet<string> = new Set([
+      'interrupted', 'checkpointed', 'complete', 'completed', 'abandoned', 'active', 'unknown',
+    ])
+    const normalizedState = validSessionStates.has(rawState) ? rawState : 'unknown'
+
+    let state: SessionState
+    if (normalizedState === 'active') state = 'checkpointed'
+    else if (normalizedState === 'completed') state = 'complete'
+    else state = normalizedState as SessionState
+
+    sessions.push({
+      sessionId: typeof record['sessionId'] === 'string' ? record['sessionId'] : row.entityId,
+      agentId: row.entityId,
+      state,
+      task: typeof record['task'] === 'string' ? record['task'] : null,
+      startedAt: typeof record['startedAt'] === 'string' ? record['startedAt'] : coerceDate(row.createdAt),
+      lastCheckpointAt:
+        typeof record['updatedAt'] === 'string'
+          ? record['updatedAt']
+          : typeof record['lastHeartbeatAt'] === 'string'
+            ? record['lastHeartbeatAt']
+            : coerceDate(row.updatedAt),
+      completedAt: typeof record['completedAt'] === 'string' ? record['completedAt'] : null,
+      abandonedAt: typeof record['abandonedAt'] === 'string' ? record['abandonedAt'] : null,
     })
   }
 
@@ -284,26 +337,42 @@ async function queryLocalKBForSessions(): Promise<{
       }
     }
 
-    const result = await query<KBSessionRow>(
-      `SELECT "entityId", key, "valueSummary", "valueRaw", "agentId", "createdAt", "updatedAt", properties
+    const attendantStateResult = await query<AttendantStateRow>(
+      `SELECT "entityId", "valueRaw", "createdAt", "updatedAt"
+       FROM knowledge_base
+       WHERE "entityType" = 'agent' AND key = 'attendant_state'
+       ORDER BY "createdAt" DESC
+       LIMIT 500`
+    )
+
+    const attendantSessions = buildSessionsFromAttendantStateRows(attendantStateResult.rows)
+    if (attendantSessions.length > 0) {
+      return {
+        sessions: attendantSessions,
+        note: 'Sessions sourced from agent/attendant_state in local knowledge_base. Iranti does not expose a list-sessions endpoint.',
+      }
+    }
+
+    const legacyResult = await query<LegacyKBSessionRow>(
+      `SELECT "entityId", key, "valueSummary", "valueRaw", "createdBy", "createdAt", "updatedAt", properties
        FROM knowledge_base
        WHERE "entityType" = 'session'
        ORDER BY "createdAt" DESC
        LIMIT 500`
     )
 
-    if (result.rows.length === 0) {
+    if (legacyResult.rows.length === 0) {
       return {
         sessions: [],
-        note: 'Checked Iranti /memory/sessions (no endpoint) and local knowledge_base (entityType=session). No session facts found.',
+        note: 'Checked Iranti /memory/sessions (no endpoint), agent/attendant_state, and legacy entityType=session rows. No session facts found.',
       }
     }
 
-    const sessions = buildSessionFromKBRows(result.rows)
+    const sessions = buildSessionFromLegacyKBRows(legacyResult.rows)
     return {
       sessions,
       note: sessions.length > 0
-        ? `Sessions sourced from local knowledge_base (entityType=session). Iranti does not expose a list-sessions endpoint.`
+        ? 'Sessions sourced from legacy entityType=session rows in local knowledge_base. Iranti does not expose a list-sessions endpoint.'
         : 'No session facts found in local knowledge_base (entityType=session).',
     }
   } catch (err: unknown) {
@@ -320,6 +389,9 @@ async function queryLocalKBForSessions(): Promise<{
 
 function filterByState(sessions: SessionRecord[], state: string): SessionRecord[] {
   if (state === 'all') return sessions
+  if (state === 'active') {
+    return sessions.filter((s) => s.state !== 'complete' && s.state !== 'abandoned')
+  }
   // 'interrupted' filter includes both 'interrupted' and 'checkpointed' states
   // since they both represent sessions needing attention, per AC-2
   if (state === 'interrupted') {
@@ -339,7 +411,7 @@ sessionsRouter.get('/', async (req: Request, res: Response) => {
   const stateParam = (req.query['state'] as string | undefined) ?? 'all'
   if (!VALID_STATES.has(stateParam)) {
     res.status(400).json({
-      error: `Invalid state parameter: "${stateParam}". Valid values: interrupted, checkpointed, complete, abandoned, all`,
+      error: `Invalid state parameter: "${stateParam}". Valid values: interrupted, checkpointed, active, complete, abandoned, all`,
       code: 'INVALID_PARAM',
     })
     return

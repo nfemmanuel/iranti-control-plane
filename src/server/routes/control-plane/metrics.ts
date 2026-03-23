@@ -90,6 +90,35 @@ async function staffEventsTableExists(): Promise<boolean> {
   }
 }
 
+interface KnowledgeBaseSummaryRow {
+  total_facts: string
+  facts_last_24h: string
+  active_agents_last_7d: string
+}
+
+async function fetchKnowledgeBaseSummaryFallback(): Promise<{
+  totalFacts: number
+  factsLast24h: number
+  activeAgentsLast7d: number
+}> {
+  const result = await query<KnowledgeBaseSummaryRow>(
+    `SELECT
+       COUNT(*)::text AS total_facts,
+       COUNT(*) FILTER (WHERE "createdAt" >= NOW() - INTERVAL '24 hours')::text AS facts_last_24h,
+       COUNT(DISTINCT "createdBy") FILTER (
+         WHERE "createdAt" >= NOW() - INTERVAL '7 days' AND "createdBy" <> 'system'
+       )::text AS active_agents_last_7d
+     FROM knowledge_base`
+  )
+
+  const row = result.rows[0]
+  return {
+    totalFacts: parseInt(row?.total_facts ?? '0', 10),
+    factsLast24h: parseInt(row?.facts_last_24h ?? '0', 10),
+    activeAgentsLast7d: parseInt(row?.active_agents_last_7d ?? '0', 10),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /metrics/kb-growth?period=7d|30d
 // ---------------------------------------------------------------------------
@@ -309,11 +338,16 @@ metricsRouter.get('/summary', async (_req: Request, res: Response, next: NextFun
   try {
     const tableExists = await staffEventsTableExists()
     if (!tableExists) {
-      const response: SummaryResponse = {
+      const fallback = await fetchKnowledgeBaseSummaryFallback().catch(() => ({
         totalFacts: 0,
         factsLast24h: 0,
-        factsLast7d: 0,
         activeAgentsLast7d: 0,
+      }))
+      const response: SummaryResponse = {
+        totalFacts: fallback.totalFacts,
+        factsLast24h: fallback.factsLast24h,
+        factsLast7d: 0,
+        activeAgentsLast7d: fallback.activeAgentsLast7d,
         rejectionRateLast7d: 0,
         archiveRateLast7d: 0,
       }
@@ -403,8 +437,25 @@ metricsRouter.get('/summary', async (_req: Request, res: Response, next: NextFun
       ? Math.round((archivedLast7d / factsLast7d) * 10000) / 10000
       : 0
 
+    const totalFacts = Math.max(0, totalWritesAllTime - totalArchivedAllTime)
+    if (totalFacts === 0) {
+      const fallback = await fetchKnowledgeBaseSummaryFallback().catch(() => null)
+      if (fallback && fallback.totalFacts > 0) {
+        const response: SummaryResponse = {
+          totalFacts: fallback.totalFacts,
+          factsLast24h: fallback.factsLast24h,
+          factsLast7d: 0,
+          activeAgentsLast7d: fallback.activeAgentsLast7d,
+          rejectionRateLast7d: 0,
+          archiveRateLast7d: 0,
+        }
+        res.json(response)
+        return
+      }
+    }
+
     const response: SummaryResponse = {
-      totalFacts: Math.max(0, totalWritesAllTime - totalArchivedAllTime),
+      totalFacts,
       factsLast24h: parseInt(row.facts_last_24h ?? '0', 10),
       factsLast7d,
       activeAgentsLast7d: parseInt(row.active_agents_last_7d ?? '0', 10),

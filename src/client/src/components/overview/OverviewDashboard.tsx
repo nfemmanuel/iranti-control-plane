@@ -113,23 +113,21 @@ function SystemStatusStrip({ checks, loading }: SystemStatusStripProps) {
             ))}
           </div>
         ) : (
-          <Link to="/health" className={styles.statusClickable} aria-label="View full health dashboard">
-            <div className={styles.statusStrip}>
-              {checks.map((check) => (
-                <span key={check.name} className={styles.statusPill}>
-                  <span
-                    className={styles.statusDot}
-                    data-status={check.status}
-                    aria-label={check.status}
-                  />
-                  {check.name.replace(/_/g, ' ')}
-                </span>
-              ))}
-              {checks.length === 0 && (
-                <span className={styles.emptyState}>No health data</span>
-              )}
-            </div>
-          </Link>
+          <div className={styles.statusStrip} aria-label="System health summary">
+            {checks.map((check) => (
+              <span key={check.name} className={styles.statusPill}>
+                <span
+                  className={styles.statusDot}
+                  data-status={check.status}
+                  aria-label={check.status}
+                />
+                {check.name.replace(/_/g, ' ')}
+              </span>
+            ))}
+            {checks.length === 0 && (
+              <span className={styles.emptyState}>No health data</span>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -179,7 +177,7 @@ function KBSummaryCard({ totalFacts, factsLast24h, activeAgentsLast7d, truncated
             </div>
             {truncated && (
               <span className={styles.truncatedNote}>
-                Activity data requires <code>npm run migrate</code>
+                Live KB counts are shown. Historical event metrics are still warming up.
               </span>
             )}
           </>
@@ -214,7 +212,7 @@ function RecentActivityFeed({ events, loading }: RecentActivityFeedProps) {
           </div>
         ) : events.length === 0 ? (
           <span className={styles.emptyState}>
-            No recent Staff activity. Run <code>npm run migrate</code> to enable the event stream.
+            No recent Staff activity recorded.
           </span>
         ) : (
           <div className={styles.eventList}>
@@ -272,7 +270,7 @@ function ActiveAgentsCard({ agents, loading }: ActiveAgentsCardProps) {
             ))}
           </div>
         ) : displayAgents.length === 0 ? (
-          <span className={styles.emptyState}>No agents seen recently.</span>
+          <span className={styles.emptyState}>No active agents seen recently.</span>
         ) : (
           <div className={styles.agentList}>
             {displayAgents.map((agent) => (

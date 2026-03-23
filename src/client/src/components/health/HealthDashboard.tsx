@@ -160,18 +160,7 @@ export function getInfoNormalization(checkName: string): string | null {
  * Uses 'local' as the Phase 1 instanceId. 'default' as projectId placeholder.
  * Only checks with actionable filesystem repair actions are listed here.
  */
-const REPAIR_ENDPOINTS: Partial<Record<string, { url: string; label: string; kind: 'mcp-json' | 'claude-md' }>> = {
-  mcp_integration: {
-    url: '/api/control-plane/instances/local/projects/default/repair/mcp-json',
-    label: 'Regenerate .mcp.json',
-    kind: 'mcp-json',
-  },
-  claude_md_integration: {
-    url: '/api/control-plane/instances/local/projects/default/repair/claude-md',
-    label: 'Update CLAUDE.md integration block',
-    kind: 'claude-md',
-  },
-}
+const REPAIR_ENDPOINTS: Partial<Record<string, { url: string; label: string; kind: 'mcp-json' | 'claude-md' }>> = {}
 
 type RepairKind = 'mcp-json' | 'claude-md'
 
@@ -955,7 +944,15 @@ function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
  * Accepts an optional `onRunRequest` callback so the command palette can
  * trigger a run from outside the component via a CustomEvent.
  */
-function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) {
+function diagnosticsUrl(path: 'last' | 'run', instanceId?: string): string {
+  const url = new URL(`/api/control-plane/diagnostics/${path}`, window.location.origin)
+  if (instanceId) {
+    url.searchParams.set('instanceId', instanceId)
+  }
+  return url.toString()
+}
+
+function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal: number; instanceId?: string }) {
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<DiagnosticRunResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -970,7 +967,7 @@ function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) 
     let cancelled = false
     const fetchLast = async () => {
       try {
-        const res = await fetch('/api/control-plane/diagnostics/last')
+        const res = await fetch(diagnosticsUrl('last', instanceId))
         if (res.status === 404) {
           if (!cancelled) setLastRunLoaded(true)
           return
@@ -990,14 +987,14 @@ function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) 
     }
     void fetchLast()
     return () => { cancelled = true }
-  }, [])
+  }, [instanceId])
 
   const runDiagnostics = useCallback(async () => {
     if (running) return // guard against double-trigger
     setRunning(true)
     setError(null)
     try {
-      const res = await fetch('/api/control-plane/diagnostics/run', { method: 'POST' })
+      const res = await fetch(diagnosticsUrl('run', instanceId), { method: 'POST' })
       if (!res.ok) {
         throw new Error(`Server returned ${res.status}`)
       }
@@ -1061,6 +1058,7 @@ function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) 
         {lastRun && lastRunLoaded && !running && (
           <span className={styles.diagLastRunMeta} aria-live="polite">
             Last run: {new Date(lastRun.runAt).toLocaleTimeString()}
+            {lastRun.scope ? ` for ${lastRun.scope.instanceName}` : ''}
           </span>
         )}
       </div>
@@ -1105,39 +1103,27 @@ function DiagnosticsPanel({ externalRunSignal }: { externalRunSignal: number }) 
 export function HealthDashboard() {
   const [refreshingManual, setRefreshingManual] = useState(false)
   const manualRefetchRef = useRef<(() => Promise<unknown>) | null>(null)
+  const { activeInstance } = useInstanceContext()
 
   // CP-T059: Signal from command palette to trigger a diagnostics run
   // Incremented each time the palette fires `iranti:run-diagnostics`
   const [diagRunSignal, setDiagRunSignal] = useState(0)
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<HealthResponse, Error>({
-    queryKey: ['health'],
-    queryFn: () => apiFetch<HealthResponse>('/health'),
+    queryKey: ['health', activeInstance?.id ?? 'binding'],
+    queryFn: () => apiFetch<HealthResponse>('/health', { instanceId: activeInstance?.id }),
     refetchInterval: REFRESH_INTERVAL_MS,
     staleTime: 0,
-  })
-
-  // CP-T046: Providers query for the unreachable-provider banner
-  const { data: providersData } = useQuery<ProvidersResponse, Error>({
-    queryKey: ['providers'],
-    queryFn: () => apiFetch<ProvidersResponse>('/providers'),
-    staleTime: 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
   })
 
   // CP-T078: Version sync — compare installed vs npm latest
   // Version changes rarely; 5-minute refetch interval is sufficient.
   const { data: versionSync } = useQuery<VersionSyncResult, Error>({
-    queryKey: ['version-sync'],
-    queryFn: fetchVersionSync,
+    queryKey: ['version-sync', activeInstance?.id ?? 'binding'],
+    queryFn: () => fetchVersionSync(activeInstance?.id),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
-
-  // Configured providers that have a key but are not reachable
-  const unreachableProviders = (providersData?.providers ?? []).filter(
-    p => p.keyPresent && !p.reachable
-  )
 
   manualRefetchRef.current = refetch
 
@@ -1197,6 +1183,11 @@ export function HealthDashboard() {
           {data && <OverallBadge checks={data.checks} />}
           {isLoading && <span className={styles.overallLoading}>Checking…</span>}
           <div className={styles.headerMeta}>
+            {data?.scope && (
+              <span className={styles.checkedAt}>
+                Instance: {data.scope.instanceName}
+              </span>
+            )}
             {data && (
               <span className={styles.checkedAt}>
                 {isRefreshing
@@ -1320,7 +1311,7 @@ export function HealthDashboard() {
         )}
 
         {/* CP-T059: Interactive Diagnostics Panel */}
-        <DiagnosticsPanel externalRunSignal={diagRunSignal} />
+        <DiagnosticsPanel externalRunSignal={diagRunSignal} instanceId={activeInstance?.id} />
 
         {/* CP-T034: Provider status section — key presence, reachability, models */}
         {!isLoading && <ProviderStatusSection />}

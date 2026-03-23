@@ -105,6 +105,19 @@ function RunningIndicator({ status, hasConnectionInfo }: {
   return <span className={styles.dotUnknown} aria-label={label} title={label} />
 }
 
+function getSetupStateLabel(setupState: InstanceMetadata['setupState']): string | null {
+  switch (setupState) {
+    case 'running':
+      return null
+    case 'configured':
+      return 'Stopped'
+    case 'incomplete':
+      return 'Needs setup'
+    default:
+      return null
+  }
+}
+
 function StatusBadge({ status, hasConnectionInfo }: {
   status: InstanceMetadata['runningStatus']
   hasConnectionInfo: boolean
@@ -150,6 +163,7 @@ function InstanceListItem({
   const dbSummary = instance.database
     ? `${instance.database.host}:${instance.database.port}/${instance.database.name}`
     : 'No database configured'
+  const setupStateLabel = getSetupStateLabel(instance.setupState)
   const staleLevel = getStalenesLevel(instance.runningStatusCheckedAt)
 
   return (
@@ -169,6 +183,7 @@ function InstanceListItem({
       </div>
       <div className={styles.instanceItemMeta}>
         <span className={styles.instanceDbSummary}>{dbSummary}</span>
+        {setupStateLabel && <span className={styles.badgeNotConfigured}>{setupStateLabel}</span>}
       </div>
     </button>
   )
@@ -866,7 +881,7 @@ function DatabaseSection({ instance }: { instance: InstanceMetadata }) {
       <section className={styles.detailSection}>
         <SectionTitle>Database</SectionTitle>
         <div className={styles.warningNote}>
-          Database unreachable — check DATABASE_URL in .env.iranti
+          Database unreachable — check DATABASE_URL in the live instance env
         </div>
       </section>
     )
@@ -903,12 +918,19 @@ function EnvironmentSection({ instance }: { instance: InstanceMetadata }) {
   return (
     <section className={styles.detailSection}>
       <SectionTitle>Environment</SectionTitle>
-      <FieldRow label=".env.iranti">
-        {envFile.present
-          ? <><CheckIcon ok={true} /> <span className={styles.monoValue}>{envFile.path ?? 'present'}</span></>
-          : <><CheckIcon ok={false} /> <span className={styles.errorValue}>No .env.iranti found — check runtime root</span></>
+      <FieldRow label="Project binding">
+        {(envFile.bindingPresent ?? envFile.present) && envFile.path
+          ? <><CheckIcon ok={true} /> <span className={styles.monoValue}>{envFile.path}</span></>
+          : envFile.instanceEnvPath
+            ? <><CheckIcon ok={true} /> <span className={styles.dimValue}>No current project binding in this workspace</span></>
+            : <><CheckIcon ok={false} /> <span className={styles.errorValue}>No .env.iranti found - check the current project binding</span></>
         }
       </FieldRow>
+      {envFile.instanceEnvPath && (
+        <FieldRow label="Instance env">
+          <><CheckIcon ok={true} /> <span className={styles.monoValue}>{envFile.instanceEnvPath}</span></>
+        </FieldRow>
+      )}
       {envFile.present && (
         <>
           {envFile.keysPresent.length > 0 && (
@@ -1207,6 +1229,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       {showConfigure && (
         <div style={{ padding: 'var(--space-3) var(--section-padding)', borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-base)' }}>
           <ConfigureInstancePanel
+            key={instance.instanceId}
             instanceName={instance.name}
             currentPort={instance.configuredPort}
             currentProvider={instance.integration.defaultProvider}
@@ -1256,6 +1279,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
 
 export function InstanceManager() {
   const { id: routeInstanceId } = useParams<{ id?: string }>()
+  const navigate = useNavigate()
 
   // CP-T029: Track whether a manual per-instance probe refresh is in flight
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -1343,24 +1367,44 @@ export function InstanceManager() {
   if (isLoading) {
     return (
       <div className={styles.page}>
+        <div className={styles.stateShell}>
         <div className={styles.loadingState}>
           <Spinner size="md" label="Loading instances" />
           <span>Discovering instances…</span>
+        </div>
         </div>
       </div>
     )
   }
 
   if (error) {
+    const apiUnavailable =
+      error.message.toLowerCase().includes('failed to fetch') ||
+      error.message.toLowerCase().includes('networkerror')
+
     return (
       <div className={styles.page}>
+        <div className={styles.stateShell}>
         <div className={styles.errorState}>
           <span className={styles.errorIcon}>⚠</span>
-          <p className={styles.errorTitle}>Unable to load instances</p>
-          <p className={styles.errorBody}>{error.message}</p>
+          <p className={styles.errorTitle}>
+            {apiUnavailable ? 'Control plane API unavailable' : 'Unable to load instances'}
+          </p>
+          <p className={styles.errorBody}>
+            {apiUnavailable
+              ? 'The browser cannot reach the control-plane backend. Instance discovery and start/stop controls are unavailable until the backend is running.'
+              : error.message}
+          </p>
+          {apiUnavailable && (
+            <div className={styles.commandHintBlock}>
+              <p className={styles.commandHintLabel}>Start the control-plane backend:</p>
+              <code className={styles.commandHint}>node src\server\dist\index.js</code>
+            </div>
+          )}
           <button className={styles.retryBtn} onClick={() => void refetch()} type="button">
             Retry
           </button>
+        </div>
         </div>
       </div>
     )
@@ -1370,22 +1414,29 @@ export function InstanceManager() {
     const notInstalled = installState !== null && !installState.installed
     return (
       <div className={styles.page}>
+        <div className={styles.stateShell}>
         <div className={styles.emptyState}>
           <span className={styles.emptyIcon}>◈</span>
           <p className={styles.emptyTitle}>No instances discovered</p>
           <p className={styles.emptyBody}>
             {notInstalled
               ? 'Iranti is not installed on this machine. Install it to create and manage instances.'
-              : 'Check that Iranti is installed and that the runtime root is accessible. The control plane looks for Iranti instances at known registry paths.'}
+              : 'No instance folders were discovered under the known runtime roots. If an instance is configured but stopped, it should appear here with a Start action.'}
           </p>
           {notInstalled && (
             <p className={styles.emptyBody} style={{ marginTop: 'var(--space-2)' }}>
               Run: <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>npm install -g iranti</code>
             </p>
           )}
+          {!notInstalled && (
+            <p className={styles.emptyBody}>
+              The control plane scans registered runtime roots and `instances/*` folders.
+            </p>
+          )}
           <button className={styles.retryBtn} onClick={() => void refetch()} type="button">
             Refresh
           </button>
+        </div>
         </div>
       </div>
     )
@@ -1440,7 +1491,10 @@ export function InstanceManager() {
             key={inst.instanceId}
             instance={inst}
             selected={inst.instanceId === selectedId}
-            onClick={() => setLocalSelectedId(inst.instanceId)}
+            onClick={() => {
+              setLocalSelectedId(inst.instanceId)
+              void navigate(`/instances/${encodeURIComponent(inst.instanceId)}`)
+            }}
             _tick={tick}
           />
         ))}
@@ -1514,3 +1568,4 @@ export function InstanceManager() {
     </div>
   )
 }
+

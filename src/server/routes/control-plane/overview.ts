@@ -90,8 +90,38 @@ interface KBSummaryRow {
   active_agents_last_7d: string
 }
 
+interface KnowledgeBaseSummaryRow {
+  total_facts: string
+  facts_last_24h: string
+  active_agents_last_7d: string
+}
+
 async function fetchKBSummary(): Promise<OverviewKBSummary> {
   const fetchedAt = new Date().toISOString()
+  const fallbackFromKnowledgeBase = async (truncated: boolean): Promise<OverviewKBSummary> => {
+    try {
+      const result = await query<KnowledgeBaseSummaryRow>(
+        `SELECT
+           COUNT(*)::text AS total_facts,
+           COUNT(*) FILTER (WHERE "createdAt" >= NOW() - INTERVAL '24 hours')::text AS facts_last_24h,
+           COUNT(DISTINCT "createdBy") FILTER (
+             WHERE "createdAt" >= NOW() - INTERVAL '7 days' AND "createdBy" <> 'system'
+           )::text AS active_agents_last_7d
+         FROM knowledge_base`
+      )
+
+      const row = result.rows[0]
+      return {
+        totalFacts: parseInt(row?.total_facts ?? '0', 10),
+        factsLast24h: parseInt(row?.facts_last_24h ?? '0', 10),
+        activeAgentsLast7d: parseInt(row?.active_agents_last_7d ?? '0', 10),
+        truncated,
+        fetchedAt,
+      }
+    } catch {
+      return { totalFacts: 0, factsLast24h: 0, activeAgentsLast7d: 0, truncated: true, fetchedAt }
+    }
+  }
 
   // Check table exists first
   try {
@@ -104,7 +134,7 @@ async function fetchKBSummary(): Promise<OverviewKBSummary> {
     const tableExists = existsResult.rows[0]?.exists ?? false
 
     if (!tableExists) {
-      return { totalFacts: 0, factsLast24h: 0, activeAgentsLast7d: 0, truncated: true, fetchedAt }
+      return await fallbackFromKnowledgeBase(true)
     }
 
     const result = await query<KBSummaryRow>(
@@ -121,6 +151,9 @@ async function fetchKBSummary(): Promise<OverviewKBSummary> {
     const totalWrites = parseInt(row?.total_writes_all_time ?? '0', 10)
     const totalArchived = parseInt(row?.total_archived_all_time ?? '0', 10)
     const totalFacts = Math.max(0, totalWrites - totalArchived)
+    if (totalFacts === 0) {
+      return await fallbackFromKnowledgeBase(true)
+    }
 
     return {
       totalFacts,
@@ -130,7 +163,7 @@ async function fetchKBSummary(): Promise<OverviewKBSummary> {
       fetchedAt,
     }
   } catch {
-    return { totalFacts: 0, factsLast24h: 0, activeAgentsLast7d: 0, truncated: true, fetchedAt }
+    return await fallbackFromKnowledgeBase(true)
   }
 }
 
@@ -193,7 +226,55 @@ interface IrantiAgentStats {
 
 interface IrantiAgentRaw {
   agentId: string
-  stats: IrantiAgentStats
+  profile?: { agentId: string }
+  stats?: IrantiAgentStats
+}
+
+function normalizeOverviewAgent(raw: unknown): IrantiAgentRaw | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+
+  if (typeof obj['agentId'] === 'string') {
+    return {
+      agentId: obj['agentId'],
+      stats: typeof obj['stats'] === 'object' && obj['stats'] !== null
+        ? obj['stats'] as IrantiAgentStats
+        : undefined,
+    }
+  }
+
+  if (obj['profile'] && typeof obj['profile'] === 'object') {
+    const profile = obj['profile'] as Record<string, unknown>
+    if (typeof profile['agentId'] === 'string') {
+      return {
+        agentId: profile['agentId'],
+        profile: { agentId: profile['agentId'] },
+        stats: typeof obj['stats'] === 'object' && obj['stats'] !== null
+          ? obj['stats'] as IrantiAgentStats
+          : undefined,
+      }
+    }
+  }
+
+  return null
+}
+
+async function fetchOverviewAgentDetails(baseUrl: string, headers: Record<string, string>, agentId: string): Promise<IrantiAgentRaw | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3000)
+  try {
+    const res = await fetch(`${baseUrl}/agents/${encodeURIComponent(agentId)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    })
+    if (!res.ok) return null
+    return normalizeOverviewAgent(await res.json() as unknown)
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function getIrantiUrl(): string {
@@ -231,14 +312,28 @@ async function fetchActiveAgents(): Promise<OverviewActiveAgent[]> {
 
     let agents: IrantiAgentRaw[]
     if (Array.isArray(body)) {
-      agents = body as IrantiAgentRaw[]
+      agents = (await Promise.all(
+        body.map(async (item) => {
+          const normalized = normalizeOverviewAgent(item)
+          if (!normalized) return null
+          if (normalized.stats) return normalized
+          return await fetchOverviewAgentDetails(baseUrl, headers, normalized.agentId) ?? normalized
+        })
+      )).filter((item): item is IrantiAgentRaw => item !== null)
     } else if (
       body !== null &&
       typeof body === 'object' &&
       'agents' in (body as Record<string, unknown>) &&
       Array.isArray((body as Record<string, unknown>).agents)
     ) {
-      agents = (body as { agents: IrantiAgentRaw[] }).agents
+      agents = (await Promise.all(
+        (body as { agents: unknown[] }).agents.map(async (item) => {
+          const normalized = normalizeOverviewAgent(item)
+          if (!normalized) return null
+          if (normalized.stats) return normalized
+          return await fetchOverviewAgentDetails(baseUrl, headers, normalized.agentId) ?? normalized
+        })
+      )).filter((item): item is IrantiAgentRaw => item !== null)
     } else {
       return []
     }
