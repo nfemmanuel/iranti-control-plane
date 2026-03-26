@@ -43,3 +43,6 @@ tmp-cp-*.log
 
 # Internal session artifacts
 RESUME_NEXT_SESSION_PROMPT.md
+
+# Local history snapshots
+.history/
