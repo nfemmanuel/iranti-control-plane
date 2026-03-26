@@ -10,9 +10,14 @@
  * no postgres, no network.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { join } from 'path'
 import { tmpdir } from 'os'
+
+vi.mock('../../db.js', () => ({
+  env: {},
+}))
+
 import { getConfiguredInstanceIdentifiers } from '../../routes/control-plane/instance-identifiers.js'
 
 // Use a platform-native base path so tests work on Windows and Unix.

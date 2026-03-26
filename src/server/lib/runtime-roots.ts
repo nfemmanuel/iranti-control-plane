@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'fs'
-import { basename, dirname, join, resolve } from 'path'
+import { dirname } from 'path'
 import { homedir } from 'os'
 import { env as controlPlaneEnv } from '../db.js'
+import { basenamePortable, dirnamePortable, joinPortable, resolvePortable } from './path-utils.js'
 
 function parseSimpleEnv(content: string): Record<string, string> {
   const result: Record<string, string> = {}
@@ -18,11 +19,11 @@ function parseSimpleEnv(content: string): Record<string, string> {
 }
 
 function findClosestAncestorFile(startDir: string, filename: string): string | null {
-  let current = resolve(startDir)
+  let current = resolvePortable(startDir)
   while (true) {
-    const candidate = join(current, filename)
+    const candidate = joinPortable(current, filename)
     if (existsSync(candidate)) return candidate
-    const parent = dirname(current)
+    const parent = dirnamePortable(current)
     if (parent === current) return null
     current = parent
   }
@@ -32,17 +33,17 @@ function runtimeRootFromInstanceEnv(envFile: string | null | undefined): string 
   if (!envFile) return null
   const trimmed = envFile.trim()
   if (!trimmed) return null
-  return resolve(dirname(trimmed), '..', '..')
+  return resolvePortable(dirnamePortable(trimmed), '..', '..')
 }
 
 function normalizeRuntimeRootCandidate(candidate: string | null | undefined): string | null {
   if (!candidate?.trim()) return null
-  const resolved = resolve(candidate)
-  const leaf = basename(resolved).toLowerCase()
-  const parentLeaf = basename(dirname(resolved)).toLowerCase()
+  const resolved = resolvePortable(candidate)
+  const leaf = basenamePortable(resolved).toLowerCase()
+  const parentLeaf = basenamePortable(dirnamePortable(resolved)).toLowerCase()
 
-  if (leaf === 'instances') return dirname(resolved)
-  if (parentLeaf === 'instances') return dirname(dirname(resolved))
+  if (leaf === 'instances') return dirnamePortable(resolved)
+  if (parentLeaf === 'instances') return dirnamePortable(dirnamePortable(resolved))
   return resolved
 }
 
@@ -63,7 +64,7 @@ export function runtimeRootCandidates(): string[] {
 
   const bindingCandidates = [
     findClosestAncestorFile(process.cwd(), '.env.iranti'),
-    resolve(process.cwd(), '.env.iranti'),
+    resolvePortable(process.cwd(), '.env.iranti'),
   ]
 
   for (const bindingPath of bindingCandidates) {
@@ -78,12 +79,12 @@ export function runtimeRootCandidates(): string[] {
 
   const ancestorRoots = [process.cwd(), dirname(process.cwd())]
   for (const ancestor of ancestorRoots) {
-    add(join(ancestor, '.iranti-runtime'))
-    add(join(ancestor, '.iranti'))
+    add(joinPortable(ancestor, '.iranti-runtime'))
+    add(joinPortable(ancestor, '.iranti'))
   }
 
-  add(join(homedir(), '.iranti-runtime'))
-  add(join(homedir(), '.iranti'))
+  add(joinPortable(homedir(), '.iranti-runtime'))
+  add(joinPortable(homedir(), '.iranti'))
 
   return Array.from(candidates)
 }

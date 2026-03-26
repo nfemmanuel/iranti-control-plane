@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolve } from 'path'
+import { win32 } from 'path'
 import { ancestorBindingCandidates, envFileCandidates } from '../../db.js'
 
 describe('ancestorBindingCandidates', () => {
@@ -7,7 +7,7 @@ describe('ancestorBindingCandidates', () => {
     const start = 'C:\\Users\\NF\\Documents\\Projects\\iranti-control-plane\\src\\server'
     const candidates = ancestorBindingCandidates(start)
 
-    expect(candidates[0]).toBe(resolve(start, '.env.iranti'))
+    expect(candidates[0]).toBe(win32.resolve(start, '.env.iranti'))
     expect(candidates).toContain('C:\\Users\\NF\\Documents\\Projects\\iranti-control-plane\\.env.iranti')
   })
 })

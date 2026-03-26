@@ -1,8 +1,9 @@
 import { execFile, spawn } from 'child_process'
 import { access } from 'fs/promises'
 import { constants } from 'fs'
-import { dirname, extname, join, resolve } from 'path'
+import { extname } from 'path'
 import { promisify } from 'util'
+import { dirnamePortable, joinPortable, resolvePortable } from './path-utils.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -68,7 +69,7 @@ async function firstPathHit(): Promise<string | null> {
 }
 
 async function normalizeInvocation(candidate: string, source: CodexCliSource): Promise<CodexCliResolution | null> {
-  const normalized = resolve(candidate)
+  const normalized = resolvePortable(candidate)
   const lower = normalized.toLowerCase()
   const extension = extname(lower)
 
@@ -94,8 +95,8 @@ async function normalizeInvocation(candidate: string, source: CodexCliSource): P
   }
 
   if (process.platform === 'win32' && (lower.endsWith('.cmd') || lower.endsWith('.bat'))) {
-    const installDir = dirname(normalized)
-    const cliEntry = join(installDir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
+    const installDir = dirnamePortable(normalized)
+    const cliEntry = joinPortable(installDir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
     try {
       await access(cliEntry, constants.F_OK)
       return {

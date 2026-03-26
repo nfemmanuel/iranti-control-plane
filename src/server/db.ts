@@ -1,7 +1,8 @@
 import pg from 'pg'
 import { readFileSync, existsSync } from 'fs'
-import { resolve, dirname } from 'path'
+import { resolve } from 'path'
 import { homedir } from 'os'
+import { dirnamePortable, resolvePortable } from './lib/path-utils.js'
 
 const { Pool } = pg
 
@@ -26,13 +27,13 @@ function parseEnvFile(filePath: string): Record<string, string> {
 
 export function ancestorBindingCandidates(startDir: string): string[] {
   const candidates: string[] = []
-  let current = resolve(startDir)
+  let current = resolvePortable(startDir)
   let previous = ''
 
   while (current !== previous) {
-    candidates.push(resolve(current, '.env.iranti'))
+    candidates.push(resolvePortable(current, '.env.iranti'))
     previous = current
-    current = dirname(current)
+    current = dirnamePortable(current)
   }
 
   return candidates
@@ -40,10 +41,10 @@ export function ancestorBindingCandidates(startDir: string): string[] {
 
 export function envFileCandidates(startDir: string, homeDir = homedir(), isSea = false, execPath = process.execPath): string[] {
   return [
-    ...(isSea ? [resolve(dirname(execPath), '.env.iranti')] : []),
+    ...(isSea ? [resolvePortable(dirnamePortable(execPath), '.env.iranti')] : []),
     ...ancestorBindingCandidates(startDir),
-    resolve(homeDir, '.iranti-runtime', '.env.iranti'),
-    resolve(homeDir, '.iranti-runtime', 'instances', 'local', '.env'),
+    resolvePortable(homeDir, '.iranti-runtime', '.env.iranti'),
+    resolvePortable(homeDir, '.iranti-runtime', 'instances', 'local', '.env'),
   ]
 }
 

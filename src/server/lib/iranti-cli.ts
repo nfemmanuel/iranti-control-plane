@@ -1,8 +1,9 @@
 import { execFile, spawn } from 'child_process'
 import { access } from 'fs/promises'
 import { constants } from 'fs'
-import { basename, dirname, extname, join, resolve } from 'path'
+import { extname } from 'path'
 import { promisify } from 'util'
+import { basenamePortable, dirnamePortable, joinPortable, resolvePortable } from './path-utils.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -69,9 +70,9 @@ async function firstPathHit(): Promise<string | null> {
 
 async function repoLocalBin(): Promise<string | null> {
   const candidates = [
-    resolve(process.cwd(), '..', 'iranti', 'bin', 'iranti.js'),
-    resolve(process.cwd(), '..', '..', 'iranti', 'bin', 'iranti.js'),
-    resolve(process.cwd(), 'node_modules', 'iranti', 'bin', 'iranti.js'),
+    resolvePortable(process.cwd(), '..', 'iranti', 'bin', 'iranti.js'),
+    resolvePortable(process.cwd(), '..', '..', 'iranti', 'bin', 'iranti.js'),
+    resolvePortable(process.cwd(), 'node_modules', 'iranti', 'bin', 'iranti.js'),
   ]
 
   for (const candidate of candidates) {
@@ -87,7 +88,7 @@ async function repoLocalBin(): Promise<string | null> {
 }
 
 async function normalizeInvocation(candidate: string, source: IrantiCliSource): Promise<IrantiCliResolution | null> {
-  const normalized = resolve(candidate)
+  const normalized = resolvePortable(candidate)
   const lower = normalized.toLowerCase()
   const extension = extname(lower)
 
@@ -113,8 +114,8 @@ async function normalizeInvocation(candidate: string, source: IrantiCliSource): 
   }
 
   if (process.platform === 'win32' && lower.endsWith('.cmd')) {
-    const installDir = dirname(normalized)
-    const cliEntry = join(installDir, 'node_modules', 'iranti', 'bin', 'iranti.js')
+    const installDir = dirnamePortable(normalized)
+    const cliEntry = joinPortable(installDir, 'node_modules', 'iranti', 'bin', 'iranti.js')
     try {
       await access(cliEntry, constants.F_OK)
       return {
@@ -218,6 +219,6 @@ export async function runIrantiJson<T>(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse JSON from ${basename(result.resolution.displayPath)}: ${message}`)
+    throw new Error(`Failed to parse JSON from ${basenamePortable(result.resolution.displayPath)}: ${message}`)
   }
 }

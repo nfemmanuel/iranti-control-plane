@@ -3,7 +3,7 @@ import { env } from '../../db.js'
 import { deriveInstanceId } from '../../lib/instance-authority.js'
 
 function configuredInstanceEnvPath(): string | null {
-  const raw = env['IRANTI_INSTANCE_ENV'] ?? process.env['IRANTI_INSTANCE_ENV'] ?? ''
+  const raw = process.env['IRANTI_INSTANCE_ENV'] ?? env['IRANTI_INSTANCE_ENV'] ?? ''
   return raw.trim() || null
 }
 
@@ -14,7 +14,7 @@ function configuredRuntimeRoot(): string {
 }
 
 function configuredInstanceName(): string | null {
-  const explicit = env['IRANTI_INSTANCE'] ?? process.env['IRANTI_INSTANCE'] ?? ''
+  const explicit = process.env['IRANTI_INSTANCE'] ?? env['IRANTI_INSTANCE'] ?? ''
   if (explicit.trim()) return explicit.trim()
 
   const instanceEnvPath = configuredInstanceEnvPath()

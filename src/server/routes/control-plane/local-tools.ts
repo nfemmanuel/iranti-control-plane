@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
-import { isAbsolute } from 'path'
 import { pickLocalPath, runLocalCommand } from '../../lib/local-operator-tools.js'
+import { isAbsolutePathPortable } from '../../lib/path-utils.js'
 
 export const localToolsRouter = Router()
 
@@ -18,7 +18,7 @@ localToolsRouter.post('/pick-path', async (req: Request, res: Response) => {
     return
   }
 
-  if (startPath && !isAbsolute(startPath)) {
+  if (startPath && !isAbsolutePathPortable(startPath)) {
     res.status(400).json({
       error: 'startPath must be an absolute path when provided.',
       code: 'INVALID_PARAM',
@@ -50,7 +50,7 @@ localToolsRouter.post('/run-command', async (req: Request, res: Response) => {
     return
   }
 
-  if (cwd && !isAbsolute(cwd)) {
+  if (cwd && !isAbsolutePathPortable(cwd)) {
     res.status(400).json({
       error: 'cwd must be an absolute path when provided.',
       code: 'INVALID_PARAM',
