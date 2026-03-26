@@ -18,7 +18,9 @@ import { AgentRegistry } from './components/agents/AgentRegistry'
 import { SessionsView } from './components/sessions/SessionsView'
 import { MetricsDashboard } from './components/metrics/MetricsDashboard'
 import { OverviewDashboard } from './components/overview/OverviewDashboard'
+import { SettingsPage } from './components/settings/SettingsPage'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
+import { SettingsProvider, useSettings } from './hooks/useSettings'
 import { LoadingPage } from './components/ui/LoadingPage'
 import './styles/tokens.css'
 import './styles/global.css'
@@ -32,29 +34,15 @@ const queryClient = new QueryClient({
   },
 })
 
-// Top-level loading boundary: shows LoadingPage while instance context initializes.
-// Consumes InstanceProvider's loading flag — must be rendered inside InstanceProvider.
 function AppLoadingBoundary({ children }: { children: ReactNode }) {
   const { loading } = useInstanceContext()
   if (loading) return <LoadingPage />
   return <>{children}</>
 }
 
-// Placeholder for routes not yet implemented in Phase 1
-function PlaceholderView({ label }: { label: string }) {
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      color: 'var(--color-text-tertiary)',
-      fontSize: '13px',
-      fontFamily: 'var(--font-mono)',
-    }}>
-      {label} — coming soon
-    </div>
-  )
+function RootRedirect() {
+  const { settings } = useSettings()
+  return <Navigate to={settings.landingPage} replace />
 }
 
 const rootEl = document.getElementById('root')
@@ -63,34 +51,36 @@ if (!rootEl) throw new Error('Root element #root not found')
 createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <InstanceProvider>
-        <AppLoadingBoundary>
-          <BrowserRouter basename="/control-plane">
-            <Routes>
-              <Route path="/" element={<AppShell />}>
-                <Route index element={<Navigate to="/overview" replace />} />
-                <Route path="overview" element={<OverviewDashboard />} />
-                <Route path="memory" element={<MemoryExplorer />} />
-                <Route path="memory/:entityType/:entityId" element={<EntityDetail />} />
-                <Route path="memory/:entityType/:entityId/:key" element={<TemporalHistory />} />
-                <Route path="archive" element={<ArchiveExplorer />} />
-                <Route path="activity" element={<ActivityStream />} />
-                <Route path="logs" element={<StaffLogs />} />
-                <Route path="instances" element={<InstanceManager />} />
-                <Route path="instances/:id" element={<InstanceManager />} />
-                <Route path="health" element={<HealthDashboard />} />
-                <Route path="metrics" element={<MetricsDashboard />} />
-                <Route path="getting-started" element={<GettingStarted />} />
-                <Route path="conflicts" element={<ConflictReview />} />
-                <Route path="providers" element={<ProviderManager />} />
-                <Route path="agents" element={<AgentRegistry />} />
-                <Route path="sessions" element={<SessionsView />} />
-                <Route path="settings" element={<PlaceholderView label="Settings" />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </AppLoadingBoundary>
-      </InstanceProvider>
+      <SettingsProvider>
+        <InstanceProvider>
+          <AppLoadingBoundary>
+            <BrowserRouter basename="/control-plane">
+              <Routes>
+                <Route path="/" element={<AppShell />}>
+                  <Route index element={<RootRedirect />} />
+                  <Route path="overview" element={<OverviewDashboard />} />
+                  <Route path="memory" element={<MemoryExplorer />} />
+                  <Route path="memory/:entityType/:entityId" element={<EntityDetail />} />
+                  <Route path="memory/:entityType/:entityId/:key" element={<TemporalHistory />} />
+                  <Route path="archive" element={<ArchiveExplorer />} />
+                  <Route path="activity" element={<ActivityStream />} />
+                  <Route path="logs" element={<StaffLogs />} />
+                  <Route path="instances" element={<InstanceManager />} />
+                  <Route path="instances/:id" element={<InstanceManager />} />
+                  <Route path="health" element={<HealthDashboard />} />
+                  <Route path="metrics" element={<MetricsDashboard />} />
+                  <Route path="getting-started" element={<GettingStarted />} />
+                  <Route path="conflicts" element={<ConflictReview />} />
+                  <Route path="providers" element={<ProviderManager />} />
+                  <Route path="agents" element={<AgentRegistry />} />
+                  <Route path="sessions" element={<SessionsView />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </AppLoadingBoundary>
+        </InstanceProvider>
+      </SettingsProvider>
     </QueryClientProvider>
-  </StrictMode>
+  </StrictMode>,
 )

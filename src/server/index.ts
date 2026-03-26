@@ -7,6 +7,7 @@ import { createRequire } from 'module'
 import { controlPlaneRouter } from './routes/control-plane/index.js'
 import { startAdapter, stopAdapter } from './lib/staff-event-adapter.js'
 import { env } from './db.js'
+import { buildPortSelectionPlan } from './lib/portSelection.js'
 
 // ---------------------------------------------------------------------------
 // SEA-aware path resolution
@@ -26,7 +27,7 @@ const __dirname = _isSea
 
 // In SEA context: assets are in <install-dir>/public/control-plane/
 // In dev/tsc context: assets are at <project-root>/public/control-plane/
-//   (src/server/dist/index.js -> ../../public/control-plane)
+//   (src/server/dist/index.js -> ../../../public/control-plane)
 // IRANTI_CP_ASSETS_DIR allows platform-specific launchers (macOS .app wrapper,
 // Linux AppRun) to override the asset path when the binary is inside a bundle
 // where process.execPath does not sit next to the public/ directory.
@@ -34,7 +35,7 @@ const clientDist = process.env.IRANTI_CP_ASSETS_DIR
   ? resolve(process.env.IRANTI_CP_ASSETS_DIR)
   : _isSea
   ? resolve(dirname(process.execPath), 'public', 'control-plane')
-  : resolve(__dirname, '../../public/control-plane')
+  : resolve(__dirname, '../../../public/control-plane')
 
 // ---------------------------------------------------------------------------
 // Version detection
@@ -52,9 +53,9 @@ try {
     const pkg = _require(pkgPath) as { version?: string }
     _version = pkg.version ?? '0.0.0'
   } else {
-    // In dev/tsc, resolve relative to this file.
+    // In dev/tsc, resolve relative to src/server/dist/index.js.
     const _require = createRequire(import.meta.url)
-    const pkg = _require('../../package.json') as { version?: string }
+    const pkg = _require('../../../package.json') as { version?: string }
     _version = pkg.version ?? '0.0.0'
   }
 } catch {
@@ -148,8 +149,11 @@ app.use(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const BASE_PORT = parseInt(env.CONTROL_PLANE_PORT ?? process.env.CONTROL_PLANE_PORT ?? '3000', 10)
-  const PORT = await findAvailablePort(BASE_PORT, BASE_PORT + 10)
+  const plan = buildPortSelectionPlan({
+    explicitPort: process.env.CONTROL_PLANE_PORT ?? null,
+    fallbackBasePort: env.CONTROL_PLANE_PORT ?? null,
+  })
+  const PORT = await findAvailablePort(plan.start, plan.end)
 
   // Auto-run migrations on startup
   try {

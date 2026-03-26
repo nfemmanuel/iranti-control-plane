@@ -14,9 +14,9 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev:server": "cd src/server && npm run dev",
+    "dev:server": "node scripts/dev-server.mjs",
     "dev:client": "cd src/client && npm run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "node scripts/dev.mjs",
     "build:client": "cd src/client && npm run build",
     "build:server": "cd src/server && npm run build",
     "build": "npm run build:client && npm run build:server && npm run package:bundle",
