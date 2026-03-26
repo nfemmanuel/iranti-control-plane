@@ -2,7 +2,7 @@
 /* CP-T090 — Compact edit panel for port, provider, provider key */
 
 import { useState, useCallback, useEffect } from 'react'
-import { configureInstance } from '../../api/client'
+import { configureInstance, restartInstance } from '../../api/client'
 import styles from './ConfigureInstancePanel.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -20,6 +20,7 @@ interface ConfigureInstancePanelProps {
   instanceName: string
   currentPort: number | null
   currentProvider: string | null
+  currentDbUrlRedacted?: string | null
   onSuccess: () => void
   onCancel: () => void
 }
@@ -32,15 +33,19 @@ export function ConfigureInstancePanel({
   instanceName,
   currentPort,
   currentProvider,
+  currentDbUrlRedacted,
   onSuccess,
   onCancel,
 }: ConfigureInstancePanelProps) {
   const [port, setPort] = useState<string>(currentPort !== null ? String(currentPort) : '')
   const [provider, setProvider] = useState<string>(currentProvider ?? 'claude')
+  const [dbUrl, setDbUrl] = useState('')
   const [providerKey, setProviderKey] = useState('')
 
   const [portError, setPortError] = useState<string | null>(null)
+  const [dbUrlError, setDbUrlError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [restarting, setRestarting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [restartWarning, setRestartWarning] = useState<string | null>(null)
   const [changedFields, setChangedFields] = useState<string[] | null>(null)
@@ -48,12 +53,14 @@ export function ConfigureInstancePanel({
   useEffect(() => {
     setPort(currentPort !== null ? String(currentPort) : '')
     setProvider(currentProvider ?? 'claude')
+    setDbUrl('')
     setProviderKey('')
     setPortError(null)
+    setDbUrlError(null)
     setSubmitError(null)
     setRestartWarning(null)
     setChangedFields(null)
-  }, [instanceName, currentPort, currentProvider])
+  }, [instanceName, currentPort, currentProvider, currentDbUrlRedacted])
 
   const needsKey = PROVIDERS_WITH_KEY.includes(provider)
 
@@ -66,6 +73,11 @@ export function ConfigureInstancePanel({
       }
     }
     setPortError(null)
+    if (dbUrl.trim() !== '' && dbUrl.toLowerCase().includes('yourpassword')) {
+      setDbUrlError('Database URL still contains a placeholder password.')
+      return false
+    }
+    setDbUrlError(null)
     return true
   }
 
@@ -78,12 +90,14 @@ export function ConfigureInstancePanel({
 
     const params: {
       port?: number
+      dbUrl?: string
       provider?: string
       providerKey?: string
     } = {}
 
     const portNum = parseInt(port, 10)
     if (!isNaN(portNum) && portNum !== currentPort) params.port = portNum
+    if (dbUrl.trim()) params.dbUrl = dbUrl.trim()
     if (provider !== currentProvider) params.provider = provider
     if (PROVIDERS_WITH_KEY.includes(provider) && providerKey.trim()) {
       params.providerKey = providerKey.trim()
@@ -110,7 +124,21 @@ export function ConfigureInstancePanel({
       setSubmitting(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitting, port, provider, providerKey, instanceName, currentPort, currentProvider])
+  }, [submitting, port, dbUrl, provider, providerKey, instanceName, currentPort, currentProvider])
+
+  const handleRestartNow = useCallback(async () => {
+    if (restarting) return
+    setRestarting(true)
+    setSubmitError(null)
+    try {
+      await restartInstance(instanceName)
+      onSuccess()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRestarting(false)
+    }
+  }, [restarting, instanceName, onSuccess])
 
   /* ---- Post-success restart screen ---- */
   if (restartWarning) {
@@ -133,7 +161,20 @@ export function ConfigureInstancePanel({
             </div>
           </div>
         </div>
+        {submitError && (
+          <div className={styles.submitError} role="alert">
+            <span aria-hidden="true">x</span> {submitError}
+          </div>
+        )}
         <div className={styles.panelActions}>
+          <button
+            className={styles.secondaryBtn}
+            type="button"
+            onClick={() => void handleRestartNow()}
+            disabled={restarting}
+          >
+            {restarting ? 'Restarting...' : 'Restart now'}
+          </button>
           <button className={styles.primaryBtn} type="button" onClick={onSuccess}>
             Done
           </button>
@@ -171,6 +212,27 @@ export function ConfigureInstancePanel({
             placeholder={currentPort !== null ? String(currentPort) : '3002'}
           />
           {portError && <p className={styles.fieldError}>{portError}</p>}
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel} htmlFor="cfg-dburl">
+            Database URL
+            <span className={styles.fieldLabelHint}> (leave blank to keep existing)</span>
+          </label>
+          <input
+            id="cfg-dburl"
+            className={`${styles.input} ${styles.inputMono} ${dbUrlError ? styles.inputError : ''}`}
+            type="text"
+            value={dbUrl}
+            onChange={e => setDbUrl(e.target.value)}
+            placeholder={currentDbUrlRedacted ?? 'postgresql://user:password@host:5432/dbname'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {dbUrlError && <p className={styles.fieldError}>{dbUrlError}</p>}
+          {currentDbUrlRedacted && (
+            <p className={styles.fieldHint}>Current value: <code className={styles.inlineCode}>{currentDbUrlRedacted}</code></p>
+          )}
         </div>
 
         {/* Provider */}
@@ -229,7 +291,7 @@ export function ConfigureInstancePanel({
           className={styles.primaryBtn}
           type="button"
           onClick={() => void handleSubmit()}
-          disabled={submitting}
+          disabled={submitting || restarting}
         >
           {submitting ? (
             <><span className={styles.spinnerSmall} aria-hidden="true" /> Saving…</>

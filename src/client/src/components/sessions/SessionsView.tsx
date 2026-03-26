@@ -6,7 +6,12 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
-import type { SessionRecord, SessionsResponse, SessionState, SessionActionResponse } from '../../api/types'
+import type {
+  SessionRecord,
+  SessionsResponse,
+  SessionOperatorState,
+  SessionActionResponse,
+} from '../../api/types'
 import styles from './SessionsView.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -42,7 +47,7 @@ function truncate(str: string | null, len: number): string {
 /*  State filter definitions                                            */
 /* ------------------------------------------------------------------ */
 
-type FilterState = 'all' | 'interrupted' | 'active' | 'complete' | 'abandoned'
+type FilterState = 'all' | 'interrupted' | 'active' | 'completed' | 'abandoned'
 
 interface FilterTab {
   value: FilterState
@@ -53,36 +58,41 @@ const FILTER_TABS: FilterTab[] = [
   { value: 'all',         label: 'All'         },
   { value: 'interrupted', label: 'Interrupted'  },
   { value: 'active',      label: 'Active'       },
-  { value: 'complete',    label: 'Complete'     },
+  { value: 'completed',   label: 'Completed'    },
   { value: 'abandoned',   label: 'Abandoned'    },
 ]
 
 function isValidFilterState(value: string | null): value is FilterState {
   return value === 'all' || value === 'interrupted' || value === 'active'
-    || value === 'complete' || value === 'abandoned'
+    || value === 'completed' || value === 'abandoned'
 }
 
 /* ------------------------------------------------------------------ */
 /*  State badge                                                         */
 /* ------------------------------------------------------------------ */
 
-function StateBadge({ state }: { state: SessionState }) {
+function displayState(session: SessionRecord): SessionOperatorState {
+  return session.operatorState
+}
+
+function StateBadge({ state }: { state: SessionOperatorState }) {
   let className = styles.stateBadge
   let label = state
 
   switch (state) {
     case 'interrupted':
-    case 'checkpointed':
       className += ` ${styles.stateBadgeAmber}`
-      label = state === 'checkpointed' ? 'checkpointed' : 'interrupted'
       break
-    case 'complete':
+    case 'active':
+      className += ` ${styles.stateBadgeEmerald}`
+      break
+    case 'completed':
       className += ` ${styles.stateBadgeEmerald}`
       break
     case 'abandoned':
       className += ` ${styles.stateBadgeMuted}`
       break
-    case 'unknown':
+    case 'none':
     default:
       className += ` ${styles.stateBadgeRose}`
       break
@@ -107,8 +117,9 @@ function SessionActions({
   const [confirmMode, setConfirmMode] = useState<ConfirmMode>(null)
   const [busy, setBusy] = useState(false)
 
-  const isResumable = session.state === 'interrupted' || session.state === 'checkpointed'
-  if (!isResumable) return null
+  const canResume = session.operatorState === 'interrupted'
+  const canAbandon = session.operatorState === 'interrupted' || session.operatorState === 'active'
+  if (!canResume && !canAbandon) return null
 
   const handleConfirm = async (mode: 'resume' | 'abandon') => {
     setBusy(true)
@@ -185,20 +196,24 @@ function SessionActions({
 
   return (
     <div className={styles.actionRow}>
-      <button
-        className={styles.resumeBtn}
-        onClick={() => setConfirmMode('resume')}
-        type="button"
-      >
-        ↺ Resume
-      </button>
-      <button
-        className={styles.abandonBtn}
-        onClick={() => setConfirmMode('abandon')}
-        type="button"
-      >
-        ✕ Abandon
-      </button>
+      {canResume && (
+        <button
+          className={styles.resumeBtn}
+          onClick={() => setConfirmMode('resume')}
+          type="button"
+        >
+          ↺ Resume
+        </button>
+      )}
+      {canAbandon && (
+        <button
+          className={styles.abandonBtn}
+          onClick={() => setConfirmMode('abandon')}
+          type="button"
+        >
+          ✕ Abandon
+        </button>
+      )}
     </div>
   )
 }
@@ -262,12 +277,12 @@ function SessionDetailPanel({
             <span className={styles.timelineLabel}>Started</span>
             <span className={styles.timelineValue}>{formatRelativeTime(session.startedAt)}</span>
           </div>
-          {session.lastCheckpointAt && (
+          {(session.updatedAt || session.lastHeartbeatAt) && (
             <>
               <span className={styles.timelineArrow}>→</span>
               <div className={styles.timelineStep}>
-                <span className={styles.timelineLabel}>Last checkpoint</span>
-                <span className={styles.timelineValue}>{formatRelativeTime(session.lastCheckpointAt)}</span>
+                <span className={styles.timelineLabel}>Last update</span>
+                <span className={styles.timelineValue}>{formatRelativeTime(session.updatedAt ?? session.lastHeartbeatAt)}</span>
               </div>
             </>
           )}
@@ -303,6 +318,15 @@ function SessionDetailPanel({
               {JSON.stringify(session.checkpoint, null, 2)}
             </pre>
           </details>
+        </div>
+      )}
+
+      {session.checkpointSummary && (
+        <div className={styles.detailField}>
+          <span className={styles.detailLabel}>Checkpoint summary</span>
+          <pre className={styles.taskFull}>
+            {JSON.stringify(session.checkpointSummary, null, 2)}
+          </pre>
         </div>
       )}
 
@@ -352,7 +376,7 @@ export function SessionsView() {
   const { data, isLoading, error } = useQuery<SessionsResponse, Error>({
     queryKey: ['sessions', activeFilter],
     queryFn: () => apiFetch<SessionsResponse>('/sessions', {
-      state: apiState,
+      operatorState: apiState,
       limit: 50,
     }),
     staleTime: 30_000,
@@ -391,7 +415,7 @@ export function SessionsView() {
           <div>
             <h1 className={styles.pageTitle}>Session Recovery</h1>
             <p className={styles.pageSubtitle}>
-              Agent sessions and checkpoint state from Iranti v0.2.16+
+                Agent sessions and recovery state from the current Iranti session API
             </p>
           </div>
         </div>
@@ -442,7 +466,7 @@ export function SessionsView() {
                 <th>Agent</th>
                 <th>Task</th>
                 <th>Started</th>
-                <th>Last checkpoint</th>
+                <th>Last update</th>
               </tr>
             </thead>
             <tbody>
@@ -475,7 +499,7 @@ export function SessionsView() {
                 <th>Agent</th>
                 <th>Task</th>
                 <th>Started</th>
-                <th>Last checkpoint</th>
+                <th>Last update</th>
               </tr>
             </thead>
             <tbody>
@@ -498,7 +522,7 @@ export function SessionsView() {
                       }}
                     >
                       <td className={styles.cellBadge}>
-                        <StateBadge state={session.state} />
+                        <StateBadge state={displayState(session)} />
                       </td>
                       <td className={styles.cellSessionId}>
                         {truncate(session.sessionId, 24)}
@@ -511,7 +535,7 @@ export function SessionsView() {
                         {formatRelativeTime(session.startedAt)}
                       </td>
                       <td className={styles.cellMeta}>
-                        {formatRelativeTime(session.lastCheckpointAt)}
+                        {formatRelativeTime(session.updatedAt ?? session.lastHeartbeatAt)}
                       </td>
                     </tr>
                     {isExpanded && (

@@ -301,6 +301,22 @@
   background: var(--color-accent-subtle);
 }
 
+.deleteBtn {
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.deleteBtn:hover {
+  background: var(--color-status-error-bg);
+}
+
 /* CP-T033: Doctor running inline indicator */
 .doctorRunning {
   display: flex;
@@ -741,6 +757,19 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
 }
 
+.deleteModalBox {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-5);
+  width: 90%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+}
+
 .modalTitle {
   font-size: 14px;
   font-weight: 600;
@@ -792,6 +821,78 @@
 
 .modalStopBtn:hover {
   background: var(--color-status-error-bg);
+}
+
+.modalDeleteBtn {
+  height: 32px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.modalDeleteBtn:hover:not(:disabled) {
+  background: var(--color-status-error-bg);
+}
+
+.modalDeleteBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.deleteModalLead {
+  margin: 0 0 var(--space-2) 0;
+}
+
+.deleteModalList {
+  margin: 0 0 var(--space-3) 0;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+}
+
+.deleteOptionRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.deleteOptionRow input {
+  margin-top: 2px;
+}
+
+.deleteConfirmBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.deleteConfirmInput {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.deleteError {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-status-error-bg);
+  color: var(--color-status-error);
+  font-size: 12px;
 }
 
 /* Warning / stub notes */

@@ -208,7 +208,7 @@ describe('buildErrorInstance', () => {
 
   it('returns false for all provider key presence', () => {
     const result = buildErrorInstance(runtimeRoot, instanceDir, null, 'err')
-    expect(result.integration.providerKeys.anthropic).toBe(false)
+    expect(result.integration.providerKeys.claude).toBe(false)
     expect(result.integration.providerKeys.openai).toBe(false)
   })
 })

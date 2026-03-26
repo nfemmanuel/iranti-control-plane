@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchInstanceProjects, bindProject, rebindProject } from '../../api/client'
+import { fetchInstanceProjects, bindProject, rebindProject, pickPath } from '../../api/client'
 import type { InstanceMetadata, BoundProject, BindProjectResult } from '../../api/types'
 import styles from './BindProjectForm.module.css'
 
@@ -44,6 +44,7 @@ function BindNewTab({
   const [addToGitignore, setAddToGitignore] = useState(true)
 
   const [pathError, setPathError] = useState<string | null>(null)
+  const [pickingPath, setPickingPath] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [successResult, setSuccessResult] = useState<BindProjectResult | null>(null)
@@ -88,6 +89,30 @@ function BindNewTab({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitting, projectPath, mode, agentId, memoryEntity, addToGitignore, instanceName])
 
+  const handleBrowse = useCallback(async () => {
+    if (pickingPath) return
+    setPickingPath(true)
+    setSubmitError(null)
+    try {
+      const result = await pickPath({
+        kind: 'directory',
+        title: 'Select project folder',
+        ...(projectPath.trim() ? { startPath: projectPath.trim() } : {}),
+      })
+      if (result.path) {
+        setProjectPath(result.path)
+        setPathError(null)
+      }
+      if (!result.path && !result.canceled && result.error) {
+        setSubmitError(result.error)
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPickingPath(false)
+    }
+  }, [pickingPath, projectPath])
+
   if (successResult) {
     return (
       <div className={styles.successScreen}>
@@ -121,17 +146,27 @@ function BindNewTab({
         <label className={styles.fieldLabel} htmlFor="bp-path">
           Project path <span className={styles.required}>*</span>
         </label>
-        <input
-          id="bp-path"
-          className={`${styles.input} ${styles.inputMono} ${pathError ? styles.inputError : ''}`}
-          type="text"
-          value={projectPath}
-          onChange={e => setProjectPath(e.target.value)}
-          placeholder="/Users/you/projects/my-app"
-          autoComplete="off"
-          spellCheck={false}
-          autoFocus
-        />
+        <div className={styles.pathInputRow}>
+          <input
+            id="bp-path"
+            className={`${styles.input} ${styles.inputMono} ${pathError ? styles.inputError : ''}`}
+            type="text"
+            value={projectPath}
+            onChange={e => setProjectPath(e.target.value)}
+            placeholder="C:\\Users\\you\\projects\\my-app"
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+          />
+          <button
+            className={styles.browseBtn}
+            type="button"
+            onClick={() => void handleBrowse()}
+            disabled={pickingPath}
+          >
+            {pickingPath ? 'Opening…' : 'Browse…'}
+          </button>
+        </div>
         {pathError && <p className={styles.fieldError}>{pathError}</p>}
         <p className={styles.fieldHint}>Absolute path to the project root directory.</p>
       </div>

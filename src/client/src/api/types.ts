@@ -208,7 +208,7 @@ export interface IrantiRuntimeMetadata {
 
 /** CP-T072: Derived staleness status — computed server-side so the frontend never
  *  needs to compare timestamps. 'unknown' means no runtime data (ad-hoc mode). */
-export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+export type RuntimeStatus = 'running' | 'unhealthy' | 'stale' | 'stopped' | 'missing' | 'invalid' | 'unknown'
 
 export interface InstanceScopeSummary {
   instanceId: string
@@ -241,6 +241,7 @@ export interface HealthResponse {
 /* ------------------------------------------------------------------ */
 
 export interface DatabaseMeta {
+  user: string | null
   host: string
   port: number
   name: string
@@ -260,8 +261,9 @@ export interface IntegrationMeta {
   defaultProvider: string | null
   defaultModel: string | null
   providerKeys: {
-    anthropic: boolean
+    claude: boolean
     openai: boolean
+    otherKeys?: string[]
   }
 }
 
@@ -781,19 +783,31 @@ export interface UpgradeJobStatus {
 /*  Sessions (CP-T071)                                                 */
 /* ------------------------------------------------------------------ */
 
-export type SessionState = 'interrupted' | 'checkpointed' | 'complete' | 'abandoned' | 'unknown'
+export type SessionRawStatus = 'active' | 'interrupted' | 'completed' | 'abandoned' | null
+export type SessionOperatorState = 'none' | 'active' | 'interrupted' | 'completed' | 'abandoned'
 
 export interface SessionRecord {
   sessionId: string
   agentId: string
-  state: SessionState
+  status: SessionRawStatus
+  operatorState: SessionOperatorState
   task: string | null
   startedAt: string | null
-  lastCheckpointAt: string | null
+  lastHeartbeatAt: string | null
+  updatedAt: string | null
   completedAt: string | null
   abandonedAt: string | null
-  /** Raw checkpoint data — backend may include this; optional */
+  resumedAt?: string | null
+  isStale: boolean
+  persistedBriefGeneratedAt?: string | null
+  checkpointSummary?: {
+    currentStep: string | null
+    nextStep: string | null
+    openRiskCount: number
+    entityTargetCount: number
+  } | null
   checkpoint?: Record<string, unknown> | null
+  recovery?: Record<string, unknown> | null
 }
 
 export interface SessionsResponse {
@@ -868,6 +882,14 @@ export interface ProcessStatusResult {
   alive: boolean | null
 }
 
+export interface RestartInstanceResult {
+  instanceName: string
+  status: 'restarted'
+  restartedAt: string
+  error?: string
+  code?: string
+}
+
 /* ------------------------------------------------------------------ */
 /*  Open File (CP-T084)                                                */
 /* ------------------------------------------------------------------ */
@@ -876,6 +898,23 @@ export interface OpenFileResult {
   opened: boolean
   path: string
   reason?: string
+}
+
+export interface PickPathResult {
+  canceled: boolean
+  path: string | null
+  method: string
+  error?: string
+}
+
+export interface RunCommandResult {
+  ok: boolean
+  command: string
+  cwd: string | null
+  exitCode: number | null
+  stdout: string
+  stderr: string
+  durationMs: number
 }
 
 /* ------------------------------------------------------------------ */
@@ -935,6 +974,18 @@ export interface ConfigureInstanceResult {
   name: string
   restartRequired: boolean
   changed: string[]
+}
+
+export interface DeleteInstanceResult {
+  ok: boolean
+  name: string
+  deleted: true
+  instanceDir: string
+  runtimeRoot: string
+  removedProjectBindings: string[]
+  droppedDatabase: string | null
+  error?: string
+  code?: string
 }
 
 /* ------------------------------------------------------------------ */

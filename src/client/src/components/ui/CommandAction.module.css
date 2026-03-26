@@ -1,0 +1,119 @@
+.commandCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+.commandCardCompact {
+  padding: var(--space-2);
+}
+
+.commandText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.commandActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.commandBtn,
+.commandBtnPrimary {
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.commandBtn {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+}
+
+.commandBtnPrimary {
+  background: var(--color-accent-primary);
+  border: 1px solid var(--color-accent-primary);
+  color: var(--color-text-inverse);
+}
+
+.commandBtn:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.commandBtnPrimary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.commandBtn:disabled,
+.commandBtnPrimary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cwdLabel {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.cwdLabel code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.commandError {
+  padding: var(--space-2);
+  background: var(--color-status-error-bg);
+  border: 1px solid var(--color-status-error);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-status-error);
+  font-size: 12px;
+}
+
+.commandResult {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+}
+
+.commandResultOk {
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent);
+}
+
+.commandResultError {
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+}
+
+.commandResultHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.commandOutput {
+  margin: 0;
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--color-bg-sunken) 85%, transparent);
+  border-radius: var(--border-radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

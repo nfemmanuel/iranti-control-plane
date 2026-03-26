@@ -2,8 +2,8 @@ import { createHash } from 'crypto'
 import { access, readFile } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { join, basename, dirname, resolve } from 'path'
-import { homedir } from 'os'
 import { env as controlPlaneEnv } from '../db.js'
+import { runtimeRootCandidates as discoverRuntimeRootCandidates } from './runtime-roots.js'
 
 export interface BoundProjectRef {
   projectPath: string
@@ -68,22 +68,6 @@ function configuredBindingInstanceName(): string | null {
   return basename(dirname(instanceEnvPath))
 }
 
-function runtimeRootCandidates(): string[] {
-  const candidates = new Set<string>()
-  const irantiHome = process.env['IRANTI_HOME']?.trim()
-  if (irantiHome) {
-    candidates.add(resolve(irantiHome))
-  }
-
-  const configuredInstanceEnv = controlPlaneEnv['IRANTI_INSTANCE_ENV'] ?? process.env['IRANTI_INSTANCE_ENV'] ?? ''
-  if (configuredInstanceEnv.trim()) {
-    candidates.add(resolve(dirname(configuredInstanceEnv), '..', '..'))
-  }
-
-  candidates.add(resolve(homedir(), '.iranti-runtime'))
-  return Array.from(candidates)
-}
-
 async function listInstanceDirs(runtimeRoot: string): Promise<string[]> {
   const instancesDir = join(runtimeRoot, 'instances')
   try {
@@ -106,7 +90,7 @@ async function findInstanceDir(instanceRef?: string): Promise<{
   const requested = instanceRef?.trim() || null
   const bindingName = configuredBindingInstanceName()
 
-  for (const runtimeRoot of runtimeRootCandidates()) {
+  for (const runtimeRoot of discoverRuntimeRootCandidates()) {
     const instanceDirs = await listInstanceDirs(runtimeRoot)
     for (const instanceDir of instanceDirs) {
       const instanceName = basename(instanceDir)

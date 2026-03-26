@@ -6,9 +6,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects } from '../../api/client'
+import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { useSettings } from '../../hooks/useSettings'
 import { DoctorDrawer } from './DoctorDrawer'
 import { UpgradeSection } from './UpgradeSection'
 import { ApiKeyManager } from './ApiKeyManager'
@@ -19,6 +20,8 @@ import { ClaudeIntegrationPanel, IntegrationOverviewSection } from './ClaudeInte
 import { CodexIntegrationPanel } from './CodexIntegrationPanel'
 import styles from './InstanceManager.module.css'
 import { Spinner } from '../ui/Spinner'
+import { CommandAction } from '../ui/CommandAction'
+import { buildIrantiRunCommand, canRunCommand } from '../ui/commandText'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -57,6 +60,20 @@ function getStalenesLevel(checkedAt: string | null): 'fresh' | 'stale' | 'very-s
   if (age < 5) return 'fresh'
   if (age < 10) return 'stale'
   return 'very-stale'
+}
+
+function suggestNextAvailablePort(instances: InstanceMetadata[], startPort = 3001): number {
+  const used = new Set(
+    instances
+      .map((instance) => instance.configuredPort)
+      .filter((port) => Number.isFinite(port) && port > 0)
+  )
+
+  let candidate = startPort
+  while (used.has(candidate)) {
+    candidate += 1
+  }
+  return candidate
 }
 
 /**
@@ -211,20 +228,24 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 /* ------------------------------------------------------------------ */
 
 function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus }) {
+  const badgeStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    fontSize: '11px',
+    fontWeight: 600,
+    borderRadius: 'var(--border-radius-sm)',
+    padding: '2px 7px',
+  } as const
+
   switch (runtimeStatus) {
     case 'running':
       return (
         <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
-          fontSize: '11px',
-          fontWeight: 600,
+          ...badgeStyle,
           color: 'var(--color-status-success)',
           background: 'var(--color-status-success-bg)',
           border: '1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent)',
-          borderRadius: 'var(--border-radius-sm)',
-          padding: '2px 7px',
         }}>
           <span style={{
             display: 'inline-block',
@@ -240,35 +261,56 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
     case 'stale':
       return (
         <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
-          fontSize: '11px',
-          fontWeight: 600,
+          ...badgeStyle,
           color: 'var(--color-status-warning)',
           background: 'var(--color-status-warning-bg)',
           border: '1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent)',
-          borderRadius: 'var(--border-radius-sm)',
-          padding: '2px 7px',
         }}>
           ⚠ STALE
+        </span>
+      )
+    case 'unhealthy':
+      return (
+        <span style={{
+          ...badgeStyle,
+          color: 'var(--color-status-warning)',
+          background: 'color-mix(in srgb, var(--color-status-warning-bg) 65%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--color-status-warning) 35%, transparent)',
+        }}>
+          ⚠ UNHEALTHY
         </span>
       )
     case 'stopped':
       return (
         <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
-          fontSize: '11px',
-          fontWeight: 600,
+          ...badgeStyle,
           color: 'var(--color-text-tertiary)',
           background: 'var(--color-bg-elevated)',
           border: '1px solid var(--color-border-subtle)',
-          borderRadius: 'var(--border-radius-sm)',
-          padding: '2px 7px',
         }}>
           ○ STOPPED
+        </span>
+      )
+    case 'missing':
+      return (
+        <span style={{
+          ...badgeStyle,
+          color: 'var(--color-text-tertiary)',
+          background: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border-subtle)',
+        }}>
+          ○ MISSING
+        </span>
+      )
+    case 'invalid':
+      return (
+        <span style={{
+          ...badgeStyle,
+          color: 'var(--color-status-error)',
+          background: 'color-mix(in srgb, var(--color-status-error) 12%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent)',
+        }}>
+          ✕ INVALID
         </span>
       )
     case 'unknown':
@@ -280,9 +322,11 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
 function RuntimeLifecycleSection({
   runtime,
   runtimeStatus,
+  runtimeRoot,
 }: {
   runtime: IrantiRuntimeMetadata | null | undefined
   runtimeStatus: RuntimeStatus | undefined
+  runtimeRoot: string
 }) {
   // No runtime fields at all means backend hasn't been updated yet — skip section entirely
   if (runtime === undefined && runtimeStatus === undefined) return null
@@ -312,6 +356,16 @@ function RuntimeLifecycleSection({
 
   const isStale = runtimeStatus === 'stale'
   const effectiveStatus: RuntimeStatus = runtimeStatus ?? 'unknown'
+  const runCommand = runtime?.instanceName
+    ? buildIrantiRunCommand(runtime.instanceName, runtimeRoot)
+    : 'iranti run'
+  const warningText = runtimeStatus === 'unhealthy'
+    ? 'This instance is running but failing health checks. Use doctor and logs before treating it as healthy.'
+    : runtimeStatus === 'invalid'
+      ? 'Runtime metadata exists but does not describe a valid Iranti process. Recreate or repair this instance before trusting it.'
+      : runtimeStatus === 'missing'
+        ? 'Instance configuration exists without runtime metadata. Start the instance with `iranti run --instance <name>` if it should be active.'
+        : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -370,9 +424,23 @@ function RuntimeLifecycleSection({
             padding: '1px 4px',
             borderRadius: 'var(--border-radius-sm)',
           }}>
-            iranti run --instance {runtime.instanceName}
+            {runCommand}
           </code>
           {' '}to restart.
+        </div>
+      )}
+
+      {warningText && (
+        <div style={{
+          padding: '8px 12px',
+          background: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--border-radius-md)',
+          fontSize: '12px',
+          color: 'var(--color-text-secondary)',
+          lineHeight: 1.5,
+        }}>
+          {warningText}
         </div>
       )}
     </div>
@@ -676,6 +744,112 @@ function StopConfirmModal({
   )
 }
 
+function DeleteInstanceModal({
+  instance,
+  onDeleted,
+  onCancel,
+}: {
+  instance: InstanceMetadata
+  onDeleted: () => void
+  onCancel: () => void
+}) {
+  const [confirmName, setConfirmName] = useState('')
+  const [removeProjectBindings, setRemoveProjectBindings] = useState(true)
+  const [dropDatabase, setDropDatabase] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSubmit = confirmName.trim() === instance.name && !submitting
+
+  const handleDelete = useCallback(async () => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await deleteInstance(instance.name, {
+        confirmName: confirmName.trim(),
+        removeProjectBindings,
+        dropDatabase,
+      })
+      onDeleted()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [canSubmit, confirmName, dropDatabase, instance.name, onDeleted, removeProjectBindings])
+
+  return (
+    <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="delete-instance-title">
+      <div className={styles.deleteModalBox}>
+        <p className={styles.modalTitle} id="delete-instance-title">Delete {instance.name}?</p>
+        <div className={styles.modalBody}>
+          <p className={styles.deleteModalLead}>
+            This removes the instance directory from <code className={styles.inlineCode}>{instance.runtimeRoot}</code>.
+          </p>
+          <ul className={styles.deleteModalList}>
+            <li>Runtime files will be deleted.</li>
+            <li>Deletion will be refused if the instance is still running.</li>
+            <li>Dropping the PostgreSQL database is optional and irreversible.</li>
+          </ul>
+          <label className={styles.deleteOptionRow}>
+            <input
+              type="checkbox"
+              checked={removeProjectBindings}
+              onChange={(event) => setRemoveProjectBindings(event.target.checked)}
+            />
+            <span>Remove bound project <code className={styles.inlineCode}>.env.iranti</code> files</span>
+          </label>
+          <label className={styles.deleteOptionRow}>
+            <input
+              type="checkbox"
+              checked={dropDatabase}
+              onChange={(event) => setDropDatabase(event.target.checked)}
+            />
+            <span>
+              Drop PostgreSQL database
+              {instance.database?.name ? ` (${instance.database.name})` : ' from DATABASE_URL'}
+            </span>
+          </label>
+          <div className={styles.deleteConfirmBlock}>
+            <label className={styles.fieldLabel} htmlFor="delete-confirm-name">
+              Type <code className={styles.inlineCode}>{instance.name}</code> to confirm
+            </label>
+            <input
+              id="delete-confirm-name"
+              className={styles.deleteConfirmInput}
+              type="text"
+              value={confirmName}
+              onChange={(event) => setConfirmName(event.target.value)}
+              autoFocus
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+          {error && (
+            <div className={styles.deleteError} role="alert">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className={styles.modalActions}>
+          <button className={styles.modalCancelBtn} type="button" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </button>
+          <button
+            className={styles.modalDeleteBtn}
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={!canSubmit}
+          >
+            {submitting ? 'Deleting…' : 'Delete instance'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  CP-T080: Lifecycle controls (Start / Stop buttons)                  */
 /* ------------------------------------------------------------------ */
@@ -714,9 +888,9 @@ function LifecycleControls({
           setTimeout(() => setLifecycleInfo(null), 2000)
         }, 500)
       } else {
-        // Wait 2 seconds then re-poll instance health
+        // The backend already confirmed a durable start; refresh the UI state.
         setTimeout(() => {
-          setLifecycleInfo('Started (connecting...)')
+          setLifecycleInfo('Started')
           onStatusChange()
           setTimeout(() => setLifecycleInfo(null), 3000)
         }, 2000)
@@ -868,6 +1042,7 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
           <RuntimeLifecycleSection
             runtime={instance.runtime}
             runtimeStatus={instance.runtimeStatus}
+            runtimeRoot={instance.runtimeRoot}
           />
         </div>
       )}
@@ -985,8 +1160,8 @@ function IntegrationsSection({ instance }: { instance: InstanceMetadata }) {
           ? <span className={styles.monoValue}>{integration.defaultModel}</span>
           : <span className={styles.dimValue}>not configured</span>}
       </FieldRow>
-      <FieldRow label="Anthropic key">
-        {integration.providerKeys.anthropic
+      <FieldRow label="Claude key">
+        {integration.providerKeys.claude
           ? <><CheckIcon ok={true} /> <span className={styles.dimValue}>present</span></>
           : <><CheckIcon ok={false} warn={true} /> <span className={styles.warnValue}>absent</span></>
         }
@@ -997,6 +1172,11 @@ function IntegrationsSection({ instance }: { instance: InstanceMetadata }) {
           : <><CheckIcon ok={false} warn={true} /> <span className={styles.dimValue}>absent</span></>
         }
       </FieldRow>
+      {integration.providerKeys.otherKeys && integration.providerKeys.otherKeys.length > 0 && (
+        <FieldRow label="Other provider keys">
+          <span className={styles.monoValue}>{integration.providerKeys.otherKeys.join(', ')}</span>
+        </FieldRow>
+      )}
     </section>
   )
 }
@@ -1095,10 +1275,10 @@ function ProjectsSection({
                   className={styles.rebindBtn}
                   type="button"
                   onClick={() => setIntegrationOpen(prev => prev === p.projectPath ? null : p.projectPath)}
-                  title="View Claude Code integration status"
+                  title="Set up or inspect Claude Code integration for this project"
                   aria-pressed={integrationOpen === p.projectPath}
                 >
-                  Claude Integration
+                  Claude Setup
                 </button>
               </div>
               <div className={styles.boundProjectMeta}>
@@ -1146,6 +1326,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
 
   // CP-T090: Configure panel inline state
   const [showConfigure, setShowConfigure] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Map InstanceMetadata to the Instance type expected by context
   const handleSetActive = () => {
@@ -1196,6 +1377,13 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
           >
             ⚕ Run Doctor
           </button>
+          <button
+            className={styles.deleteBtn}
+            onClick={() => setShowDeleteConfirm(true)}
+            type="button"
+          >
+            Delete
+          </button>
           {!isActive && (
             <button className={styles.setActiveBtn} onClick={handleSetActive} type="button">
               Set as Active
@@ -1207,9 +1395,15 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       {/* CP-T029: Specific message for unreachable instances */}
       {(instance.runningStatus === 'unreachable' || instance.runningStatus === 'stopped') && (
         <div className={styles.errorBanner}>
+          {(() => {
+            const command = instance.name
+              ? buildIrantiRunCommand(instance.name, instance.runtimeRoot)
+              : 'iranti run'
+            return (
+              <>
           <strong>Could not connect.</strong>{' '}
           Iranti runtime could not be reached at the configured port (:{instance.configuredPort}).
-          {' '}Start the runtime with <code className={styles.inlineCode}>iranti run --instance {instance.name}</code> and refresh.
+          {' '}Start the runtime with <code className={styles.inlineCode}>{command}</code> and refresh.
           {instance.runningStatusCheckedAt && (
             <span className={styles.errorBannerTime}>
               {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
@@ -1218,10 +1412,14 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
           {/* CP-T058 AC-2 (M5) — remediation hint */}
           <p className={styles.unreachableHint}>
             {instance.name
-              ? <>To start this instance, run <code className={styles.inlineCode}>iranti run --instance {instance.name}</code> in your terminal.</>
+              ? <>To start this instance, run <code className={styles.inlineCode}>{command}</code> in your terminal.</>
               : <>To start this instance, run <code className={styles.inlineCode}>iranti run</code> in your terminal.</>
             }
           </p>
+          <CommandAction command={command} allowRun={canRunCommand(command)} compact />
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -1233,10 +1431,23 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
             instanceName={instance.name}
             currentPort={instance.configuredPort}
             currentProvider={instance.integration.defaultProvider}
+            currentDbUrlRedacted={instance.database?.urlRedacted ?? null}
             onSuccess={() => { setShowConfigure(false); onRefetchInstances() }}
             onCancel={() => setShowConfigure(false)}
           />
         </div>
+      )}
+
+      {showDeleteConfirm && (
+        <DeleteInstanceModal
+          instance={instance}
+          onDeleted={() => {
+            setShowDeleteConfirm(false)
+            void onRefetchInstances()
+            void navigate('/instances')
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
 
       <div className={styles.detailSections}>
@@ -1251,7 +1462,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
         />
         {/* CP-T093: Integration Overview — aggregated MCP/hooks status across all bound projects */}
         <section className={styles.detailSection}>
-          <h3 className={styles.sectionTitle}>Claude Code Integration Overview</h3>
+          <h3 className={styles.sectionTitle}>Claude Code Setup & Overview</h3>
           <IntegrationOverviewSection instanceName={instance.name} />
         </section>
         {/* CP-T095: Codex Integration Manager — instance-level Codex MCP registration */}
@@ -1280,6 +1491,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
 export function InstanceManager() {
   const { id: routeInstanceId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const { settings } = useSettings()
 
   // CP-T029: Track whether a manual per-instance probe refresh is in flight
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -1399,6 +1611,7 @@ export function InstanceManager() {
             <div className={styles.commandHintBlock}>
               <p className={styles.commandHintLabel}>Start the control-plane backend:</p>
               <code className={styles.commandHint}>node src\server\dist\index.js</code>
+              <CommandAction command="node src\\server\\dist\\index.js" allowRun={false} compact />
             </div>
           )}
           <button className={styles.retryBtn} onClick={() => void refetch()} type="button">
@@ -1424,9 +1637,12 @@ export function InstanceManager() {
               : 'No instance folders were discovered under the known runtime roots. If an instance is configured but stopped, it should appear here with a Start action.'}
           </p>
           {notInstalled && (
-            <p className={styles.emptyBody} style={{ marginTop: 'var(--space-2)' }}>
-              Run: <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>npm install -g iranti</code>
-            </p>
+            <div style={{ marginTop: 'var(--space-2)' }}>
+              <p className={styles.emptyBody}>
+                Install Iranti to create and manage instances.
+              </p>
+              <CommandAction command="npm install -g iranti" allowRun={false} compact />
+            </div>
           )}
           {!notInstalled && (
             <p className={styles.emptyBody}>
@@ -1547,6 +1763,8 @@ export function InstanceManager() {
         <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Create instance">
           <div className={styles.createModalBox}>
             <CreateInstanceForm
+              suggestedPort={suggestNextAvailablePort(data?.instances ?? [], settings.createInstanceDefaults.startPort)}
+              instances={data?.instances ?? []}
               onSuccess={(newName) => {
                 setShowCreateForm(false)
                 void refetch().then((result) => {

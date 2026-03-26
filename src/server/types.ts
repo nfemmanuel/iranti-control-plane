@@ -118,7 +118,7 @@ export interface IrantiRuntimeMetadata {
   healthUrl?: string | null
 }
 
-export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+export type RuntimeStatus = 'running' | 'unhealthy' | 'stale' | 'stopped' | 'missing' | 'invalid' | 'unknown'
 
 export interface InstanceScopeSummary {
   instanceId: string

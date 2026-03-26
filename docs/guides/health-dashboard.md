@@ -35,6 +35,22 @@ The overall status line at the top summarizes the worst severity seen across all
 
 ---
 
+## Runtime Status and Doctor Truth
+
+The control plane no longer invents its own lifecycle vocabulary when the Iranti CLI is available. Instance status and doctor output should be read as projections of:
+
+- `iranti status --json`
+- `iranti doctor --instance <name> --json`
+
+That matters for two common states:
+
+- `STALE`: runtime metadata exists, but the process is no longer alive.
+- `STOPPED`: the instance is configured, but there is no active runtime.
+
+If the control plane and the CLI disagree, trust the CLI first and treat the control-plane output as a bug.
+
+---
+
 ## Memory Decay Card
 
 The Memory Decay card shows the configuration of Iranti's Archivist decay policy. Decay is an Ebbinghaus-style mechanism that lowers a fact's effective confidence over time based on access frequency and time elapsed since last access. Facts that fall below the decay threshold are automatically archived.
@@ -195,11 +211,13 @@ The banner at the top of the results panel reflects the overall outcome:
 
 ### Fix hints
 
-When a check returns Warn or Fail, a fix hint appears below the check message. Any `iranti ...` commands in the hint are rendered in inline monospace for easy copy-paste. Examples:
+When a check returns Warn or Fail, a fix hint appears below the check message. If the hint contains a recognizable operator command, the control plane now renders it as an explicit command action with **Copy** and, for the allowlisted local-command subset, **Run**. The run surface is intentionally narrow so the dashboard does not overclaim shell authority. Examples:
 
 - **Iranti Connectivity fail:** `iranti run --instance <name>` — Iranti may not be running
 - **API Key Auth fail:** check `IRANTI_API_KEY` in your `.env.iranti` file
 - **Vector Search warn:** `IRANTI_QDRANT_URL` or `IRANTI_CHROMA_URL` unreachable — vector search using in-process fallback
+
+Commands that are not shown with **Run** are still copyable when extracted, but the control plane will not execute them automatically unless they fall inside the current safe local-command allowlist.
 
 ### Last-run behavior
 

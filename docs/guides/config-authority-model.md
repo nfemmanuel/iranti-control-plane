@@ -44,7 +44,7 @@ Placing these in `.env.iranti` has no effect. The control plane does not read th
 
 ## The Instance Env File — Runtime Authority
 
-This file is created by `iranti init` and lives under the Iranti runtime root. It is the authoritative source for everything the running Iranti process needs.
+This file is created by `iranti instance create` or `iranti setup` and lives under the Iranti runtime root. It is the authoritative source for everything the running Iranti process needs.
 
 **Where it lives:**
 
@@ -99,13 +99,19 @@ The separation also means project repositories can safely commit `.env.iranti` w
 
 When the control plane needs to read runtime config (e.g., to check which provider is active, or to display the Health dashboard), it follows this chain:
 
-1. Read `IRANTI_INSTANCE_ENV` from `.env.iranti` in the project root.
-2. Load the file at that path — the instance env.
-3. Read `LLM_PROVIDER`, `DATABASE_URL`, `ANTHROPIC_API_KEY`, etc. from the instance env.
+1. Honor an explicit `IRANTI_HOME` if the operator set one.
+2. If the current project has a `.env.iranti`, use `IRANTI_INSTANCE_ENV` from that binding.
+3. Fall back to ancestor runtime roots (`.iranti-runtime` or `.iranti`) and the user runtime roots under the home directory.
+4. Ask `iranti status --json` for the actual instance/runtime classification when the CLI is available.
+5. Read `LLM_PROVIDER`, `DATABASE_URL`, `ANTHROPIC_API_KEY`, etc. from the resolved instance env.
 
 If `IRANTI_INSTANCE_ENV` is not set or the file it points to does not exist, the control plane falls back to searching for `.env.iranti` in the project root and reading what it can from there. This fallback exists only as a last resort — it will not find provider keys or `DATABASE_URL` because those do not belong in `.env.iranti`.
 
 When you change a provider key in the **Provider Manager** UI, the control plane writes the new value to the instance env file at the path from `IRANTI_INSTANCE_ENV`. It does not write to `.env.iranti`.
+
+When you create or configure an instance from the **Instance Manager**, the control plane now delegates to the current Iranti CLI semantics against the resolved runtime root. Instance repair, metadata sync, and provider normalization follow Iranti truth rather than a control-plane-local reimplementation.
+
+Project binding is instance-scoped, not folder-tree scoped. A `.env.iranti` file binds the current project to one specific instance. It does not make every sibling or child project under that directory implicitly bound.
 
 ---
 

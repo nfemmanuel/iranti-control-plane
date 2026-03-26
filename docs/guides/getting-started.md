@@ -21,7 +21,7 @@ The following views are functional as of v0.7.0+ (Phase 7 complete):
 | **Staff Activity Stream** | Live event stream of Librarian and Archivist operations (`/activity`). Filterable, real-time via SSE. Includes velocity counter, hover-pause, and Live/Paused badge (Phase 2 — CP-T037). |
 | **Health Dashboard** | Structured diagnostic view (`/health`) — database reachability, provider keys, integration file checks, runtime version, memory decay configuration, vector backend status, and Attendant health signal. Includes the **Interactive Diagnostics Panel** (Wave 6 — CP-T059): click "Run Diagnostics" to actively probe Iranti connectivity, API key auth, DB, vector backend, and memory round-trip with actionable fix suggestions. Also reachable from the command palette. (Wave 4/6 — CP-T052, CP-T059, PM-accepted 2026-03-21) |
 | **Agent Registry** | Read-only view of all registered agents at `/agents` — last seen, active status, write volume, rejection rate, escalation history, and per-agent detail panel. (Wave 4 — CP-T051, PM-accepted 2026-03-21) |
-| **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, and Claude/Codex integration status (`/instances`). |
+| **Instance Manager** | Discovered Iranti instances, runtime metadata, project bindings, create/configure/delete actions, and Claude/Codex integration status (`/instances`). Project bind flows now support a native folder picker, instance creation can build a PostgreSQL URL from parts instead of requiring a hand-typed full connection string, and repair/status surfaces expose copyable or runnable command actions where the control plane can safely execute the suggested fix. Use the per-project **Claude Setup** action from the Projects section to scaffold `.mcp.json` and Claude hooks for a bound project. |
 | **Getting Started / Onboarding** | Guided setup checklist at `/getting-started` — 4 steps covering database connection, provider configuration, project binding, and Claude/Codex integration. Auto-shown on first load when setup has never been completed. The sidebar nav item displays a persistent badge with the count of incomplete steps until all steps are resolved. A dismissible setup banner also appears in the page header until setup is complete. (Phase 2 — CP-T035) |
 | **Integration Repair Actions** | Repair buttons in Health Dashboard for `.mcp.json` and `CLAUDE.md` issues; Doctor drawer (Phase 2 — CP-T033) |
 | **Conflict and Escalation Review** | Review and resolve Resolutionist escalations at `/conflicts` (Phase 2 — CP-T021) |
@@ -49,13 +49,13 @@ Before you start, you need the following already running:
 
 - **PostgreSQL with pgvector.** Iranti stores facts in PostgreSQL and uses pgvector for semantic search. Both must be running. In the default local setup, Iranti's database is named `iranti`, running on `localhost:5432`, accessible as the `postgres` user with no password. If you're using Docker, the container is typically named `iranti_db`.
 
-- **An Iranti runtime root at `~/.iranti-runtime`.** The control plane discovers instances by scanning `~/.iranti-runtime/instances/<name>/`. Each instance directory must contain a `.env` file — that file is the authoritative runtime config for that instance (database URL, provider keys, port).
+- **An Iranti runtime root at `~/.iranti-runtime` or an explicit `IRANTI_HOME`.** The control plane prefers Iranti's own status/authority model when the CLI is available. In practice it resolves runtime state from `IRANTI_HOME`, then the bound `IRANTI_INSTANCE_ENV`, then discovered runtime roots near the current project and under your home directory. Each instance directory must contain a `.env` file — that file is the authoritative runtime config for that instance (database URL, provider keys, port).
 
   The project directory also contains a `.env.iranti` binding file. This is a **pointer only** — it tells the control plane which instance to connect to via `IRANTI_INSTANCE_ENV`. It is not a config source.
 
   Critical distinction:
 
-  - `DATABASE_URL`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` belong in the **instance env** (`~/.iranti-runtime/instances/<name>/.env`), created by `iranti init`.
+  - `DATABASE_URL`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` belong in the **instance env** (`~/.iranti-runtime/instances/<name>/.env`), created by `iranti instance create` or `iranti setup`.
   - `.env.iranti` in the project root contains only connection metadata: `IRANTI_URL`, `IRANTI_API_KEY`, `IRANTI_AGENT_ID`, `IRANTI_INSTANCE`, and `IRANTI_INSTANCE_ENV` (the path to the instance env).
   - Never put provider API keys or `DATABASE_URL` in `.env.iranti` — they have no effect there.
 
@@ -80,7 +80,7 @@ npm run setup
 
 This is equivalent to `npm install --prefix src/server && npm install --prefix src/client`. Running `npm install` at the root alone is not sufficient — it only installs `concurrently` (the dev runner) and does not install the server or client dependencies.
 
-Ensure your project root has a `.env.iranti` binding file pointing at your Iranti instance. If you ran `iranti init`, this file was created for you. It should look like:
+Ensure your project root has a `.env.iranti` binding file pointing at your Iranti instance. If you ran `iranti setup` or bound the project explicitly, this file was created for you. It should look like:
 
 ```dotenv
 IRANTI_URL=http://localhost:3001
@@ -169,6 +169,25 @@ You'll land on the **Memory Explorer** by default. Use the sidebar on the left t
 10. **Providers** (`/providers`) — provider reachability and model management
 11. **Agents** (`/agents`) — registered agent registry with health stats
 12. **Getting Started** (`/getting-started`) — guided first-run setup checklist
+
+### Claude Code and Codex setup from the Instances page
+
+The Instances page exposes the two agent-tool integration paths differently on purpose:
+
+- **Claude Code** setup is **project-scoped**. Open an instance, go to **Projects**, and use **Claude Setup** on a bound project. That scaffolds `.mcp.json` and `.claude/settings.local.json` for that specific project.
+- **Codex** setup is **machine-scoped**. Open an instance and use the **Codex Integration** panel. The control plane checks live Codex MCP state with `codex mcp get iranti` rather than guessing from old config-file locations.
+
+If Codex registration changes outside the control plane, refresh the page and the Codex panel should reflect the current MCP registration state.
+
+### Path picking, database setup, and command actions
+
+The control plane now supports a few operator-quality shortcuts that avoid raw typing where it was error-prone:
+
+- **Project paths**: binding a project now includes a native **Browse…** button that opens the local folder picker and writes the absolute path back into the form.
+- **Create Instance database setup**: the database step can either accept a full `DATABASE_URL` or build one from host, port, database name, username, and password. If existing instances are present, the form uses them as a template for the host/port/user defaults so you do not have to retype the same PostgreSQL coordinates for every new instance.
+- **Recommended commands**: key setup, health, doctor, and runtime-repair surfaces now expose copy and, for a small allowlisted command set, in-app **Run** actions. The current allowlist is intentionally narrow: `iranti ...` commands and `npm run migrate`.
+
+If the UI shows a command without a **Run** button, treat that as intentional. The command is still copyable, but the control plane is not claiming it is safe to execute automatically.
 
 ---
 
@@ -303,13 +322,14 @@ Then restart the instance and reload the Health dashboard.
 
 ### "No instances found" on the Instances page
 
-The control plane discovers Iranti instances by scanning `~/.iranti-runtime/instances/` and reading each instance directory directly. It does not require a separate registry file.
+The control plane prefers `iranti status --json` as the source of truth for instance discovery and runtime classification. It only falls back to direct runtime-root inspection when the CLI is unavailable or cannot answer for the selected runtime root.
 
 If the Instances page shows an empty list:
 
-1. Check whether `~/.iranti-runtime/instances/` exists.
-2. Confirm that each instance directory contains a `.env` file.
-3. If you launched Iranti with a custom runtime root, set `IRANTI_HOME` before starting the control plane so discovery points at the right directory.
+1. Run `iranti status --root C:\Users\NF\.iranti-runtime --json` and confirm Iranti itself can see the instances.
+2. Check whether `~/.iranti-runtime/instances/` exists.
+3. Confirm that each instance directory contains a `.env` file.
+4. If you launched Iranti with a custom runtime root, set `IRANTI_HOME` before starting the control plane so discovery points at the same directory.
 
 Even with no instances found, the Health dashboard and Memory Explorer still work — they connect directly to the database specified in the control plane's own `.env` file.
 

@@ -18,7 +18,15 @@ This checks database connectivity, environment variables, provider keys, and pro
 
 **Diagnosis:**
 
-The control plane discovers instances by scanning `~/.iranti-runtime/instances/*/`. It treats each subdirectory that contains a `.env` file as an instance. If that directory tree doesn't exist or is empty, no instances are found.
+The control plane now prefers `iranti status --json` as the source of truth for instance discovery and runtime classification. It does not trust a directory scan by itself when the CLI is available.
+
+Check the actual upstream view first:
+
+```bash
+iranti status --root C:\Users\NF\.iranti-runtime --json
+```
+
+If that command shows instances and the control plane does not, the control plane is resolving the wrong runtime root or the CLI itself is not resolving correctly on this machine.
 
 Check:
 
@@ -42,51 +50,67 @@ Get-ChildItem "$env:USERPROFILE\.iranti-runtime\instances\local\.env"
 
 **Fix:**
 
-- If `~/.iranti-runtime/instances/` doesn't exist, Iranti has not been initialized on this machine. Run `iranti init` to create a local instance.
-- If the directory exists but is empty, the instance was removed or the runtime root was relocated. Re-run `iranti init` or restore the instance directory.
-- If the directory contains subdirectories but they have no `.env` file, the instance setup is incomplete. Check the Iranti installation for that instance.
-- If you launched Iranti with a custom `IRANTI_HOME`, set the same value before starting the control plane so discovery points at the right runtime root.
+- If `iranti status --json` is empty, the issue is upstream runtime state, not the control plane.
+- If `iranti status --json` works but the control plane still shows no instances, verify the control plane can resolve the same CLI that your shell resolves.
+- If you launched Iranti with a custom `IRANTI_HOME`, set the same value before starting the control plane so both point at the same runtime root.
+- If the runtime root exists but contains incomplete instance directories, complete or recreate the instance instead of relying on the control plane to infer missing config.
 
 Note: missing instances do not prevent the Health dashboard or Memory Explorer from working — they connect directly to the database from the resolved instance env.
 
 ---
 
-## 2. Health Shows "Runtime Unreachable"
+## 2. Instances Show as Stale or Stopped
 
-**Symptom:** The Health dashboard shows the Iranti runtime check as `error` with "runtime unreachable" or a connection refused message.
+**Symptom:** The Instances page shows `STALE` or `STOPPED`, and Doctor recommends restarting the instance.
 
 **Diagnosis:**
 
-This check pings the Iranti HTTP API at the URL derived from the instance env (`IRANTI_PORT`). "Unreachable" has three distinct causes:
+This now follows Iranti's runtime classification rules. A stale instance usually means runtime metadata still exists, but the process is gone:
 
-1. **Iranti is stopped.** The Iranti process isn't running. This is expected if you haven't started Iranti — the control plane can still show DB health, provider config, and other checks.
-2. **Port mismatch.** Iranti is running but on a different port than the control plane expects.
-3. **Config wrong.** `IRANTI_PORT` in the instance env doesn't match the port Iranti was actually started on.
+1. `runtime.json` still points at an old PID.
+2. The last heartbeat is old.
+3. The process is not alive even though metadata says it used to be running.
 
-Check whether Iranti is running:
+Confirm with Iranti directly:
 
 ```bash
-# Linux / macOS
-curl http://localhost:3001/health
-
-# Windows (PowerShell)
-Invoke-WebRequest http://localhost:3001/health
+iranti status --root C:\Users\NF\.iranti-runtime --json
+iranti doctor --instance <name> --root C:\Users\NF\.iranti-runtime --json
 ```
-
-If that succeeds, check what port the control plane is reading:
-
-- Open the Health dashboard and run Interactive Diagnostics. The `scope.apiBaseUrl` field shows the URL the control plane is trying to reach.
-- Compare it to the running Iranti process. If they don't match, `IRANTI_PORT` in the instance env is wrong.
 
 **Fix:**
 
-- If Iranti is stopped: start it (`iranti start` or your usual start method). The health check will auto-resolve.
-- If there is a port mismatch: correct `IRANTI_PORT` in `~/.iranti-runtime/instances/<name>/.env` to match the port Iranti is actually listening on, then restart the control plane.
-- If you are intentionally running Iranti on a non-default port, confirm `IRANTI_PORT` is set correctly in the instance env — not in `.env.iranti`.
+- If the instance should still be running: `iranti instance restart <name>`
+- If the instance is intentionally down: the control plane should show `configured` plus `stopped`; no repair is needed.
+- If `doctor` reports runtime authority or vector drift issues, fix those upstream and reload the control plane.
 
 ---
 
-## 3. Provider Keys Not Saving
+## 3. Session Recovery Shows No Sessions
+
+**Symptom:** The Sessions page loads, but shows an empty list with a warning that the session API is unavailable.
+
+**Diagnosis:**
+
+The control plane now asks Iranti's real `/memory/sessions` API first. If the bound instance is down or stale, the control plane falls back to local attendant/session facts and reports that fallback explicitly.
+
+Check whether the bound instance is actually reachable:
+
+```bash
+iranti status --root C:\Users\NF\.iranti-runtime --json
+```
+
+If the selected instance is stale or stopped, the session API is unavailable by definition.
+
+**Fix:**
+
+- Restart the bound instance if you expect live session recovery data.
+- If no sessions appear after restart, verify the agents are actually checkpointing through Iranti.
+- Treat the fallback note literally: it means the control plane is not looking at live session state right now.
+
+---
+
+## 4. Provider Keys Not Saving
 
 **Symptom:** You enter a provider API key in the Provider Manager UI and click Save. The save appears to succeed, but the Health dashboard still shows the key as missing. Or: the save fails with an error.
 
@@ -116,14 +140,84 @@ Get-Content "$env:USERPROFILE\.iranti-runtime\instances\local\.env"
 **Fix:**
 
 - If `IRANTI_INSTANCE_ENV` is missing from `.env.iranti`: add it pointing at the correct instance env path, then restart the control plane.
-- If the instance env file does not exist: run `iranti init` to create it, or manually create it with the minimum required keys (`DATABASE_URL`, `IRANTI_PORT`, `IRANTI_INSTANCE_NAME`) and then add provider keys via the UI.
+- If the instance env file does not exist: run `iranti instance create <name> ...` or `iranti setup` to create it, or manually create it with the minimum required keys (`DATABASE_URL`, `IRANTI_PORT`, `IRANTI_INSTANCE_NAME`) and then add provider keys via the UI.
 - If `IRANTI_INSTANCE_ENV` points at `.env.iranti` itself: this is a misconfiguration. `.env.iranti` is a binding pointer, not a runtime config file. Provider keys written there have no effect.
 
 After fixing the path, re-enter the key in the Provider Manager and verify the Health dashboard shows the key as present.
 
 ---
 
-## 4. "staff_events Table Not Found" Warning
+## 4A. Instance Create or Configure Does the Wrong Thing
+
+**Symptom:** Creating or reconfiguring an instance from the Instance Manager appears to target the wrong runtime root, or the success message leaves you unsure what to do next.
+
+**Diagnosis:**
+
+The control plane now resolves the target runtime root the same way the rest of the audited integration layer does:
+
+1. explicit `IRANTI_HOME`
+2. bound `IRANTI_INSTANCE_ENV`
+3. discovered runtime roots near the current project and under the home directory
+
+The actual create/configure mutation is delegated to the current Iranti CLI. That means the control plane should now behave like:
+
+```bash
+iranti instance create <name> ...
+iranti configure instance <name> ...
+```
+
+Check the runtime root and resulting instance files directly:
+
+```bash
+iranti status --root C:\Users\NF\.iranti-runtime --json
+Get-Content "$env:USERPROFILE\.iranti-runtime\instances\<name>\.env"
+```
+
+**Fix:**
+
+- If the wrong runtime root was chosen, set `IRANTI_HOME` before starting the control plane.
+- After create, treat `iranti instance show <name>` and `iranti run --instance <name>` as the primary next steps.
+- After configure, use the new restart action in the control plane or run `iranti instance restart <name>` manually.
+- `ollama` does not take a provider API key in this flow. Configure its base URL separately in the instance env if needed.
+
+Operator note:
+
+- The **Create Instance** form no longer requires a hand-typed PostgreSQL URL. Use **Build from parts** to compose `DATABASE_URL` from host, port, database name, username, and password.
+- When you are binding a project, prefer the native **Browse…** button so the control plane gets the exact absolute folder path instead of a manually typed guess.
+
+---
+
+## 4B. Codex Integration Says "Not Registered" Even Though `iranti codex-setup` Works
+
+**Symptom:** The Codex Integration panel says Iranti is not registered, or the Register button fails even though running `iranti codex-setup` manually in the terminal succeeds.
+
+**Diagnosis:**
+
+On current Codex installs, MCP registration truth should come from the live Codex CLI:
+
+```bash
+codex mcp get iranti --json
+```
+
+Do not treat missing legacy files like `~/.codex/config.json` or `~/.codex/mcp.json` as proof that Codex is unconfigured. Current installs may use different config surfaces, and the control plane now follows `codex mcp get` instead.
+
+Also verify that the control plane has been restarted after a control-plane upgrade or rebuild. A long-running server process can still be serving old route logic even if the source code is fixed.
+
+**Fix:**
+
+- If `codex mcp get iranti --json` succeeds, refresh the Instances page. The Codex Integration panel should report Iranti as registered.
+- If `iranti codex-setup` works in the terminal but the panel still fails, restart the control-plane server so it picks up the current backend code.
+- If `codex mcp get iranti --json` says no server named `iranti`, run:
+
+```bash
+iranti codex-setup
+```
+
+Then refresh the Instances page again.
+
+---
+
+## 5. "staff_events Table Not Found" Warning
 
 **Symptom:** The Health dashboard shows a `warn` status for the `staff_events` table. The Staff Activity Stream shows "migration not applied."
 
@@ -147,9 +241,11 @@ This is a one-time operation. If the table already exists the migration is a no-
 
 Note: `npm run migrate` must be run from `src/server/`, not from the project root.
 
+Where available, the Health dashboard now renders that migration command as a command action with **Copy** and **Run**. If the UI only shows **Copy**, the control plane is intentionally refusing to execute that command automatically.
+
 ---
 
-## 5. "Default Provider Is Set to 'anthropic'" Warning
+## 6. "Default Provider Is Set to 'anthropic'" Warning
 
 **Symptom:** The Health dashboard shows a warning: `'anthropic' is not a valid value for LLM_PROVIDER`.
 
@@ -173,7 +269,7 @@ Then restart the Iranti instance. The control plane will pick up the updated val
 
 ---
 
-## 6. Control Plane Won't Start
+## 7. Control Plane Won't Start
 
 **Symptom:** Running `iranti-cp` (npm global install) or `npm run dev` (from source) exits immediately or hangs without serving requests.
 
@@ -226,7 +322,7 @@ This runs `npm install` in both `src/server/` and `src/client/`.
 
 ---
 
-## 7. DB Unreachable in Health Dashboard
+## 8. DB Unreachable in Health Dashboard
 
 **Symptom:** The Health dashboard shows `error` for the `DB Reachability` check.
 

@@ -4,6 +4,8 @@
 import { useState } from 'react'
 import type { DoctorCheck, DoctorResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
+import { CommandAction } from '../ui/CommandAction'
+import { canRunCommand, extractFirstCommand } from '../ui/commandText'
 import styles from './DoctorDrawer.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -41,6 +43,7 @@ function DoctorCheckRow({
   check: DoctorCheck
   onRepair: (repairUrl: string, label: string) => void
 }) {
+  const recommendedCommand = extractFirstCommand(check.message)
   return (
     <div className={`${styles.checkRow} ${styles[`checkRow_${check.status}`]}`}>
       <div className={styles.checkHeader}>
@@ -48,6 +51,13 @@ function DoctorCheckRow({
         <span className={styles.checkLabel}>{check.label}</span>
       </div>
       <p className={styles.checkMessage}>{check.message}</p>
+      {recommendedCommand && (
+        <CommandAction
+          command={recommendedCommand}
+          allowRun={canRunCommand(recommendedCommand)}
+          compact
+        />
+      )}
       {check.repairAction && (
         <button
           className={styles.inlineRepairBtn}

@@ -15,6 +15,8 @@ import { AttendantDebugPanel } from './AttendantDebugPanel'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import styles from './HealthDashboard.module.css'
 import { Spinner } from '../ui/Spinner'
+import { CommandAction } from '../ui/CommandAction'
+import { canRunCommand, extractFirstCommand } from '../ui/commandText'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                           */
@@ -740,11 +742,12 @@ function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
 
       {attendant.status === 'warn' && (
         <div className={styles.remediation}>
-          <span className={styles.remediationLabel}>How to fix</span>
+          <span className={styles.remediationLabel}>What this means</span>
           <p className={styles.remediationText}>
-            Use <code className={styles.capabilityInlineCode}>forceInject: true</code> in{' '}
-            <code className={styles.capabilityInlineCode}>iranti_attend</code> to bypass the classifier
-            and always inject working memory.
+            The Attendant responded, but this synthetic health probe did not trigger a confident
+            memory-injection decision. That usually indicates probe ambiguity rather than an
+            outage. If real agent prompts also miss useful memory, re-test with a clearer task
+            prompt and inspect the live session or attend behavior.
           </p>
         </div>
       )}
@@ -841,6 +844,18 @@ function DiagFixHint({ hint }: { hint: string }) {
   )
 }
 
+function DiagHintActions({ hint }: { hint: string }) {
+  const command = extractFirstCommand(hint)
+  if (!command) return null
+  return (
+    <CommandAction
+      command={command}
+      allowRun={canRunCommand(command)}
+      compact
+    />
+  )
+}
+
 /** Status badge for a diagnostic check — pass/warn/fail */
 function DiagStatusBadge({ status }: { status: DiagnosticCheckResult['status'] }) {
   const labelMap: Record<DiagnosticCheckResult['status'], string> = {
@@ -912,6 +927,7 @@ function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
                 <div className={styles.diagMessageCell}>
                   <span className={styles.diagMessage}>{check.message}</span>
                   {check.fixHint && <DiagFixHint hint={check.fixHint} />}
+                  {check.fixHint && <DiagHintActions hint={check.fixHint} />}
                 </div>
               </td>
               <td className={styles.diagDuration}>{check.durationMs}ms</td>

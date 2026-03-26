@@ -8,6 +8,7 @@ import {
   resolveBoundProjectPath,
   ResolvedInstanceAuthority,
 } from '../../lib/instance-authority.js'
+import { runIrantiJson } from '../../lib/iranti-cli.js'
 import { inspectProjectIntegration } from '../../lib/project-integration.js'
 
 export const repairRouter = Router()
@@ -19,6 +20,58 @@ interface DoctorCheck {
   status: 'pass' | 'fail' | 'warn'
   message: string
   repairAction: string | null
+}
+
+interface CliDoctorCheck {
+  name: string
+  status: 'pass' | 'fail' | 'warn'
+  detail: string
+}
+
+interface CliDoctorResponse {
+  status: 'pass' | 'fail' | 'warn'
+  checks: CliDoctorCheck[]
+  remediations?: string[]
+}
+
+async function doctorCheckRuntimeAvailability(scope: ResolvedInstanceAuthority): Promise<DoctorCheck> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 2500)
+
+  try {
+    const res = await fetch(`${scope.apiBaseUrl}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    })
+
+    if (res.ok) {
+      return {
+        id: 'runtime_availability',
+        label: 'Runtime availability',
+        status: 'pass',
+        message: `Iranti runtime is running and reachable at ${scope.apiBaseUrl}.`,
+        repairAction: null,
+      }
+    }
+
+    return {
+      id: 'runtime_availability',
+      label: 'Runtime availability',
+      status: res.status >= 500 ? 'fail' : 'warn',
+      message: `Iranti runtime responded with HTTP ${res.status}; runtime-only checks may be incomplete.`,
+      repairAction: null,
+    }
+  } catch {
+    return {
+      id: 'runtime_availability',
+      label: 'Runtime availability',
+      status: 'warn',
+      message: `Iranti runtime is not running or not reachable at ${scope.apiBaseUrl}; runtime-only checks were skipped.`,
+      repairAction: null,
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function requireConfirm(req: Request, res: Response): boolean {
@@ -362,21 +415,83 @@ function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
   })
 }
 
+function slugifyDoctorCheckId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function mapCliDoctorChecks(payload: CliDoctorResponse): DoctorCheck[] {
+  const checks = payload.checks.map((check) => ({
+    id: `iranti_doctor:${slugifyDoctorCheckId(check.name)}`,
+    label: check.name,
+    status: check.status,
+    message: check.detail,
+    repairAction: null,
+  }))
+
+  const remediations = (payload.remediations ?? []).map((detail, index) => ({
+    id: `iranti_doctor:remediation_${index + 1}`,
+    label: `Recommended remediation ${index + 1}`,
+    status: payload.status === 'fail' ? 'fail' as const : 'warn' as const,
+    message: detail,
+    repairAction: null,
+  }))
+
+  return [...checks, ...remediations]
+}
+
 repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scope = await resolveScopeOr404(req.params['instanceId'], res)
     if (!scope) return
 
-    const [dbCheck] = await Promise.all([
+    const [dbCheck, runtimeCheck] = await Promise.all([
       doctorCheckDatabase(scope.databaseUrl),
+      doctorCheckRuntimeAvailability(scope),
     ])
 
-    const checks: DoctorCheck[] = [
+    let checks: DoctorCheck[]
+
+    try {
+      const doctor = await runIrantiJson<CliDoctorResponse>([
+        'doctor',
+        '--instance',
+        scope.instanceName,
+        '--root',
+        scope.runtimeRoot,
+        '--json',
+      ], { allowNonZeroExit: true })
+      checks = mapCliDoctorChecks(doctor.json)
+    } catch (error) {
+      checks = [
+        {
+          id: 'iranti_doctor_unavailable',
+          label: 'Iranti doctor',
+          status: 'warn',
+          message: error instanceof Error
+            ? error.message
+            : String(error),
+          repairAction: null,
+        },
+        runtimeCheck,
+        dbCheck,
+        doctorCheckProvider(scope),
+      ]
+    }
+
+    checks.push(
+      runtimeCheck,
       dbCheck,
       doctorCheckProvider(scope),
       doctorCheckProjectBindings(scope),
       ...doctorProjectChecks(scope),
-    ]
+    )
+
+    checks = Array.from(
+      new Map(checks.map((check) => [check.id, check])).values()
+    )
 
     res.json({
       instanceId: scope.instanceId,

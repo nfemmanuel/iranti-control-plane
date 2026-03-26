@@ -16,12 +16,15 @@ describe('health and diagnostics instance scoping', () => {
   let irantiServer: http.Server
   let apiBase: string
   let betaInstanceId: string
+  const attendBodies: Array<Record<string, unknown>> = []
+  let attendResponse: Record<string, unknown>
 
   beforeEach(async () => {
     tempRoot = await mkdtemp(join(tmpdir(), 'iranti-cp-health-'))
     runtimeRoot = join(tempRoot, '.iranti-runtime')
     await mkdir(join(runtimeRoot, 'instances', 'alpha'), { recursive: true })
     await mkdir(join(runtimeRoot, 'instances', 'beta'), { recursive: true })
+    attendResponse = { ok: true }
 
     irantiServer = http.createServer(async (req, res) => {
       if (req.url === '/health') {
@@ -53,8 +56,15 @@ describe('health and diagnostics instance scoping', () => {
       }
 
       if (req.url === '/kb/write' || req.url?.startsWith('/kb/delete') || req.url === '/memory/attend') {
+        if (req.url === '/memory/attend') {
+          let bodyRaw = ''
+          for await (const chunk of req) {
+            bodyRaw += chunk
+          }
+          attendBodies.push(JSON.parse(bodyRaw) as Record<string, unknown>)
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: true }))
+        res.end(JSON.stringify(attendResponse))
         return
       }
 
@@ -100,6 +110,7 @@ describe('health and diagnostics instance scoping', () => {
   })
 
   afterEach(async () => {
+    attendBodies.length = 0
     delete process.env['IRANTI_HOME']
     await new Promise<void>((resolve) => apiServer.close(() => resolve()))
     await new Promise<void>((resolve) => irantiServer.close(() => resolve()))
@@ -120,6 +131,13 @@ describe('health and diagnostics instance scoping', () => {
     const checks = body.checks as Array<Record<string, unknown>>
     const runtimeVersion = checks.find((check) => check.name === 'runtime_version')
     expect(runtimeVersion?.status).toBe('ok')
+    const attendBody = attendBodies.at(0)
+    expect(attendBody).toMatchObject({
+      agent: 'control_plane_operator',
+      latestMessage: 'health check probe',
+      currentContext: 'health check probe',
+    })
+    expect(attendBody).not.toHaveProperty('query')
   })
 
   it('diagnostics caches results per instance instead of globally', async () => {
@@ -127,6 +145,13 @@ describe('health and diagnostics instance scoping', () => {
     const runBody = await runRes.json() as Record<string, unknown>
     expect(runRes.status).toBe(200)
     expect(runBody.scope).toMatchObject({ instanceName: 'beta' })
+    const attendBody = attendBodies.at(-1)
+    expect(attendBody).toMatchObject({
+      agent: 'control_plane_operator',
+      latestMessage: 'diagnostic probe',
+      currentContext: 'diagnostic probe',
+    })
+    expect(attendBody).not.toHaveProperty('query')
 
     const lastBeta = await fetch(`${apiBase}/diagnostics/last?instanceId=${betaInstanceId}`)
     expect(lastBeta.status).toBe(200)
@@ -134,5 +159,37 @@ describe('health and diagnostics instance scoping', () => {
     const alphaInstanceId = deriveInstanceId(join(runtimeRoot, 'instances', 'alpha'))
     const lastAlpha = await fetch(`${apiBase}/diagnostics/last?instanceId=${alphaInstanceId}`)
     expect(lastAlpha.status).toBe(404)
+  })
+
+  it('reports classifier parse fallback in operator language instead of internal forceInject advice', async () => {
+    attendResponse = {
+      shouldInject: false,
+      reason: 'memory_not_needed',
+      decision: {
+        needed: false,
+        confidence: 0.5,
+        method: 'heuristic',
+        explanation: 'classification_parse_failed_default_false',
+      },
+    }
+
+    const healthRes = await fetch(`${apiBase}/health?instanceId=${betaInstanceId}`)
+    const healthBody = await healthRes.json() as Record<string, unknown>
+    expect(healthRes.status).toBe(200)
+    expect(healthBody.attendant).toMatchObject({
+      status: 'warn',
+      message: 'Attendant responded, but the diagnostic probe fell back to a conservative no-memory decision.',
+    })
+
+    const diagRes = await fetch(`${apiBase}/diagnostics/run?instanceId=${betaInstanceId}`, { method: 'POST' })
+    const diagBody = await diagRes.json() as Record<string, unknown>
+    expect(diagRes.status).toBe(200)
+    const checks = diagBody.checks as Array<Record<string, unknown>>
+    const attendCheck = checks.find((check) => check.check === 'attend_check')
+    expect(attendCheck).toMatchObject({
+      status: 'warn',
+      message: 'Attendant returned 200, but the diagnostic probe fell back to a conservative no-memory decision.',
+      fixHint: 'This usually means the synthetic probe was ambiguous, not that the Attendant is down. Re-test with a clearer task prompt if real memory injection seems weak.',
+    })
   })
 })

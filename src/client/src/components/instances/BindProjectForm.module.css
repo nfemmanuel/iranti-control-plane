@@ -101,6 +101,11 @@
   gap: var(--space-3);
 }
 
+.pathInputRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .fieldLabel {
   font-size: 12px;
   font-weight: 500;
@@ -172,6 +177,30 @@
   color: var(--color-text-tertiary);
   margin: 0;
   line-height: 1.5;
+}
+
+.browseBtn {
+  height: var(--input-height);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+
+.browseBtn:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.browseBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ── Checkbox ───────────────────────────────────────────────────── */

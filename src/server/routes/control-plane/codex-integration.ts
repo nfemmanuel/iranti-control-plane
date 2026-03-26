@@ -2,181 +2,99 @@
  * Codex Integration routes — CP-T095
  *
  * GET  /api/control-plane/integrations/codex
- *        Detect Codex on PATH, read global MCP config, check for Iranti registration.
- *        Returns: { codexInstalled, irantiRegistered, registeredConfig, issues }
+ *        Detect Codex and inspect live MCP registration state.
  *
  * POST /api/control-plane/integrations/codex
- *        Run `iranti codex-setup` as a subprocess.
- *        Returns: { ok, output, error? }
+ *        Run `iranti codex-setup` using the shared Iranti CLI resolver.
  *
  * DELETE /api/control-plane/integrations/codex
- *        Run `iranti uninstall --target codex`, or fall back to removing the
- *        iranti key directly from the Codex config file.
- *        Returns: { ok, output?, error? }
+ *        Remove Iranti from Codex using the official uninstall path first,
+ *        then Codex's own `mcp remove` command as the fallback source of truth.
  */
 
 import { Router, Request, Response } from 'express'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { homedir } from 'os'
-import { execFile } from 'child_process'
+import { resolveCodexCli, runCodexCommand } from '../../lib/codex-cli.js'
+import { runIrantiCommand } from '../../lib/iranti-cli.js'
 
 export const codexIntegrationRouter = Router()
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const SUBPROCESS_TIMEOUT_MS = 5_000
-
-// ---------------------------------------------------------------------------
-// Codex config file resolution
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the candidate paths to check for the Codex global MCP config.
- * Codex stores its config under ~/.codex/ (or %USERPROFILE%\.codex\ on Windows).
- * Two file names are possible: config.json and mcp.json.
- */
-function getCodexConfigCandidates(): string[] {
-  const base =
-    process.platform === 'win32'
-      ? (process.env.USERPROFILE ?? homedir())
-      : homedir()
-  const dir = join(base, '.codex')
-  return [join(dir, 'config.json'), join(dir, 'mcp.json')]
-}
-
-// ---------------------------------------------------------------------------
-// JSON helpers
-// ---------------------------------------------------------------------------
-
-function readJsonFile(filePath: string): Record<string, unknown> | null {
-  if (!existsSync(filePath)) return null
-  try {
-    const raw = readFileSync(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    return parsed as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
-function writeJsonFile(filePath: string, data: Record<string, unknown>): void {
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8')
-}
-
-// ---------------------------------------------------------------------------
-// Subprocess helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Run a command with execFile and return { stdout, stderr, exitCode }.
- * Always resolves — never rejects — so callers can inspect the result directly.
- */
-function runCommand(
-  cmd: string,
-  args: string[],
-  timeoutMs: number
-): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
-  return new Promise((resolve) => {
-    const child = execFile(
-      cmd,
-      args,
-      { timeout: timeoutMs, windowsHide: true },
-      (err, stdout, stderr) => {
-        const exitCode = err
-          ? (err as NodeJS.ErrnoException & { code?: number }).code ?? null
-          : 0
-        resolve({
-          stdout: typeof stdout === 'string' ? stdout.trim() : '',
-          stderr: typeof stderr === 'string' ? stderr.trim() : '',
-          exitCode: typeof exitCode === 'number' ? exitCode : null,
-        })
-      }
-    )
-    // Safety net in case execFile's timeout option doesn't fire
-    setTimeout(() => {
-      try { child.kill() } catch { /* ignore */ }
-    }, timeoutMs + 500)
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Codex detection
-// ---------------------------------------------------------------------------
-
-async function detectCodex(): Promise<boolean> {
-  const cmd = process.platform === 'win32' ? 'where' : 'which'
-  const result = await runCommand(cmd, ['codex'], SUBPROCESS_TIMEOUT_MS)
-  // `which` / `where` exits 0 and prints a path if the binary is found
-  return result.exitCode === 0 && result.stdout.length > 0
-}
-
-// ---------------------------------------------------------------------------
-// Iranti registration check
-// ---------------------------------------------------------------------------
 
 interface IrantiRegistrationResult {
   irantiRegistered: boolean
   registeredConfig: Record<string, unknown> | null
-  configFilePath: string | null
-  parsedConfig: Record<string, unknown> | null
+  issue: string | null
 }
 
-function checkIrantiRegistration(): IrantiRegistrationResult {
-  const candidates = getCodexConfigCandidates()
+function collectOutput(...parts: Array<string | undefined>): string {
+  return parts
+    .map((part) => part?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n')
+}
 
-  for (const candidate of candidates) {
-    const config = readJsonFile(candidate)
-    if (!config) continue
+function looksNotRegistered(message: string): boolean {
+  const lowered = message.toLowerCase()
+  return (
+    lowered.includes('not found') ||
+    lowered.includes('not registered') ||
+    lowered.includes('no server named') ||
+    lowered.includes('unknown mcp server') ||
+    lowered.includes('no mcp server')
+  )
+}
 
-    // Codex may use either `mcpServers` or `mcp_servers` as the top-level key
-    const servers =
-      (config['mcpServers'] ?? config['mcp_servers']) as Record<string, unknown> | undefined
+async function checkIrantiRegistration(): Promise<IrantiRegistrationResult> {
+  const result = await runCodexCommand(['mcp', 'get', 'iranti', '--json'], {
+    timeoutMs: SUBPROCESS_TIMEOUT_MS,
+    allowNonZeroExit: true,
+  })
 
-    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
-      // The file exists and is valid JSON but has no MCP server block — keep
-      // looking in the other candidate file before concluding "not registered"
-      continue
-    }
+  if (result.exitCode === 0 && result.stdout.trim()) {
+    try {
+      const parsed = JSON.parse(result.stdout) as Record<string, unknown>
+      const transport = parsed['transport']
+      const registeredConfig =
+        transport && typeof transport === 'object' && !Array.isArray(transport)
+          ? (transport as Record<string, unknown>)
+          : parsed
 
-    const irantiEntry = servers['iranti']
-    if (!irantiEntry) continue
-
-    // Found an iranti entry
-    return {
-      irantiRegistered: true,
-      registeredConfig:
-        typeof irantiEntry === 'object' && !Array.isArray(irantiEntry)
-          ? (irantiEntry as Record<string, unknown>)
-          : { raw: irantiEntry },
-      configFilePath: candidate,
-      parsedConfig: config,
+      return {
+        irantiRegistered: true,
+        registeredConfig,
+        issue: null,
+      }
+    } catch {
+      return {
+        irantiRegistered: true,
+        registeredConfig: { raw: result.stdout.trim() },
+        issue: null,
+      }
     }
   }
 
-  // No file had an iranti entry — check if any config file actually exists
-  const firstExisting = candidates.find((c) => existsSync(c))
+  const combined = collectOutput(result.stdout, result.stderr)
+  if (looksNotRegistered(combined)) {
+    return {
+      irantiRegistered: false,
+      registeredConfig: null,
+      issue: 'Iranti MCP server not registered with Codex',
+    }
+  }
+
   return {
     irantiRegistered: false,
     registeredConfig: null,
-    configFilePath: firstExisting ?? null,
-    parsedConfig: firstExisting ? readJsonFile(firstExisting) : null,
+    issue: combined || 'Unable to inspect Codex MCP registration',
   }
 }
 
-// ---------------------------------------------------------------------------
-// GET /integrations/codex
-// ---------------------------------------------------------------------------
-
 codexIntegrationRouter.get('/codex', async (_req: Request, res: Response) => {
   try {
-    const codexInstalled = await detectCodex()
+    const codexResolution = await resolveCodexCli()
     const issues: string[] = []
 
-    if (!codexInstalled) {
+    if (!codexResolution) {
       issues.push('Codex not found on PATH — install Codex first')
       res.json({
         codexInstalled: false,
@@ -187,32 +105,8 @@ codexIntegrationRouter.get('/codex', async (_req: Request, res: Response) => {
       return
     }
 
-    // Codex is installed — now check config
-    const candidates = getCodexConfigCandidates()
-    const anyConfigExists = candidates.some((c) => existsSync(c))
-
-    if (!anyConfigExists) {
-      issues.push('Codex config file not found')
-      res.json({
-        codexInstalled: true,
-        irantiRegistered: false,
-        registeredConfig: null,
-        issues,
-      })
-      return
-    }
-
-    const { irantiRegistered, registeredConfig } = checkIrantiRegistration()
-
-    if (!irantiRegistered) {
-      issues.push('Iranti MCP server not registered with Codex')
-    } else if (
-      registeredConfig &&
-      typeof registeredConfig['command'] === 'string' &&
-      registeredConfig['command'] !== 'iranti'
-    ) {
-      issues.push('Iranti MCP server is registered but uses unexpected command')
-    }
+    const { irantiRegistered, registeredConfig, issue } = await checkIrantiRegistration()
+    if (issue) issues.push(issue)
 
     res.json({
       codexInstalled: true,
@@ -225,100 +119,83 @@ codexIntegrationRouter.get('/codex', async (_req: Request, res: Response) => {
       codexInstalled: false,
       irantiRegistered: false,
       registeredConfig: null,
-      issues: [`Internal error: ${String(err)}`],
+      issues: [err instanceof Error ? err.message : String(err)],
     })
   }
 })
 
-// ---------------------------------------------------------------------------
-// POST /integrations/codex — run `iranti codex-setup`
-// ---------------------------------------------------------------------------
-
 codexIntegrationRouter.post('/codex', async (_req: Request, res: Response) => {
   try {
-    const result = await runCommand('iranti', ['codex-setup'], SUBPROCESS_TIMEOUT_MS)
-    const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n')
-    const ok = result.exitCode === 0
-
-    if (ok) {
-      res.json({ ok: true, output: combinedOutput })
-    } else {
+    const codexResolution = await resolveCodexCli()
+    if (!codexResolution) {
       res.json({
         ok: false,
-        output: combinedOutput,
-        error: `iranti codex-setup exited with code ${result.exitCode ?? 'unknown'}`,
+        output: '',
+        error: 'Codex not found on PATH — install Codex first',
       })
+      return
     }
+
+    const result = await runIrantiCommand(['codex-setup'], { timeoutMs: SUBPROCESS_TIMEOUT_MS })
+    const output = collectOutput(result.stdout, result.stderr)
+    res.json({ ok: true, output })
   } catch (err) {
-    res.status(500).json({ ok: false, output: '', error: String(err) })
+    const message = err instanceof Error ? err.message : String(err)
+    res.json({ ok: false, output: '', error: message })
   }
 })
 
-// ---------------------------------------------------------------------------
-// DELETE /integrations/codex — remove Iranti registration from Codex
-// ---------------------------------------------------------------------------
-
 codexIntegrationRouter.delete('/codex', async (_req: Request, res: Response) => {
   try {
-    // First, try the official uninstall command
-    const result = await runCommand(
-      'iranti',
-      ['uninstall', '--target', 'codex'],
-      SUBPROCESS_TIMEOUT_MS
-    )
-    const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n')
-
-    if (result.exitCode === 0) {
-      res.json({ ok: true, output: combinedOutput })
+    const codexResolution = await resolveCodexCli()
+    if (!codexResolution) {
+      res.json({ ok: true, output: 'Codex is not installed — nothing to remove' })
       return
     }
 
-    // Check if the failure is because the subcommand doesn't exist (Iranti
-    // version predates `uninstall --target codex`).  The error message will
-    // contain "unknown" or the stderr will show usage/help text.
-    const looksUnknown =
-      combinedOutput.toLowerCase().includes('unknown') ||
-      combinedOutput.toLowerCase().includes('unrecognized') ||
-      combinedOutput.toLowerCase().includes('not a') ||
-      result.exitCode === 1
-
-    if (!looksUnknown) {
-      // The command was recognised but failed for a real reason — surface the error
-      res.json({
-        ok: false,
-        output: combinedOutput,
-        error: `iranti uninstall exited with code ${result.exitCode ?? 'unknown'}`,
-      })
-      return
-    }
-
-    // Fallback: directly remove the `iranti` key from the Codex config file
-    const { irantiRegistered, configFilePath, parsedConfig } = checkIrantiRegistration()
-
-    if (!irantiRegistered || !configFilePath || !parsedConfig) {
-      res.json({ ok: true, output: 'Iranti was not registered with Codex — nothing to remove' })
-      return
-    }
-
-    // Determine which server map key to use
-    const serverKey = 'mcpServers' in parsedConfig ? 'mcpServers' : 'mcp_servers'
-    const servers = parsedConfig[serverKey] as Record<string, unknown>
-
-    const updated: Record<string, unknown> = { ...servers }
-    delete updated['iranti']
-
-    const newConfig: Record<string, unknown> = { ...parsedConfig, [serverKey]: updated }
+    const outputs: string[] = []
 
     try {
-      writeJsonFile(configFilePath, newConfig)
-      res.json({ ok: true, output: `Removed iranti entry from ${configFilePath}` })
-    } catch (writeErr) {
-      res.status(500).json({
-        ok: false,
-        error: `Failed to write updated config: ${String(writeErr)}`,
+      const uninstall = await runIrantiCommand(['uninstall', '--target', 'codex'], {
+        timeoutMs: SUBPROCESS_TIMEOUT_MS,
+        allowNonZeroExit: true,
       })
+      const uninstallOutput = collectOutput(uninstall.stdout, uninstall.stderr)
+      if (uninstallOutput) outputs.push(uninstallOutput)
+    } catch (err) {
+      outputs.push(err instanceof Error ? err.message : String(err))
     }
+
+    const registration = await checkIrantiRegistration()
+    if (!registration.irantiRegistered) {
+      res.json({
+        ok: true,
+        output: outputs.join('\n') || 'Iranti was not registered with Codex',
+      })
+      return
+    }
+
+    const remove = await runCodexCommand(['mcp', 'remove', 'iranti'], {
+      timeoutMs: SUBPROCESS_TIMEOUT_MS,
+      allowNonZeroExit: true,
+    })
+    const removeOutput = collectOutput(remove.stdout, remove.stderr)
+    if (removeOutput) outputs.push(removeOutput)
+
+    if (remove.exitCode === 0 || looksNotRegistered(removeOutput)) {
+      res.json({
+        ok: true,
+        output: outputs.join('\n') || 'Removed Iranti registration from Codex',
+      })
+      return
+    }
+
+    res.json({
+      ok: false,
+      output: outputs.join('\n'),
+      error: 'Failed to remove Iranti from Codex.',
+    })
   } catch (err) {
-    res.status(500).json({ ok: false, error: String(err) })
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) })
   }
 })

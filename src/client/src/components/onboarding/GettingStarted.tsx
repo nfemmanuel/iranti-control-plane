@@ -2,13 +2,15 @@
 /* Route: /getting-started */
 /* CP-T035 — Guided first-run onboarding flow */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SetupStatusResponse, SetupStep } from '../../api/types'
 import styles from './GettingStarted.module.css'
 import { Spinner } from '../ui/Spinner'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { CommandAction } from '../ui/CommandAction'
+import { canRunCommand } from '../ui/commandText'
 
 /* ------------------------------------------------------------------ */
 /*  API helpers                                                         */
@@ -63,42 +65,6 @@ function StepStatusBadge({ status }: { status: SetupStep['status'] }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Copyable CLI command                                                */
-/* ------------------------------------------------------------------ */
-
-function CopyableCommand({ command }: { command: string }) {
-  const [copied, setCopied] = useState(false)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleCopy = () => {
-    void navigator.clipboard.writeText(command).then(() => {
-      setCopied(true)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      timeoutRef.current = setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <div className={styles.cliCommand}>
-      <code className={styles.cliCode}>{command}</code>
-      <button
-        className={styles.copyBtn}
-        onClick={handleCopy}
-        type="button"
-        aria-label="Copy command to clipboard"
-        title={copied ? 'Copied!' : 'Copy'}
-      >
-        {copied ? '✓' : '⎘'}
-      </button>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CLI command per step                                                */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
 /*  Individual step row                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -140,7 +106,12 @@ function StepRow({ step, stepNumber, expanded, onToggle }: StepRowProps) {
             <div className={styles.stepAction}>
               <span className={styles.stepActionLabel}>Action required</span>
               <p className={styles.stepActionText}>{step.actionRequired}</p>
-              {cliCommand && <CopyableCommand command={cliCommand} />}
+              {cliCommand && (
+                <CommandAction
+                  command={cliCommand}
+                  allowRun={canRunCommand(cliCommand)}
+                />
+              )}
             </div>
           )}
 
@@ -367,4 +338,3 @@ export function useSetupStatus() {
     isLoading,
   }
 }
-

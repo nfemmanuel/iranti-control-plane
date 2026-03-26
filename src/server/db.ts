@@ -24,18 +24,35 @@ function parseEnvFile(filePath: string): Record<string, string> {
   return result
 }
 
+export function ancestorBindingCandidates(startDir: string): string[] {
+  const candidates: string[] = []
+  let current = resolve(startDir)
+  let previous = ''
+
+  while (current !== previous) {
+    candidates.push(resolve(current, '.env.iranti'))
+    previous = current
+    current = dirname(current)
+  }
+
+  return candidates
+}
+
+export function envFileCandidates(startDir: string, homeDir = homedir(), isSea = false, execPath = process.execPath): string[] {
+  return [
+    ...(isSea ? [resolve(dirname(execPath), '.env.iranti')] : []),
+    ...ancestorBindingCandidates(startDir),
+    resolve(homeDir, '.iranti-runtime', '.env.iranti'),
+    resolve(homeDir, '.iranti-runtime', 'instances', 'local', '.env'),
+  ]
+}
+
 function loadEnv(): Record<string, string> {
   const isSea =
     typeof (process as NodeJS.Process & { isSea?: () => boolean }).isSea === 'function' &&
     (process as NodeJS.Process & { isSea?: () => boolean }).isSea!()
 
-  const candidates = [
-    // SEA: next to the binary (most reliable when double-clicked)
-    ...(isSea ? [resolve(dirname(process.execPath), '.env.iranti')] : []),
-    resolve(process.cwd(), '.env.iranti'),
-    resolve(homedir(), '.iranti-runtime', '.env.iranti'),
-    resolve(homedir(), '.iranti-runtime', 'instances', 'local', '.env'),
-  ]
+  const candidates = envFileCandidates(process.cwd(), homedir(), isSea, process.execPath)
   for (const p of candidates) {
     if (existsSync(p)) {
       const binding = parseEnvFile(p)

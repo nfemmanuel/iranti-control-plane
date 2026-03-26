@@ -1,54 +1,37 @@
-/**
- * Session Recovery proxy routes — CP-T071
- *
- * Surfaces Iranti session lifecycle state so operators can see which sessions
- * are interrupted, checkpointed, complete, or abandoned.
- *
- * Routes:
- *   GET  /sessions                          — list sessions (Iranti proxy → local KB fallback)
- *   POST /sessions/:sessionId/resume        — resume a checkpointed/interrupted session
- *   POST /sessions/:sessionId/abandon       — abandon a session
- *
- * Session listing: Iranti does not expose a list-sessions endpoint (confirmed
- * by inspecting memory.ts routes). The route queries the local knowledge_base
- * for facts with entityType='session' as the primary surface. If nothing exists
- * there either, an empty array is returned with a note explaining what was checked.
- *
- * Error handling: never returns HTTP 500. All failures return HTTP 200 with an
- * error field and empty sessions array (list endpoint) or appropriate error
- * object (action endpoints).
- */
-
 import { Router, Request, Response } from 'express'
 import { env, query } from '../../db.js'
 import { ApiError } from '../../types.js'
 
 export const sessionsRouter = Router()
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type SessionState = 'interrupted' | 'checkpointed' | 'complete' | 'abandoned' | 'unknown'
-
-const VALID_STATES: ReadonlySet<string> = new Set([
-  'interrupted',
-  'checkpointed',
-  'active',
-  'complete',
-  'abandoned',
-  'all',
-])
+export type SessionRawStatus = 'active' | 'interrupted' | 'completed' | 'abandoned' | null
+export type SessionOperatorState = 'none' | 'active' | 'interrupted' | 'completed' | 'abandoned'
+export type SessionListSort = 'operator' | 'updated_desc' | 'agent_asc'
 
 export interface SessionRecord {
   sessionId: string
   agentId: string
-  state: SessionState
+  status: SessionRawStatus
+  operatorState: SessionOperatorState
+  state?: 'checkpointed' | 'interrupted' | 'complete' | 'abandoned' | 'unknown'
   task: string | null
   startedAt: string | null
-  lastCheckpointAt: string | null
+  lastHeartbeatAt: string | null
+  updatedAt: string | null
+  lastCheckpointAt?: string | null
   completedAt: string | null
   abandonedAt: string | null
+  resumedAt?: string | null
+  isStale: boolean
+  persistedBriefGeneratedAt?: string | null
+  checkpointSummary?: {
+    currentStep: string | null
+    nextStep: string | null
+    openRiskCount: number
+    entityTargetCount: number
+  } | null
+  checkpoint?: Record<string, unknown> | null
+  recovery?: Record<string, unknown> | null
 }
 
 export interface SessionsResponse {
@@ -59,145 +42,6 @@ export interface SessionsResponse {
   error?: string
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getIrantiUrl(): string {
-  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
-}
-
-function getIrantiApiKey(): string {
-  return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
-}
-
-function buildHeaders(req: Request): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  const incomingKey = req.headers['x-iranti-key']
-  const apiKey =
-    typeof incomingKey === 'string' && incomingKey.trim()
-      ? incomingKey
-      : getIrantiApiKey()
-  if (apiKey) {
-    headers['X-Iranti-Key'] = apiKey
-  }
-  return headers
-}
-
-// ---------------------------------------------------------------------------
-// Iranti session list probe
-//
-// Iranti v0.2.16 added checkpoint/resume/abandon actions but does NOT expose
-// a list-sessions endpoint. We attempt a GET /memory/sessions probe; if Iranti
-// returns 404 or a non-OK status we fall through to the local KB query.
-// ---------------------------------------------------------------------------
-
-interface IrantiSessionRaw {
-  sessionId?: string
-  session_id?: string
-  agentId?: string
-  agent_id?: string
-  state?: string
-  task?: string
-  startedAt?: string
-  started_at?: string
-  lastCheckpointAt?: string
-  last_checkpoint_at?: string
-  completedAt?: string
-  completed_at?: string
-  abandonedAt?: string
-  abandoned_at?: string
-}
-
-function normaliseIrantiSession(raw: IrantiSessionRaw): SessionRecord {
-  const rawState = raw.state ?? 'unknown'
-  const validSessionStates: ReadonlySet<string> = new Set([
-    'interrupted', 'checkpointed', 'complete', 'abandoned', 'unknown',
-  ])
-  const state: SessionState = validSessionStates.has(rawState)
-    ? (rawState as SessionState)
-    : 'unknown'
-  return {
-    sessionId: raw.sessionId ?? raw.session_id ?? '',
-    agentId: raw.agentId ?? raw.agent_id ?? '',
-    state,
-    task: raw.task ?? null,
-    startedAt: raw.startedAt ?? raw.started_at ?? null,
-    lastCheckpointAt: raw.lastCheckpointAt ?? raw.last_checkpoint_at ?? null,
-    completedAt: raw.completedAt ?? raw.completed_at ?? null,
-    abandonedAt: raw.abandonedAt ?? raw.abandoned_at ?? null,
-  }
-}
-
-async function probeIrantiSessionList(
-  req: Request
-): Promise<{ sessions: SessionRecord[] | null; note: string }> {
-  const baseUrl = getIrantiUrl()
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 3000)
-
-  try {
-    const irantiRes = await fetch(`${baseUrl}/memory/sessions`, {
-      method: 'GET',
-      headers: buildHeaders(req),
-      signal: controller.signal,
-    })
-
-    if (!irantiRes.ok) {
-      // 404 is expected — Iranti does not have this endpoint
-      return {
-        sessions: null,
-        note: `Iranti /memory/sessions returned HTTP ${irantiRes.status} — falling back to local KB query.`,
-      }
-    }
-
-    const body = await irantiRes.json() as unknown
-
-    let raw: IrantiSessionRaw[]
-    if (Array.isArray(body)) {
-      raw = body as IrantiSessionRaw[]
-    } else if (
-      body !== null &&
-      typeof body === 'object' &&
-      'sessions' in (body as Record<string, unknown>) &&
-      Array.isArray((body as Record<string, unknown>).sessions)
-    ) {
-      raw = (body as { sessions: IrantiSessionRaw[] }).sessions
-    } else {
-      return {
-        sessions: null,
-        note: 'Iranti /memory/sessions returned an unrecognised shape — falling back to local KB query.',
-      }
-    }
-
-    return { sessions: raw.map(normaliseIrantiSession), note: '' }
-  } catch (err: unknown) {
-    const name = (err as Error)?.name
-    if (name === 'AbortError' || name === 'TypeError') {
-      return {
-        sessions: null,
-        note: 'Iranti instance unreachable — falling back to local KB query.',
-      }
-    }
-    return {
-      sessions: null,
-      note: `Iranti probe error: ${String(err)} — falling back to local KB query.`,
-    }
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Local KB fallback
-//
-// Sessions written via iranti_ingest or the SDK may appear as KB facts with
-// entityType='session'. We query the local knowledge_base table for these.
-// ---------------------------------------------------------------------------
-
-// knowledge_base uses camelCase column names (Iranti's Prisma schema)
 export interface LegacyKBSessionRow {
   entityId: string
   key: string
@@ -216,14 +60,113 @@ export interface AttendantStateRow {
   updatedAt: Date | string | null
 }
 
-function coerceDate(d: Date | string | null | undefined): string | null {
-  if (!d) return null
-  if (d instanceof Date) return d.toISOString()
-  return String(d)
+function getIrantiUrl(): string {
+  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+}
+
+function getIrantiApiKey(): string {
+  return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+}
+
+function buildHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  const incomingKey = req.headers['x-iranti-key']
+  const apiKey = typeof incomingKey === 'string' && incomingKey.trim()
+    ? incomingKey
+    : getIrantiApiKey()
+  if (apiKey) headers['X-Iranti-Key'] = apiKey
+  return headers
+}
+
+function coerceDate(value: Date | string | null | undefined): string | null {
+  if (!value) return null
+  return value instanceof Date ? value.toISOString() : String(value)
+}
+
+function normalizeStatus(value: unknown): SessionRawStatus {
+  switch (value) {
+    case 'active':
+    case 'interrupted':
+    case 'completed':
+    case 'abandoned':
+      return value
+    case 'complete':
+      return 'completed'
+    default:
+      return null
+  }
+}
+
+function normalizeOperatorState(value: unknown): SessionOperatorState {
+  switch (value) {
+    case 'active':
+    case 'interrupted':
+    case 'completed':
+    case 'abandoned':
+    case 'none':
+      return value
+    case 'complete':
+      return 'completed'
+    case 'checkpointed':
+      return 'active'
+    default:
+      return 'none'
+  }
+}
+
+function legacyState(status: SessionRawStatus, operatorState: SessionOperatorState): SessionRecord['state'] {
+  if (operatorState === 'interrupted') return 'interrupted'
+  if (operatorState === 'completed') return 'complete'
+  if (operatorState === 'abandoned') return 'abandoned'
+  if (operatorState === 'active' || status === 'active') return 'checkpointed'
+  return 'unknown'
+}
+
+function buildCheckpointSummary(value: unknown): SessionRecord['checkpointSummary'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, unknown>
+  return {
+    currentStep: typeof raw['currentStep'] === 'string' ? raw['currentStep'] : null,
+    nextStep: typeof raw['nextStep'] === 'string' ? raw['nextStep'] : null,
+    openRiskCount: Array.isArray(raw['openRisks']) ? raw['openRisks'].length : Number(raw['openRiskCount'] ?? 0),
+    entityTargetCount: Array.isArray(raw['entityTargets']) ? raw['entityTargets'].length : Number(raw['entityTargetCount'] ?? 0),
+  }
+}
+
+export function normalizeSessionSummary(raw: Record<string, unknown>): SessionRecord {
+  const status = normalizeStatus(raw['status'])
+  const operatorState = normalizeOperatorState(raw['operatorState'])
+  const lastHeartbeatAt = typeof raw['lastHeartbeatAt'] === 'string' ? raw['lastHeartbeatAt'] : null
+  const updatedAt = typeof raw['updatedAt'] === 'string' ? raw['updatedAt'] : null
+  return {
+    sessionId: typeof raw['sessionId'] === 'string' ? raw['sessionId'] : '',
+    agentId: typeof raw['agentId'] === 'string' ? raw['agentId'] : '',
+    status,
+    operatorState,
+    state: legacyState(status, operatorState),
+    task: typeof raw['task'] === 'string' ? raw['task'] : null,
+    startedAt: typeof raw['startedAt'] === 'string' ? raw['startedAt'] : null,
+    lastHeartbeatAt,
+    updatedAt,
+    lastCheckpointAt: updatedAt ?? lastHeartbeatAt,
+    completedAt: typeof raw['completedAt'] === 'string' ? raw['completedAt'] : null,
+    abandonedAt: typeof raw['abandonedAt'] === 'string' ? raw['abandonedAt'] : null,
+    resumedAt: typeof raw['resumedAt'] === 'string' ? raw['resumedAt'] : null,
+    isStale: raw['isStale'] === true,
+    persistedBriefGeneratedAt: typeof raw['persistedBriefGeneratedAt'] === 'string' ? raw['persistedBriefGeneratedAt'] : null,
+    checkpointSummary: buildCheckpointSummary(raw['checkpointSummary']),
+    checkpoint: raw['checkpoint'] && typeof raw['checkpoint'] === 'object' && !Array.isArray(raw['checkpoint'])
+      ? raw['checkpoint'] as Record<string, unknown>
+      : null,
+    recovery: raw['recovery'] && typeof raw['recovery'] === 'object' && !Array.isArray(raw['recovery'])
+      ? raw['recovery'] as Record<string, unknown>
+      : null,
+  }
 }
 
 export function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): SessionRecord[] {
-  // Group by entityId (sessionId)
   const bySession = new Map<string, LegacyKBSessionRow[]>()
   for (const row of rows) {
     const existing = bySession.get(row.entityId) ?? []
@@ -231,351 +174,337 @@ export function buildSessionFromLegacyKBRows(rows: LegacyKBSessionRow[]): Sessio
     bySession.set(row.entityId, existing)
   }
 
-  const sessions: SessionRecord[] = []
-  for (const [sessionId, sessionRows] of bySession) {
+  return Array.from(bySession.entries()).map(([sessionId, sessionRows]) => {
     const getVal = (key: string): string | null => {
-      const row = sessionRows.find((r) => r.key === key)
+      const row = sessionRows.find((entry) => entry.key === key)
       if (!row) return null
       if (typeof row.valueSummary === 'string') return row.valueSummary
       if (typeof row.valueRaw === 'string') return row.valueRaw
       return null
     }
 
-    // Derive state: look for a 'state' key
-    let state: SessionState = 'unknown'
-    const rawState = getVal('state')
-    if (rawState) {
-      const s = rawState.toLowerCase()
-      if (s === 'interrupted') state = 'interrupted'
-      else if (s === 'checkpointed') state = 'checkpointed'
-      else if (s === 'complete') state = 'complete'
-      else if (s === 'abandoned') state = 'abandoned'
-    }
-
-    // Determine agentId: look in a dedicated key or fall back to the row's createdBy column
-    const anyRow = sessionRows[0]
-    const agentId =
-      getVal('agentId') ??
-      (typeof anyRow?.createdBy === 'string' ? anyRow.createdBy : null) ??
-      ''
-
-    sessions.push({
+    const status = normalizeStatus(getVal('status') ?? getVal('state'))
+    const operatorState = normalizeOperatorState(status ?? getVal('state'))
+    const firstRow = sessionRows[0]
+    const updatedAt = coerceDate(firstRow?.updatedAt)
+    const lastHeartbeatAt = getVal('lastHeartbeatAt') ?? getVal('lastCheckpointAt') ?? updatedAt
+    return {
       sessionId,
-      agentId,
-      state,
+      agentId: getVal('agentId') ?? (typeof firstRow?.createdBy === 'string' ? firstRow.createdBy : ''),
+      status,
+      operatorState,
+      state: legacyState(status, operatorState),
       task: getVal('task'),
-      startedAt: getVal('startedAt') ?? coerceDate(anyRow?.createdAt),
-      lastCheckpointAt: getVal('lastCheckpointAt'),
+      startedAt: getVal('startedAt') ?? coerceDate(firstRow?.createdAt),
+      lastHeartbeatAt,
+      updatedAt,
+      lastCheckpointAt: lastHeartbeatAt,
       completedAt: getVal('completedAt'),
       abandonedAt: getVal('abandonedAt'),
-    })
-  }
-
-  return sessions
+      resumedAt: getVal('resumedAt'),
+      isStale: false,
+      checkpointSummary: null,
+      checkpoint: null,
+      recovery: null,
+    }
+  })
 }
 
 export function buildSessionsFromAttendantStateRows(rows: AttendantStateRow[]): SessionRecord[] {
   const sessions: SessionRecord[] = []
 
   for (const row of rows) {
-    if (!row.valueRaw || typeof row.valueRaw !== 'object') continue
-
-    const raw = row.valueRaw as Record<string, unknown>
-    const checkpoint = raw['sessionCheckpoint']
-    if (!checkpoint || typeof checkpoint !== 'object') continue
-
-    const record = checkpoint as Record<string, unknown>
-    const rawState = typeof record['status'] === 'string' ? record['status'] : 'unknown'
-    const validSessionStates: ReadonlySet<string> = new Set([
-      'interrupted', 'checkpointed', 'complete', 'completed', 'abandoned', 'active', 'unknown',
-    ])
-    const normalizedState = validSessionStates.has(rawState) ? rawState : 'unknown'
-
-    let state: SessionState
-    if (normalizedState === 'active') state = 'checkpointed'
-    else if (normalizedState === 'completed') state = 'complete'
-    else state = normalizedState as SessionState
-
+    if (!row.valueRaw || typeof row.valueRaw !== 'object' || Array.isArray(row.valueRaw)) continue
+    const state = row.valueRaw as Record<string, unknown>
+    const checkpoint = state['sessionCheckpoint']
+    if (!checkpoint || typeof checkpoint !== 'object' || Array.isArray(checkpoint)) continue
+    const checkpointRecord = checkpoint as Record<string, unknown>
+    const status = normalizeStatus(checkpointRecord['status'])
+    const operatorState = normalizeOperatorState(
+      checkpointRecord['operatorState'] ?? checkpointRecord['status']
+    )
+    const updatedAt = typeof checkpointRecord['updatedAt'] === 'string' ? checkpointRecord['updatedAt'] : coerceDate(row.updatedAt)
+    const lastHeartbeatAt = typeof checkpointRecord['lastHeartbeatAt'] === 'string'
+      ? checkpointRecord['lastHeartbeatAt']
+      : updatedAt
     sessions.push({
-      sessionId: typeof record['sessionId'] === 'string' ? record['sessionId'] : row.entityId,
+      sessionId: typeof checkpointRecord['sessionId'] === 'string' ? checkpointRecord['sessionId'] : row.entityId,
       agentId: row.entityId,
-      state,
-      task: typeof record['task'] === 'string' ? record['task'] : null,
-      startedAt: typeof record['startedAt'] === 'string' ? record['startedAt'] : coerceDate(row.createdAt),
-      lastCheckpointAt:
-        typeof record['updatedAt'] === 'string'
-          ? record['updatedAt']
-          : typeof record['lastHeartbeatAt'] === 'string'
-            ? record['lastHeartbeatAt']
-            : coerceDate(row.updatedAt),
-      completedAt: typeof record['completedAt'] === 'string' ? record['completedAt'] : null,
-      abandonedAt: typeof record['abandonedAt'] === 'string' ? record['abandonedAt'] : null,
+      status,
+      operatorState,
+      state: legacyState(status, operatorState),
+      task: typeof checkpointRecord['task'] === 'string' ? checkpointRecord['task'] : null,
+      startedAt: typeof checkpointRecord['startedAt'] === 'string' ? checkpointRecord['startedAt'] : coerceDate(row.createdAt),
+      lastHeartbeatAt,
+      updatedAt,
+      lastCheckpointAt: lastHeartbeatAt,
+      completedAt: typeof checkpointRecord['completedAt'] === 'string' ? checkpointRecord['completedAt'] : null,
+      abandonedAt: typeof checkpointRecord['abandonedAt'] === 'string' ? checkpointRecord['abandonedAt'] : null,
+      resumedAt: typeof checkpointRecord['resumedAt'] === 'string' ? checkpointRecord['resumedAt'] : null,
+      isStale: checkpointRecord['isStale'] === true || operatorState === 'interrupted',
+      persistedBriefGeneratedAt: typeof state['briefGeneratedAt'] === 'string' ? state['briefGeneratedAt'] : null,
+      checkpointSummary: buildCheckpointSummary(checkpointRecord['checkpoint']),
+      checkpoint: checkpointRecord['checkpoint'] && typeof checkpointRecord['checkpoint'] === 'object' && !Array.isArray(checkpointRecord['checkpoint'])
+        ? checkpointRecord['checkpoint'] as Record<string, unknown>
+        : null,
+      recovery: state['sessionRecovery'] && typeof state['sessionRecovery'] === 'object' && !Array.isArray(state['sessionRecovery'])
+        ? state['sessionRecovery'] as Record<string, unknown>
+        : null,
     })
   }
 
   return sessions
 }
 
-async function queryLocalKBForSessions(): Promise<{
-  sessions: SessionRecord[]
-  note: string
-}> {
+function mergeSessions(primary: SessionRecord[], secondary: SessionRecord[]): SessionRecord[] {
+  const merged = new Map<string, SessionRecord>()
+  for (const session of secondary) merged.set(`${session.agentId}:${session.sessionId}`, session)
+  for (const session of primary) merged.set(`${session.agentId}:${session.sessionId}`, session)
+  return Array.from(merged.values())
+}
+
+function normalizeOperatorStateFilter(value: unknown): SessionOperatorState | undefined {
+  switch (String(value ?? '').trim().toLowerCase()) {
+    case 'active':
+      return 'active'
+    case 'interrupted':
+      return 'interrupted'
+    case 'completed':
+    case 'complete':
+      return 'completed'
+    case 'abandoned':
+      return 'abandoned'
+    case 'none':
+      return 'none'
+    default:
+      return undefined
+  }
+}
+
+function normalizeSort(value: unknown): SessionListSort | undefined {
+  switch (String(value ?? '').trim().toLowerCase()) {
+    case 'operator':
+      return 'operator'
+    case 'agent_asc':
+      return 'agent_asc'
+    case 'updated_desc':
+      return 'updated_desc'
+    default:
+      return undefined
+  }
+}
+
+function applySessionFilters(
+  sessions: SessionRecord[],
+  options: { agentId?: string; operatorState?: SessionOperatorState; staleOnly?: boolean; sort?: SessionListSort; limit?: number },
+): SessionRecord[] {
+  let filtered = sessions
+
+  if (options.agentId) filtered = filtered.filter((entry) => entry.agentId === options.agentId)
+  if (options.operatorState) filtered = filtered.filter((entry) => entry.operatorState === options.operatorState)
+  if (options.staleOnly) filtered = filtered.filter((entry) => entry.isStale)
+
+  switch (options.sort) {
+    case 'agent_asc':
+      filtered = [...filtered].sort((a, b) => a.agentId.localeCompare(b.agentId))
+      break
+    case 'operator':
+      filtered = [...filtered].sort((a, b) => a.operatorState.localeCompare(b.operatorState))
+      break
+    case 'updated_desc':
+    default:
+      filtered = [...filtered].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+      break
+  }
+
+  if (options.limit && options.limit > 0) filtered = filtered.slice(0, options.limit)
+  return filtered
+}
+
+async function fetchIrantiSessions(req: Request): Promise<{ sessions: SessionRecord[]; note?: string; error?: string }> {
+  const url = new URL(`${getIrantiUrl()}/memory/sessions`)
+  const operatorState = normalizeOperatorStateFilter(req.query['operatorState'] ?? req.query['state'])
+  const staleOnly = req.query['staleOnly'] === 'true'
+  const agentId = typeof req.query['agentId'] === 'string' ? req.query['agentId'].trim() : ''
+  const sort = normalizeSort(req.query['sort'])
+  const limit = Number.parseInt(String(req.query['limit'] ?? ''), 10)
+
+  if (agentId) url.searchParams.set('agentId', agentId)
+  if (operatorState) url.searchParams.set('operatorState', operatorState)
+  if (staleOnly) url.searchParams.set('staleOnly', 'true')
+  if (sort) url.searchParams.set('sort', sort)
+  if (Number.isFinite(limit) && limit > 0) url.searchParams.set('limit', String(limit))
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 4000)
+
   try {
-    // Check if knowledge_base table exists
-    const existsResult = await query<{ exists: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM information_schema.tables
-         WHERE table_schema = 'public' AND table_name = 'knowledge_base'
-       ) AS exists`
-    )
-    const tableExists = existsResult.rows[0]?.exists ?? false
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: buildHeaders(req),
+      signal: controller.signal,
+    })
 
-    if (!tableExists) {
+    if (!response.ok) {
       return {
         sessions: [],
-        note: 'Checked Iranti /memory/sessions (no endpoint) and local knowledge_base (table not found). No sessions available.',
+        error: `Iranti /memory/sessions returned HTTP ${response.status}`,
       }
     }
 
-    const attendantStateResult = await query<AttendantStateRow>(
-      `SELECT "entityId", "valueRaw", "createdAt", "updatedAt"
-       FROM knowledge_base
-       WHERE "entityType" = 'agent' AND key = 'attendant_state'
-       ORDER BY "createdAt" DESC
-       LIMIT 500`
-    )
+    const body = await response.json() as unknown
+    const rawSessions = Array.isArray(body)
+      ? body
+      : body && typeof body === 'object' && Array.isArray((body as Record<string, unknown>)['sessions'])
+        ? (body as Record<string, unknown>)['sessions'] as unknown[]
+        : []
 
-    const attendantSessions = buildSessionsFromAttendantStateRows(attendantStateResult.rows)
-    if (attendantSessions.length > 0) {
-      return {
-        sessions: attendantSessions,
-        note: 'Sessions sourced from agent/attendant_state in local knowledge_base. Iranti does not expose a list-sessions endpoint.',
-      }
-    }
+    const sessions = rawSessions
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+      .map(normalizeSessionSummary)
 
-    const legacyResult = await query<LegacyKBSessionRow>(
-      `SELECT "entityId", key, "valueSummary", "valueRaw", "createdBy", "createdAt", "updatedAt", properties
-       FROM knowledge_base
-       WHERE "entityType" = 'session'
-       ORDER BY "createdAt" DESC
-       LIMIT 500`
-    )
-
-    if (legacyResult.rows.length === 0) {
-      return {
-        sessions: [],
-        note: 'Checked Iranti /memory/sessions (no endpoint), agent/attendant_state, and legacy entityType=session rows. No session facts found.',
-      }
-    }
-
-    const sessions = buildSessionFromLegacyKBRows(legacyResult.rows)
     return {
       sessions,
-      note: sessions.length > 0
-        ? 'Sessions sourced from legacy entityType=session rows in local knowledge_base. Iranti does not expose a list-sessions endpoint.'
-        : 'No session facts found in local knowledge_base (entityType=session).',
+      note: 'Source: Iranti /memory/sessions',
     }
-  } catch (err: unknown) {
+  } catch (error) {
     return {
       sessions: [],
-      note: `Local KB query failed: ${String(err)}. Checked Iranti /memory/sessions (no endpoint) and local knowledge_base.`,
+      error: error instanceof Error ? error.message : String(error),
     }
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
-// ---------------------------------------------------------------------------
-// State filtering
-// ---------------------------------------------------------------------------
+async function fetchLocalFallbackSessions(): Promise<SessionRecord[]> {
+  const [legacyResult, attendantResult] = await Promise.all([
+    query<LegacyKBSessionRow>(`
+      SELECT "entityId", key, "valueSummary", "valueRaw", "createdBy", "createdAt", "updatedAt", properties
+      FROM knowledge_base
+      WHERE "entityType" = 'session'
+    `).catch(() => []),
+    query<AttendantStateRow>(`
+      SELECT "entityId", "valueRaw", "createdAt", "updatedAt"
+      FROM knowledge_base
+      WHERE "entityType" = 'agent' AND key = 'attendant_state'
+    `).catch(() => []),
+  ])
 
-function filterByState(sessions: SessionRecord[], state: string): SessionRecord[] {
-  if (state === 'all') return sessions
-  if (state === 'active') {
-    return sessions.filter((s) => s.state !== 'complete' && s.state !== 'abandoned')
-  }
-  // 'interrupted' filter includes both 'interrupted' and 'checkpointed' states
-  // since they both represent sessions needing attention, per AC-2
-  if (state === 'interrupted') {
-    return sessions.filter((s) => s.state === 'interrupted' || s.state === 'checkpointed')
-  }
-  return sessions.filter((s) => s.state === state)
+  const legacyRows = Array.isArray(legacyResult) ? legacyResult : legacyResult.rows
+  const attendantRows = Array.isArray(attendantResult) ? attendantResult : attendantResult.rows
+
+  return mergeSessions(
+    buildSessionsFromAttendantStateRows(attendantRows),
+    buildSessionFromLegacyKBRows(legacyRows),
+  )
 }
-
-// ---------------------------------------------------------------------------
-// GET /sessions
-// ---------------------------------------------------------------------------
 
 sessionsRouter.get('/', async (req: Request, res: Response) => {
-  const fetchedAt = new Date().toISOString()
+  try {
+    const iranti = await fetchIrantiSessions(req)
+    const operatorState = normalizeOperatorStateFilter(req.query['operatorState'] ?? req.query['state'])
+    const staleOnly = req.query['staleOnly'] === 'true'
+    const agentId = typeof req.query['agentId'] === 'string' ? req.query['agentId'].trim() : undefined
+    const sort = normalizeSort(req.query['sort'])
+    const limit = Number.parseInt(String(req.query['limit'] ?? ''), 10)
 
-  // Validate state param
-  const stateParam = (req.query['state'] as string | undefined) ?? 'all'
-  if (!VALID_STATES.has(stateParam)) {
+    if (!iranti.error) {
+      const sessions = applySessionFilters(iranti.sessions, {
+        agentId,
+        operatorState,
+        staleOnly,
+        sort,
+        limit: Number.isFinite(limit) ? limit : undefined,
+      })
+      const body: SessionsResponse = {
+        sessions,
+        total: sessions.length,
+        fetchedAt: new Date().toISOString(),
+        note: iranti.note,
+      }
+      res.json(body)
+      return
+    }
+
+    const fallbackSessions = applySessionFilters(await fetchLocalFallbackSessions(), {
+      agentId,
+      operatorState,
+      staleOnly,
+      sort,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    })
+
+    const body: SessionsResponse = {
+      sessions: fallbackSessions,
+      total: fallbackSessions.length,
+      fetchedAt: new Date().toISOString(),
+      note: 'Iranti session API unavailable - returned local fallback data from attendant/session facts.',
+      error: iranti.error,
+    }
+    res.json(body)
+  } catch (error) {
+    res.status(200).json({
+      sessions: [],
+      total: 0,
+      fetchedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+    } satisfies SessionsResponse)
+  }
+})
+
+async function proxySessionAction(
+  req: Request,
+  res: Response,
+  action: 'resume' | 'abandon',
+): Promise<void> {
+  const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId.trim() : ''
+  if (!agentId) {
     res.status(400).json({
-      error: `Invalid state parameter: "${stateParam}". Valid values: interrupted, checkpointed, active, complete, abandoned, all`,
-      code: 'INVALID_PARAM',
+      success: false,
+      sessionId: req.params['sessionId'] ?? '',
+      error: 'agentId is required.',
     })
     return
   }
 
-  // Validate limit param
-  const limitParam = req.query['limit'] as string | undefined
-  let limit = 50
-  if (limitParam !== undefined) {
-    const parsed = parseInt(limitParam, 10)
-    if (isNaN(parsed) || parsed < 1) {
-      res.status(400).json({
-        error: `Invalid limit parameter: "${limitParam}". Must be a positive integer.`,
-        code: 'INVALID_PARAM',
+  try {
+    const response = await fetch(`${getIrantiUrl()}/memory/${action}`, {
+      method: 'POST',
+      headers: buildHeaders(req),
+      body: JSON.stringify({ agentId, sessionId: req.params['sessionId'] }),
+    })
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>
+    if (!response.ok) {
+      res.status(response.status).json({
+        success: false,
+        sessionId: req.params['sessionId'] ?? '',
+        error: typeof payload['error'] === 'string' ? payload['error'] : `${action} failed`,
       })
       return
     }
-    limit = Math.min(parsed, 500)
+
+    res.json({
+      success: true,
+      sessionId: req.params['sessionId'] ?? '',
+      message: `${action} completed`,
+    })
+  } catch (error) {
+    res.status(502).json({
+      success: false,
+      sessionId: req.params['sessionId'] ?? '',
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
-
-  const agentIdFilter = req.query['agentId'] as string | undefined
-
-  try {
-    // Step 1: try the Iranti sessions endpoint
-    const { sessions: irantiSessions, note: irantiNote } = await probeIrantiSessionList(req)
-
-    let sessions: SessionRecord[]
-    let note: string
-
-    if (irantiSessions !== null) {
-      // Iranti had a sessions endpoint that returned data
-      sessions = irantiSessions
-      note = irantiNote
-    } else {
-      // Step 2: fall back to local KB
-      const { sessions: kbSessions, note: kbNote } = await queryLocalKBForSessions()
-      sessions = kbSessions
-      note = irantiNote ? `${irantiNote} ${kbNote}` : kbNote
-    }
-
-    // Apply agentId filter
-    if (agentIdFilter) {
-      sessions = sessions.filter((s) => s.agentId === agentIdFilter)
-    }
-
-    // Apply state filter
-    sessions = filterByState(sessions, stateParam)
-
-    // Apply limit
-    const sliced = sessions.slice(0, limit)
-
-    const response: SessionsResponse = {
-      sessions: sliced,
-      total: sliced.length,
-      fetchedAt,
-      ...(note ? { note } : {}),
-    }
-
-    res.status(200).json(response)
-  } catch (err: unknown) {
-    // Never 500 — degrade gracefully
-    console.error('[sessions] Unexpected error in GET /sessions:', err)
-    const response: SessionsResponse = {
-      sessions: [],
-      total: 0,
-      fetchedAt,
-      error: `Unexpected error fetching sessions: ${String(err)}`,
-      note: 'Checked Iranti /memory/sessions and local knowledge_base. Both failed due to an unexpected error.',
-    }
-    res.status(200).json(response)
-  }
-})
-
-// ---------------------------------------------------------------------------
-// POST /sessions/:sessionId/resume
-// ---------------------------------------------------------------------------
+}
 
 sessionsRouter.post('/:sessionId/resume', async (req: Request, res: Response) => {
-  const { sessionId } = req.params
-  const body = req.body as Record<string, unknown>
-
-  const agentId = typeof body['agentId'] === 'string' ? body['agentId'] : null
-  if (!agentId) {
-    res.status(400).json({ error: 'agentId is required', code: 'MISSING_PARAM' })
-    return
-  }
-
-  const baseUrl = getIrantiUrl()
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 3000)
-
-  try {
-    let irantiRes: globalThis.Response
-    try {
-      irantiRes = await fetch(`${baseUrl}/memory/resume`, {
-        method: 'POST',
-        headers: buildHeaders(req),
-        signal: controller.signal,
-        body: JSON.stringify({ sessionId, agentId }),
-      })
-    } finally {
-      clearTimeout(timeout)
-    }
-
-    const responseBody = await irantiRes.json() as unknown
-    res.status(irantiRes.status).json(responseBody)
-  } catch (err: unknown) {
-    clearTimeout(timeout)
-    const name = (err as Error)?.name
-    if (name === 'AbortError' || name === 'TypeError') {
-      res.status(503).json({ error: 'Iranti instance unreachable', code: 'IRANTI_UNREACHABLE' })
-      return
-    }
-    res.status(500).json({ error: `Resume failed: ${String(err)}`, code: 'INTERNAL_ERROR' })
-  }
+  await proxySessionAction(req, res, 'resume')
 })
-
-// ---------------------------------------------------------------------------
-// POST /sessions/:sessionId/abandon
-// ---------------------------------------------------------------------------
 
 sessionsRouter.post('/:sessionId/abandon', async (req: Request, res: Response) => {
-  const { sessionId } = req.params
-  const body = req.body as Record<string, unknown>
-
-  const agentId = typeof body['agentId'] === 'string' ? body['agentId'] : null
-  if (!agentId) {
-    res.status(400).json({ error: 'agentId is required', code: 'MISSING_PARAM' })
-    return
-  }
-
-  const baseUrl = getIrantiUrl()
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 3000)
-
-  try {
-    let irantiRes: globalThis.Response
-    try {
-      irantiRes = await fetch(`${baseUrl}/memory/abandon`, {
-        method: 'POST',
-        headers: buildHeaders(req),
-        signal: controller.signal,
-        body: JSON.stringify({ sessionId, agentId }),
-      })
-    } finally {
-      clearTimeout(timeout)
-    }
-
-    const responseBody = await irantiRes.json() as unknown
-    res.status(irantiRes.status).json(responseBody)
-  } catch (err: unknown) {
-    clearTimeout(timeout)
-    const name = (err as Error)?.name
-    if (name === 'AbortError' || name === 'TypeError') {
-      res.status(503).json({ error: 'Iranti instance unreachable', code: 'IRANTI_UNREACHABLE' })
-      return
-    }
-    res.status(500).json({ error: `Abandon failed: ${String(err)}`, code: 'INTERNAL_ERROR' })
-  }
+  await proxySessionAction(req, res, 'abandon')
 })
-
-// ---------------------------------------------------------------------------
-// Error handler
-// ---------------------------------------------------------------------------
 
 sessionsRouter.use((err: unknown, _req: Request, res: Response, _next: unknown) => {
   const apiErr = err as ApiError

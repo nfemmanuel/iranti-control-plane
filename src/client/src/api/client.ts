@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Shared API client */
 /* All control-plane API calls go through this module. */
 
-import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, OpenFileResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult } from './types'
+import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult } from './types'
 
 const BASE = '/api/control-plane'
 
@@ -84,6 +84,16 @@ export function fetchProcessStatus(name: string): Promise<ProcessStatusResult> {
   return apiFetch<ProcessStatusResult>(`/instances/${encodeURIComponent(name)}/process-status`)
 }
 
+export async function restartInstance(name: string): Promise<RestartInstanceResult> {
+  const url = new URL(`${BASE}/instances/${encodeURIComponent(name)}/restart`, window.location.origin)
+  const res = await fetch(url.toString(), { method: 'POST' })
+  const body = await res.json().catch(() => ({ error: res.statusText })) as RestartInstanceResult & { error?: string }
+  if (!res.ok) {
+    throw new Error(body.error ?? res.statusText)
+  }
+  return body
+}
+
 /**
  * Request the control plane server to open a whitelisted local config file
  * in the user's default system editor. Always resolves — never rejects —
@@ -105,6 +115,37 @@ export async function openFile(filePath: string): Promise<OpenFileResult> {
     throw new Error((err as { error?: string }).error ?? res.statusText)
   }
   return res.json() as Promise<OpenFileResult>
+}
+
+export async function pickPath(params: {
+  kind: 'directory' | 'file'
+  title?: string
+  startPath?: string
+}): Promise<PickPathResult> {
+  const url = new URL(`${BASE}/pick-path`, window.location.origin)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as PickPathResult
+}
+
+export async function runCommand(params: {
+  command: string
+  cwd?: string
+}): Promise<RunCommandResult> {
+  const url = new URL(`${BASE}/run-command`, window.location.origin)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as RunCommandResult
 }
 
 // ---------------------------------------------------------------------------
@@ -333,6 +374,25 @@ export async function configureInstance(
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as ConfigureInstanceResult
+}
+
+export async function deleteInstance(
+  name: string,
+  params: {
+    confirmName: string
+    removeProjectBindings?: boolean
+    dropDatabase?: boolean
+  }
+): Promise<DeleteInstanceResult> {
+  const url = new URL(`${BASE}/instances/${encodeURIComponent(name)}`, window.location.origin)
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as DeleteInstanceResult
 }
 
 // ---------------------------------------------------------------------------

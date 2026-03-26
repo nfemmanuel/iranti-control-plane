@@ -19,7 +19,7 @@ export interface IrantiRuntimeMetadata {
   healthUrl?: string | null
 }
 
-export type RuntimeStatus = 'running' | 'stale' | 'stopped' | 'unknown'
+export type RuntimeStatus = 'running' | 'unhealthy' | 'stale' | 'stopped' | 'missing' | 'invalid' | 'unknown'
 
 const STALE_THRESHOLD_MS = 30_000
 
@@ -576,7 +576,7 @@ async function buildAttendantStatus(scope: ResolvedInstanceAuthority): Promise<A
       headers: buildHeaders(scope),
       body: JSON.stringify({
         agent: 'control_plane_operator',
-        query: 'health check probe',
+        latestMessage: 'health check probe',
         currentContext: 'health check probe',
       }),
       signal: controller.signal,
@@ -597,7 +597,7 @@ async function buildAttendantStatus(scope: ResolvedInstanceAuthority): Promise<A
       if (JSON.stringify(body).includes('classification_parse_failed_default_false')) {
         return {
           status: 'warn',
-          message: 'Attendant responded but classifier reported a parse failure — memory injection may be unreliable.',
+          message: 'Attendant responded, but the diagnostic probe fell back to a conservative no-memory decision.',
           checkedAt,
         }
       }

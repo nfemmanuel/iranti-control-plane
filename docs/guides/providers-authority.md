@@ -18,14 +18,28 @@ Iranti uses `claude` as the Anthropic provider ID.
 
 The control plane accepts legacy `anthropic` values for compatibility, normalizes them to `claude`, and warns when an instance still stores the legacy ID.
 
+For instance create/configure flows, the control plane writes `claude` to the instance env before delegating to Iranti. It does not treat `ollama` as a provider-key-backed provider.
+
+This also applies to the Instances API and Instance Manager:
+
+- instance summaries expose `defaultProvider: "claude"` when a legacy `anthropic` value is found
+- instance provider-key summaries expose `providerKeys.claude`, not `providerKeys.anthropic`
+
 ## UI / CLI Equivalence
 
 - Set Claude as default: `iranti add api-key claude --instance <name> --set-default`
 - Set OpenAI as default: `iranti add api-key openai --instance <name> --set-default`
 - Review live instance env: `~/.iranti-runtime/instances/<name>/.env`
 - Restart after provider changes: `iranti run --instance <name>`
+- Restart after instance reconfiguration: `iranti instance restart <name>`
 
 Provider writes in the control plane now return `restartRequired: true` because the running Iranti process reads these values at startup.
+
+Instance create/configure uses the same runtime-root authority model as the rest of the control plane:
+
+1. explicit `IRANTI_HOME`
+2. bound `IRANTI_INSTANCE_ENV`
+3. discovered runtime roots from the current project and home directory
 
 ## Maintainer Notes
 

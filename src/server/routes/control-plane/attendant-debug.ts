@@ -187,7 +187,7 @@ attendantDebugRouter.post(
 
       const proxyBody: Record<string, unknown> = {
         agent: agentId.trim(),
-        query: query.trim(),
+        latestMessage: query.trim(),
       }
       if (typeof context === 'string' && context.trim() !== '') {
         proxyBody.currentContext = context.trim()

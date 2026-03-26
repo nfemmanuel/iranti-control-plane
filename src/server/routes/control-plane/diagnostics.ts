@@ -52,6 +52,11 @@ function buildHeaders(scope: ResolvedInstanceAuthority): Record<string, string> 
   return headers
 }
 
+function buildRunCommand(scope: ResolvedInstanceAuthority): string {
+  const quotedRoot = /\s/.test(scope.runtimeRoot) ? `"${scope.runtimeRoot}"` : scope.runtimeRoot
+  return `iranti run --instance ${scope.instanceName} --root ${quotedRoot}`
+}
+
 async function withScopedPool<T>(
   databaseUrl: string | null,
   fn: (pool: pg.Pool | null) => Promise<T>
@@ -112,7 +117,7 @@ async function checkIrantiConnectivity(scope: ResolvedInstanceAuthority): Promis
         check: 'iranti_connectivity',
         status: 'fail',
         message: `Iranti /health returned HTTP ${res.status}`,
-        fixHint: `Start the instance with: iranti run --instance ${scope.instanceName}`,
+        fixHint: `Start the instance with: ${buildRunCommand(scope)}`,
         durationMs: Date.now() - start,
       }
     }
@@ -169,7 +174,7 @@ async function checkIrantiAuth(scope: ResolvedInstanceAuthority): Promise<CheckR
       check: 'iranti_auth',
       status: 'warn',
       message: `Iranti /kb/search returned HTTP ${res.status}`,
-      fixHint: `Start the instance with: iranti run --instance ${scope.instanceName}`,
+      fixHint: `Start the instance with: ${buildRunCommand(scope)}`,
       durationMs: Date.now() - start,
     }
   }
@@ -380,7 +385,7 @@ async function checkAttend(scope: ResolvedInstanceAuthority): Promise<CheckResul
       headers: buildHeaders(scope),
       body: JSON.stringify({
         agent: 'control_plane_operator',
-        query: 'diagnostic probe',
+        latestMessage: 'diagnostic probe',
         currentContext: 'diagnostic probe',
       }),
     })
@@ -401,8 +406,8 @@ async function checkAttend(scope: ResolvedInstanceAuthority): Promise<CheckResul
         return {
           check: 'attend_check',
           status: 'warn',
-          message: 'Attendant returned 200 but classifier reported a parse failure',
-          fixHint: 'Use forceInject: true in iranti_attend if needed.',
+          message: 'Attendant returned 200, but the diagnostic probe fell back to a conservative no-memory decision.',
+          fixHint: 'This usually means the synthetic probe was ambiguous, not that the Attendant is down. Re-test with a clearer task prompt if real memory injection seems weak.',
           durationMs: Date.now() - start,
         }
       }

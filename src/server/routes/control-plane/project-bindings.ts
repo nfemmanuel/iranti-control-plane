@@ -520,6 +520,30 @@ projectBindingsRouter.get(
       existsSync(join(entry.projectPath, '.env.iranti'))
     )
 
+    const cwdBindingPath = join(process.cwd(), '.env.iranti')
+    if (existsSync(cwdBindingPath)) {
+      try {
+        const binding = parseEnvFile(cwdBindingPath)
+        const bindingInstance = binding['IRANTI_INSTANCE']?.trim() ?? ''
+        const bindingEnvPath = binding['IRANTI_INSTANCE_ENV']?.trim() ?? ''
+        const matchesCurrentInstance =
+          bindingInstance === instanceName ||
+          (bindingEnvPath && bindingEnvPath === instanceEnvPath)
+
+        if (matchesCurrentInstance && !live.some((entry) => entry.projectPath === process.cwd())) {
+          live.push({
+            projectPath: process.cwd(),
+            agentId: binding['IRANTI_AGENT_ID']?.trim() || 'main_agent',
+            memoryEntity: binding['IRANTI_MEMORY_ENTITY']?.trim() || `project/${basename(process.cwd())}`,
+            mode: binding['IRANTI_PROJECT_MODE']?.trim() === 'shared' ? 'shared' : 'isolated',
+            boundAt: new Date(statSync(cwdBindingPath).mtimeMs).toISOString(),
+          })
+        }
+      } catch {
+        // ignore malformed cwd binding and fall back to registry-only entries
+      }
+    }
+
     // If we filtered any stale entries, persist the cleaned registry
     if (live.length !== registry.projects.length) {
       try {

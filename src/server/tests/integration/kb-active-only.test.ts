@@ -292,14 +292,14 @@ describe('GET /instances — shape regression (CP-T011 fix)', () => {
     }
   })
 
-  it('IN-SHAPE-006: integration shape — has providerKeys with boolean anthropic and openai', async () => {
+  it('IN-SHAPE-006: integration shape — has providerKeys with boolean claude and openai', async () => {
     const { body } = await get('/instances')
     const instances = (body as Record<string, unknown>).instances as Record<string, unknown>[]
     for (const inst of instances) {
       const integration = inst.integration as Record<string, unknown>
       expect(integration).toHaveProperty('providerKeys')
       const keys = integration.providerKeys as Record<string, unknown>
-      expect(typeof keys.anthropic).toBe('boolean')
+      expect(typeof keys.claude).toBe('boolean')
       expect(typeof keys.openai).toBe('boolean')
     }
   })
