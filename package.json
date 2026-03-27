@@ -21,6 +21,7 @@
     "build:client": "cd src/client && npm run build",
     "build:server": "cd src/server && npm run build",
     "build": "npm run build:client && npm run build:server && npm run package:bundle",
+    "prepack": "npm run build",
     "start": "cd src/server && npm start",
     "migrate": ".\\src\\server\\node_modules\\.bin\\tsx src/server/migrations/runner.ts",
     "setup": "node scripts/setup-wizard.js",
