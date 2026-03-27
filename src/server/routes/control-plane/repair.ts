@@ -390,11 +390,11 @@ function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
     const mcpCheck: DoctorCheck = {
       id: `mcp_integration:${project.projectPath}`,
       label: `MCP integration (${projectName})`,
-      status: integration.mcpJsonPresent && integration.mcpJsonHasIranti ? 'pass' : 'warn',
-      message: integration.mcpJsonPresent && integration.mcpJsonHasIranti
-        ? `.mcp.json is present and configured for ${project.projectPath}.`
-        : `.mcp.json is missing or does not include an Iranti entry for ${project.projectPath}.`,
-      repairAction: integration.mcpJsonPresent && integration.mcpJsonHasIranti
+      status: integration.anyMcpPresent && integration.anyMcpHasIranti ? 'pass' : 'warn',
+      message: integration.anyMcpPresent && integration.anyMcpHasIranti
+        ? `A workspace MCP file is present and configured for ${project.projectPath}.`
+        : `No workspace MCP file with an Iranti entry was found for ${project.projectPath}.`,
+      repairAction: integration.anyMcpPresent && integration.anyMcpHasIranti
         ? null
         : projectRepairUrl(scope, project.projectPath, 'mcp-json'),
     }

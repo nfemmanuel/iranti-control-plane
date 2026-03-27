@@ -8,6 +8,7 @@ import { Fragment, useState, useReducer, useEffect, useRef, useCallback, type CS
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import type {
   ArchiveFact,
   ArchiveListResponse,
@@ -186,8 +187,14 @@ async function apiMutate<T>(
   path: string,
   method: 'POST' | 'DELETE',
   body?: Record<string, unknown>,
+  params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
-  const url = `/api/control-plane${path}`
+  const url = new URL(`/api/control-plane${path}`, window.location.origin)
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== '') url.searchParams.set(k, String(v))
+    }
+  }
   const res = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
@@ -229,12 +236,12 @@ function ConfidenceBar({ value }: { value: number }) {
 /*  Archivist History section                                           */
 /* ------------------------------------------------------------------ */
 
-function ArchivistHistory({ archiveId }: { archiveId: string }) {
+function ArchivistHistory({ archiveId, instanceId }: { archiveId: string; instanceId?: string }) {
   const [open, setOpen] = useState(false)
 
   const { data, isLoading } = useQuery<ArchiveEventsResponse, Error>({
-    queryKey: ['archive-events', archiveId],
-    queryFn: () => apiFetch<ArchiveEventsResponse>(`/archive/${archiveId}/archivist-events`),
+    queryKey: ['archive-events', instanceId ?? 'binding', archiveId],
+    queryFn: () => apiFetch<ArchiveEventsResponse>(`/archive/${archiveId}/archivist-events`, { instanceId }),
     enabled: open,
     staleTime: 30_000,
   })
@@ -311,10 +318,11 @@ function ArchivistHistory({ archiveId }: { archiveId: string }) {
 
 interface FlagControlProps {
   fact: ArchiveFact
+  instanceId?: string
   onFlagged: (updated: Pick<ArchiveFact, 'id' | 'flagged' | 'flagNote' | 'flaggedAt'>) => void
 }
 
-function FlagControl({ fact, onFlagged }: FlagControlProps) {
+function FlagControl({ fact, instanceId, onFlagged }: FlagControlProps) {
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
@@ -326,7 +334,7 @@ function FlagControl({ fact, onFlagged }: FlagControlProps) {
     try {
       const res = await apiMutate<FlagResponse>(`/archive/${fact.id}/flag`, 'POST', {
         note: note.trim() || undefined,
-      })
+      }, { instanceId })
       onFlagged({ id: fact.id, flagged: true, flagNote: res.note, flaggedAt: res.flaggedAt })
       setShowNoteInput(false)
       setNote('')
@@ -341,7 +349,7 @@ function FlagControl({ fact, onFlagged }: FlagControlProps) {
     setLoading(true)
     setError(null)
     try {
-      await apiMutate<UnflagResponse>(`/archive/${fact.id}/flag`, 'DELETE')
+      await apiMutate<UnflagResponse>(`/archive/${fact.id}/flag`, 'DELETE', undefined, { instanceId })
       onFlagged({ id: fact.id, flagged: false, flagNote: null, flaggedAt: null })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Remove flag failed')
@@ -424,10 +432,11 @@ function FlagControl({ fact, onFlagged }: FlagControlProps) {
 
 interface ExpandedArchiveRowProps {
   fact: ArchiveFact
+  instanceId?: string
   onFlagged: (updated: Pick<ArchiveFact, 'id' | 'flagged' | 'flagNote' | 'flaggedAt'>) => void
 }
 
-function ExpandedArchiveRow({ fact, onFlagged }: ExpandedArchiveRowProps) {
+function ExpandedArchiveRow({ fact, instanceId, onFlagged }: ExpandedArchiveRowProps) {
   const [showRaw, setShowRaw] = useState(false)
   const parsedRaw = (() => {
     if (!fact.valueRaw) return null
@@ -497,14 +506,14 @@ function ExpandedArchiveRow({ fact, onFlagged }: ExpandedArchiveRowProps) {
           <ConflictTimeline conflictLog={fact.conflictLog} />
 
           {/* Archivist History — CP-T049 */}
-          <ArchivistHistory archiveId={fact.id} />
+          <ArchivistHistory archiveId={fact.id} instanceId={instanceId} />
 
           <div className={styles.expandedActions}>
             <button className={styles.expandedActionButton} onClick={() => setShowRaw(r => !r)}>
               {showRaw ? 'Hide Raw JSON' : 'View Raw JSON'}
             </button>
             {/* Flag for Review — CP-T049 */}
-            <FlagControl fact={fact} onFlagged={onFlagged} />
+            <FlagControl fact={fact} instanceId={instanceId} onFlagged={onFlagged} />
           </div>
         </div>
       </td>
@@ -518,11 +527,12 @@ function ExpandedArchiveRow({ fact, onFlagged }: ExpandedArchiveRowProps) {
 
 interface FlaggedQueueRowProps {
   fact: ArchiveFact
+  instanceId?: string
   onUnflagged: (id: string) => void
   onRestored: (id: string, superseded: boolean) => void
 }
 
-function FlaggedQueueRow({ fact, onUnflagged, onRestored }: FlaggedQueueRowProps) {
+function FlaggedQueueRow({ fact, instanceId, onUnflagged, onRestored }: FlaggedQueueRowProps) {
   const [showRestoreModal, setShowRestoreModal] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
@@ -532,7 +542,7 @@ function FlaggedQueueRow({ fact, onUnflagged, onRestored }: FlaggedQueueRowProps
     setRestoreLoading(true)
     setRestoreError(null)
     try {
-      const res = await apiMutate<RestoreResponse>(`/archive/${fact.id}/restore?confirm=true`, 'POST')
+      const res = await apiMutate<RestoreResponse>(`/archive/${fact.id}/restore?confirm=true`, 'POST', undefined, { instanceId })
       setShowRestoreModal(false)
       onRestored(fact.id, res.superseded)
     } catch (e) {
@@ -545,7 +555,7 @@ function FlaggedQueueRow({ fact, onUnflagged, onRestored }: FlaggedQueueRowProps
   const handleClearFlag = useCallback(async () => {
     setUnflagLoading(true)
     try {
-      await apiMutate<UnflagResponse>(`/archive/${fact.id}/flag`, 'DELETE')
+      await apiMutate<UnflagResponse>(`/archive/${fact.id}/flag`, 'DELETE', undefined, { instanceId })
       onUnflagged(fact.id)
     } catch {
       // noop — failure visible from lack of row disappearing
@@ -619,16 +629,17 @@ function FlaggedQueueRow({ fact, onUnflagged, onRestored }: FlaggedQueueRowProps
 /* ------------------------------------------------------------------ */
 
 interface FlaggedQueueProps {
+  instanceId?: string
   onUnflagged: (id: string) => void
 }
 
-function FlaggedQueue({ onUnflagged }: FlaggedQueueProps) {
+function FlaggedQueue({ instanceId, onUnflagged }: FlaggedQueueProps) {
   const queryClient = useQueryClient()
   const [successMessages, setSuccessMessages] = useState<Record<string, string>>({})
 
   const { data, isLoading, error } = useQuery<ArchiveListResponse, Error>({
-    queryKey: ['archive-flagged'],
-    queryFn: () => apiFetch<ArchiveListResponse>('/archive', { flagged: true, limit: 100, offset: 0 }),
+    queryKey: ['archive-flagged', instanceId ?? 'binding'],
+    queryFn: () => apiFetch<ArchiveListResponse>('/archive', { instanceId, flagged: true, limit: 100, offset: 0 }),
     staleTime: 10_000,
   })
 
@@ -641,17 +652,17 @@ function FlaggedQueue({ onUnflagged }: FlaggedQueueProps) {
     setSuccessMessages(prev => ({ ...prev, [id]: msg }))
     // Remove from flagged queue after a short delay
     setTimeout(() => {
-      void queryClient.invalidateQueries({ queryKey: ['archive-flagged'] })
-      void queryClient.invalidateQueries({ queryKey: ['archive'] })
+      void queryClient.invalidateQueries({ queryKey: ['archive-flagged', instanceId ?? 'binding'] })
+      void queryClient.invalidateQueries({ queryKey: ['archive', instanceId ?? 'binding'] })
       onUnflagged(id)
     }, 2000)
   }, [queryClient, onUnflagged])
 
   const handleUnflagged = useCallback((id: string) => {
-    void queryClient.invalidateQueries({ queryKey: ['archive-flagged'] })
-    void queryClient.invalidateQueries({ queryKey: ['archive'] })
+    void queryClient.invalidateQueries({ queryKey: ['archive-flagged', instanceId ?? 'binding'] })
+    void queryClient.invalidateQueries({ queryKey: ['archive', instanceId ?? 'binding'] })
     onUnflagged(id)
-  }, [queryClient, onUnflagged])
+  }, [instanceId, queryClient, onUnflagged])
 
   return (
     <div className={archiveStyles.flaggedQueue}>
@@ -709,6 +720,7 @@ function FlaggedQueue({ onUnflagged }: FlaggedQueueProps) {
                   <FlaggedQueueRow
                     key={fact.id}
                     fact={fact}
+                    instanceId={instanceId}
                     onUnflagged={handleUnflagged}
                     onRestored={handleRestored}
                   />
@@ -782,6 +794,8 @@ function PaginationControls({
 /* ------------------------------------------------------------------ */
 
 export function ArchiveExplorer() {
+  const { activeInstance } = useInstanceContext()
+  const activeInstanceId = activeInstance?.id
   const queryClient = useQueryClient()
   const [filters, dispatch] = useReducer(filterReducer, DEFAULT_FILTERS)
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
@@ -794,6 +808,7 @@ export function ArchiveExplorer() {
   const debouncedSearch = useDebounced(filters.search, 300)
 
   const queryParams = {
+    ...(activeInstanceId && { instanceId: activeInstanceId }),
     ...(filters.entityType && { entityType: filters.entityType }),
     ...(filters.entityId && { entityId: filters.entityId }),
     ...(filters.key && { key: filters.key }),
@@ -809,7 +824,7 @@ export function ArchiveExplorer() {
   }
 
   const { data, isLoading, error, refetch } = useQuery<ArchiveListResponse, Error>({
-    queryKey: ['archive', queryParams],
+    queryKey: ['archive', activeInstanceId ?? 'binding', queryParams],
     queryFn: () => apiFetch<ArchiveListResponse>('/archive', queryParams as Record<string, string | number | boolean | undefined>),
   })
 
@@ -838,8 +853,8 @@ export function ArchiveExplorer() {
       ...prev,
       [updated.id]: { flagged: updated.flagged, flagNote: updated.flagNote, flaggedAt: updated.flaggedAt },
     }))
-    void queryClient.invalidateQueries({ queryKey: ['archive-flagged'] })
-  }, [queryClient])
+    void queryClient.invalidateQueries({ queryKey: ['archive-flagged', activeInstanceId ?? 'binding'] })
+  }, [activeInstanceId, queryClient])
 
   // When a fact is unflagged from the queue, invalidate the main list too
   const handleQueueUnflagged = useCallback((id: string) => {
@@ -847,8 +862,8 @@ export function ArchiveExplorer() {
       ...prev,
       [id]: { flagged: false, flagNote: null, flaggedAt: null },
     }))
-    void queryClient.invalidateQueries({ queryKey: ['archive'] })
-  }, [queryClient])
+    void queryClient.invalidateQueries({ queryKey: ['archive', activeInstanceId ?? 'binding'] })
+  }, [activeInstanceId, queryClient])
 
   const hasActiveFilters = Boolean(
     filters.search || filters.entityType || filters.entityId || filters.key ||
@@ -859,7 +874,7 @@ export function ArchiveExplorer() {
   return (
     <div className={styles.page}>
       {/* CP-T049: Flagged for Review queue — always visible above main table */}
-      <FlaggedQueue onUnflagged={handleQueueUnflagged} />
+      <FlaggedQueue instanceId={activeInstanceId} onUnflagged={handleQueueUnflagged} />
 
       {/* Filter bar */}
       <div className={styles.filterBar} role="search" aria-label="Filter archive facts">
@@ -1091,7 +1106,7 @@ export function ArchiveExplorer() {
                 </tr>
 
                 {expandedRowId === fact.id && (
-                  <ExpandedArchiveRow fact={fact} onFlagged={handleFlagged} />
+                <ExpandedArchiveRow fact={fact} instanceId={activeInstanceId} onFlagged={handleFlagged} />
                 )}
               </Fragment>
             ))}

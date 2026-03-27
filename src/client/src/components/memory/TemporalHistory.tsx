@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import type { TemporalHistoryResponse, HistoryInterval, AsOfQueryResult } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import styles from './TemporalHistory.module.css'
@@ -321,6 +322,8 @@ export function TemporalHistory() {
     entityId: string
     key: string
   }>()
+  const { activeInstance } = useInstanceContext()
+  const activeInstanceId = activeInstance?.id
 
   const decodedType = entityType ? decodeURIComponent(entityType) : ''
   const decodedId = entityId ? decodeURIComponent(entityId) : ''
@@ -342,10 +345,11 @@ export function TemporalHistory() {
 
   // ---- Full history query ----
   const { data, isLoading, error, refetch } = useQuery<TemporalHistoryResponse, Error>({
-    queryKey: ['temporal-history', decodedType, decodedId, decodedKey],
+    queryKey: ['temporal-history', activeInstanceId ?? 'binding', decodedType, decodedId, decodedKey],
     queryFn: () =>
       apiFetch<TemporalHistoryResponse>(
-        `/entities/${encodeURIComponent(decodedType)}/${encodeURIComponent(decodedId)}/history/${encodeURIComponent(decodedKey)}`
+        `/entities/${encodeURIComponent(decodedType)}/${encodeURIComponent(decodedId)}/history/${encodeURIComponent(decodedKey)}`,
+        { instanceId: activeInstanceId }
       ),
     enabled: Boolean(decodedType && decodedId && decodedKey),
   })
@@ -356,11 +360,11 @@ export function TemporalHistory() {
     isLoading: asOfLoading,
     error: asOfError,
   } = useQuery<AsOfQueryResult, Error>({
-    queryKey: ['temporal-asof', decodedType, decodedId, decodedKey, asOfIso],
+    queryKey: ['temporal-asof', activeInstanceId ?? 'binding', decodedType, decodedId, decodedKey, asOfIso],
     queryFn: () =>
       apiFetch<AsOfQueryResult>(
         `/entities/${encodeURIComponent(decodedType)}/${encodeURIComponent(decodedId)}/query/${encodeURIComponent(decodedKey)}`,
-        { asOf: asOfIso!, includeExpired: 'true' }
+        { instanceId: activeInstanceId, asOf: asOfIso!, includeExpired: 'true' }
       ),
     enabled: Boolean(decodedType && decodedId && decodedKey && asOfIso),
     // Don't retry on 400/404 — these are expected when no fact exists

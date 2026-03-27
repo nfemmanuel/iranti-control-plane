@@ -14,6 +14,8 @@ src/server/node_modules/
 dist/
 src/server/dist/
 public/control-plane/
+migrations/
+*.tgz
 
 # Logs
 *.log
@@ -28,6 +30,7 @@ Thumbs.db
 
 # Editor
 .vscode/settings.json
+.vscode/mcp.json
 .idea/
 *.swp
 *.swo

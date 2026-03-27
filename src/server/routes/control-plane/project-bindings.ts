@@ -155,12 +155,16 @@ projectBindingsRouter.post(
       mode = 'isolated',
       agentId,
       memoryEntity,
+      personalMemoryEntity,
+      autoRemember,
       addToGitignore,
     } = req.body as {
       projectPath?: string
       mode?: 'isolated' | 'shared'
       agentId?: string
       memoryEntity?: string
+      personalMemoryEntity?: string
+      autoRemember?: boolean
       addToGitignore?: boolean
     }
 
@@ -223,16 +227,20 @@ projectBindingsRouter.post(
     // 6. Build .env.iranti content
     const resolvedAgentId = agentId ?? 'main_agent'
     const resolvedMemoryEntity = memoryEntity ?? `project/${basename(projectPath)}`
+    const resolvedPersonalMemoryEntity = personalMemoryEntity ?? 'user/main'
     const resolvedMode = (mode === 'isolated' || mode === 'shared') ? mode : 'isolated'
+    const resolvedAutoRemember = autoRemember === true ? 'true' : 'false'
 
     const envIrantiContent = buildEnvFileContent({
       IRANTI_URL: `http://localhost:${irantiPort}`,
       IRANTI_API_KEY: irantiApiKey,
       IRANTI_AGENT_ID: resolvedAgentId,
       IRANTI_MEMORY_ENTITY: resolvedMemoryEntity,
+      IRANTI_PERSONAL_MEMORY_ENTITY: resolvedPersonalMemoryEntity,
       IRANTI_PROJECT_MODE: resolvedMode,
       IRANTI_INSTANCE: instanceName,
       IRANTI_INSTANCE_ENV: instanceEnvPath,
+      IRANTI_AUTO_REMEMBER: resolvedAutoRemember,
     })
 
     // 7. Write .env.iranti
@@ -289,7 +297,9 @@ projectBindingsRouter.post(
       instanceName,
       agentId: resolvedAgentId,
       memoryEntity: resolvedMemoryEntity,
+      personalMemoryEntity: resolvedPersonalMemoryEntity,
       mode: resolvedMode,
+      autoRemember: resolvedAutoRemember === 'true',
     })
   }
 )
@@ -419,9 +429,11 @@ projectBindingsRouter.patch(
       'IRANTI_API_KEY',
       'IRANTI_AGENT_ID',
       'IRANTI_MEMORY_ENTITY',
+      'IRANTI_PERSONAL_MEMORY_ENTITY',
       'IRANTI_PROJECT_MODE',
       'IRANTI_INSTANCE',
       'IRANTI_INSTANCE_ENV',
+      'IRANTI_AUTO_REMEMBER',
     ]
     const reordered: Record<string, string> = {}
     for (const k of canonicalKeys) {

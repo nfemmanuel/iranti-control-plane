@@ -403,11 +403,11 @@ function summarizeProjectIntegration(
   const statuses = scope.boundProjects.map((project) => inspectProjectIntegration(project.projectPath))
   const healthyCount = statuses.filter((status) =>
     checkName === 'mcp_integration'
-      ? status.mcpJsonPresent && status.mcpJsonHasIranti
+      ? status.anyMcpPresent && status.anyMcpHasIranti
       : status.claudeMdPresent && status.claudeMdHasIranti
   ).length
 
-  const label = checkName === 'mcp_integration' ? '.mcp.json' : 'CLAUDE.md'
+  const label = checkName === 'mcp_integration' ? '.mcp.json / .vscode/mcp.json' : 'CLAUDE.md'
   if (healthyCount === statuses.length) {
     return {
       name: checkName,
@@ -419,7 +419,7 @@ function summarizeProjectIntegration(
   const missingProjects = statuses
     .filter((status) =>
       checkName === 'mcp_integration'
-        ? !(status.mcpJsonPresent && status.mcpJsonHasIranti)
+        ? !(status.anyMcpPresent && status.anyMcpHasIranti)
         : !(status.claudeMdPresent && status.claudeMdHasIranti)
     )
     .map((status) => status.projectPath)
@@ -618,9 +618,11 @@ async function buildAttendantStatus(scope: ResolvedInstanceAuthority): Promise<A
 }
 
 function computeOverall(checks: HealthCheck[]): 'healthy' | 'degraded' | 'error' {
-  const runtimeChecks = checks.filter((check) => RUNTIME_CHECK_NAMES.has(check.name))
-  if (runtimeChecks.some((check) => check.status === 'error')) return 'error'
-  if (runtimeChecks.some((check) => check.status === 'warn')) return 'degraded'
+  const checksForOverall = checks.filter((check) =>
+    RUNTIME_CHECK_NAMES.has(check.name) || check.name === 'mcp_integration' || check.name === 'claude_md_integration'
+  )
+  if (checksForOverall.some((check) => check.status === 'error')) return 'error'
+  if (checksForOverall.some((check) => check.status === 'warn')) return 'degraded'
   return 'healthy'
 }
 

@@ -1,9 +1,9 @@
 /**
- * CodexIntegrationPanel — CP-T095
+ * CodexIntegrationPanel - CP-T095
  *
  * Instance-level panel showing Codex CLI integration status:
  * - Codex detected on PATH
- * - Iranti MCP server registration in ~/.codex/config.json or mcp.json
+ * - Iranti MCP server registration in Codex global config (config.toml)
  * - Diagnostic issues with actionable descriptions
  * - "Register with Codex" action (runs `iranti codex-setup`)
  * - "Remove Registration" action (runs uninstall or direct config edit)
@@ -19,19 +19,56 @@ import {
 import type { CodexIntegrationStatus } from '../../api/types'
 import styles from './CodexIntegrationPanel.module.css'
 
-/* ------------------------------------------------------------------ */
-/*  Small helpers                                                       */
-/* ------------------------------------------------------------------ */
-
 function StatusChip({ ok, label }: { ok: boolean; label: string }) {
   return ok
-    ? <span className={styles.chipOk}>&#10003; {label}</span>
-    : <span className={styles.chipWarn}>&#10007; {label}</span>
+    ? <span className={styles.chipOk}>OK {label}</span>
+    : <span className={styles.chipWarn}>Needs setup {label}</span>
 }
 
-/* ------------------------------------------------------------------ */
-/*  CodexIntegrationPanel                                               */
-/* ------------------------------------------------------------------ */
+function getNextAction(data: CodexIntegrationStatus): string {
+  if (!data.codexInstalled) {
+    return 'Install Codex first. Until the CLI is available, the control plane cannot register Iranti for Codex sessions.'
+  }
+  if (!data.irantiRegistered) {
+    return 'Register Iranti with Codex. That enables exact query, attend, and shared-memory lookups in new Codex sessions.'
+  }
+  if (data.issues.length > 0) {
+    return 'Codex is partially wired. Re-run registration, then reopen the Codex session so it reloads the MCP tool surface.'
+  }
+  return 'Codex is ready for shared-memory work. Open a fresh session and verify exact lookup or recall before you trust the session.'
+}
+
+function getCapabilities(data: CodexIntegrationStatus): Array<{ title: string; state: string; detail: string; ok: boolean }> {
+  const cliReady = data.codexInstalled
+  const registrationReady = data.codexInstalled && data.irantiRegistered
+
+  return [
+    {
+      title: 'Codex CLI availability',
+      state: cliReady ? 'Ready' : 'Missing',
+      detail: cliReady
+        ? 'The control plane can inspect or update Codex registration from this machine.'
+        : 'Codex is not on PATH yet, so setup and diagnostics stop before MCP registration.',
+      ok: cliReady,
+    },
+    {
+      title: 'Iranti MCP registration',
+      state: registrationReady ? 'Registered' : 'Not registered',
+      detail: registrationReady
+        ? 'Codex can discover the Iranti MCP server from its global configuration.'
+        : 'Codex sessions will not expose Iranti tools until registration is repaired.',
+      ok: registrationReady,
+    },
+    {
+      title: 'Can Codex use Iranti?',
+      state: registrationReady ? 'Available' : 'Blocked',
+      detail: registrationReady
+        ? 'Exact query, attend, and search calls should be available in fresh Codex sessions.'
+        : 'Memory lookup remains unavailable because the Codex-to-Iranti bridge is not fully wired.',
+      ok: registrationReady,
+    },
+  ]
+}
 
 const QUERY_KEY = ['codex-integration'] as const
 
@@ -87,68 +124,53 @@ export function CodexIntegrationPanel() {
 
   return (
     <div className={styles.panel}>
-      {/* Loading */}
       {isLoading && (
         <div className={styles.loadingRow}>
-          <span className={styles.spinnerSmall} aria-hidden="true" /> Checking Codex integration…
+          <span className={styles.spinnerSmall} aria-hidden="true" /> Checking Codex integration...
         </div>
       )}
 
-      {/* Error fetching status */}
       {error && !isLoading && (
         <div className={styles.errorRow}>
           Could not load Codex integration status: {error.message}
         </div>
       )}
 
-      {/* Content */}
       {data && !isLoading && (
         <>
-          {/* Detection Section */}
-          <div className={styles.subSection}>
-            <h4 className={styles.subTitle}>Detection</h4>
-
-            <div className={styles.fieldRow}>
-              <span className={styles.fieldLabel}>Codex CLI</span>
-              <span className={styles.fieldValue}>
-                <StatusChip ok={data.codexInstalled} label={data.codexInstalled ? 'Found on PATH' : 'Not found'} />
+          <div className={styles.capabilitySection}>
+            <div className={styles.capabilityHeader}>
+              <h4 className={styles.subTitle}>What Works Here</h4>
+              <span className={styles.capabilityMeta}>
+                {data.codexInstalled && data.irantiRegistered && data.issues.length === 0 ? 'Codex ready' : 'Needs operator attention'}
               </span>
             </div>
-
-            {data.codexInstalled && (
-              <div className={styles.fieldRow}>
-                <span className={styles.fieldLabel}>Iranti registered</span>
-                <span className={styles.fieldValue}>
-                  <StatusChip
-                    ok={data.irantiRegistered}
-                    label={data.irantiRegistered ? 'Registered' : 'Not registered'}
-                  />
-                </span>
-              </div>
-            )}
+            <div className={styles.capabilityGrid}>
+              {getCapabilities(data).map((capability) => (
+                <div key={capability.title} className={styles.capabilityCard}>
+                  <div className={styles.capabilityCardHeader}>
+                    <span className={styles.capabilityTitle}>{capability.title}</span>
+                    <span className={capability.ok ? styles.capabilityStateOk : styles.capabilityStateWarn}>
+                      {capability.state}
+                    </span>
+                  </div>
+                  <p className={styles.capabilityBody}>{capability.detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className={styles.nextActionRow}>
+              <span className={styles.nextActionLabel}>Next action</span>
+              <p className={styles.nextActionBody}>{getNextAction(data)}</p>
+            </div>
           </div>
 
-          {/* Registered config detail */}
-          {data.irantiRegistered && data.registeredConfig && (
-            <div className={styles.subSection}>
-              <h4 className={styles.subTitle}>Registered Config</h4>
-              <details className={styles.rawDetails}>
-                <summary>Show iranti MCP entry</summary>
-                <pre className={styles.rawJson}>
-                  {JSON.stringify(data.registeredConfig, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-
-          {/* Issues */}
           {data.issues.length > 0 && (
             <div className={styles.subSection}>
-              <h4 className={styles.subTitle}>Issues ({data.issues.length})</h4>
+              <h4 className={styles.subTitle}>Operator Issues ({data.issues.length})</h4>
               <div className={styles.issuesList}>
                 {data.issues.map((issue, i) => (
                   <div key={i} className={styles.issueRow}>
-                    <span className={styles.issueIcon}>&#9888;</span>
+                    <span className={styles.issueIcon}>!</span>
                     <span>{issue}</span>
                   </div>
                 ))}
@@ -156,7 +178,6 @@ export function CodexIntegrationPanel() {
             </div>
           )}
 
-          {/* Action result banner */}
           {actionResult && (
             <div className={actionResult.ok ? styles.successBanner : styles.errorBanner}>
               {actionResult.ok
@@ -168,11 +189,9 @@ export function CodexIntegrationPanel() {
             </div>
           )}
 
-          {/* Actions */}
           <div className={styles.subSection}>
-            <h4 className={styles.subTitle}>Actions</h4>
+            <h4 className={styles.subTitle}>Repair / Setup</h4>
             <div className={styles.actionRow}>
-              {/* Always show Register button unless already cleanly registered */}
               {(!data.irantiRegistered || data.issues.length > 0) && (
                 <button
                   className={styles.actionBtn}
@@ -184,11 +203,10 @@ export function CodexIntegrationPanel() {
                   {actionInFlight === 'setup' && (
                     <span className={styles.spinnerSmall} aria-hidden="true" />
                   )}
-                  {actionInFlight === 'setup' ? 'Registering…' : 'Register with Codex'}
+                  {actionInFlight === 'setup' ? 'Registering...' : 'Register with Codex'}
                 </button>
               )}
 
-              {/* Remove only shown when registered */}
               {data.irantiRegistered && (
                 <button
                   className={styles.removeBtn}
@@ -199,11 +217,54 @@ export function CodexIntegrationPanel() {
                   {actionInFlight === 'remove' && (
                     <span className={styles.spinnerSmall} aria-hidden="true" />
                   )}
-                  {actionInFlight === 'remove' ? 'Removing…' : 'Remove Registration'}
+                  {actionInFlight === 'remove' ? 'Removing...' : 'Remove Registration'}
                 </button>
               )}
             </div>
+            <p className={styles.actionHint}>
+              Registration updates Codex global config for fresh sessions. If a session is already open, reopen it after repairing setup so the MCP surface reloads.
+            </p>
           </div>
+
+          <details className={styles.advancedDetails}>
+            <summary>Advanced details</summary>
+            <div className={styles.advancedDetailsBody}>
+              <div className={styles.subSection}>
+                <h4 className={styles.subTitle}>CLI and registration status</h4>
+
+                <div className={styles.fieldRow}>
+                  <span className={styles.fieldLabel}>Codex CLI</span>
+                  <span className={styles.fieldValue}>
+                    <StatusChip ok={data.codexInstalled} label={data.codexInstalled ? 'Found on PATH' : 'Not found'} />
+                  </span>
+                </div>
+
+                {data.codexInstalled && (
+                  <div className={styles.fieldRow}>
+                    <span className={styles.fieldLabel}>Iranti registered</span>
+                    <span className={styles.fieldValue}>
+                      <StatusChip
+                        ok={data.irantiRegistered}
+                        label={data.irantiRegistered ? 'Registered' : 'Not registered'}
+                      />
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {data.irantiRegistered && data.registeredConfig && (
+                <div className={styles.subSection}>
+                  <h4 className={styles.subTitle}>Current registration</h4>
+                  <details className={styles.rawDetails}>
+                    <summary>Show iranti MCP entry</summary>
+                    <pre className={styles.rawJson}>
+                      {JSON.stringify(data.registeredConfig, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          </details>
         </>
       )}
     </div>

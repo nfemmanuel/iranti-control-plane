@@ -177,6 +177,13 @@
   flex-wrap: wrap;
 }
 
+.actionHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
 .actionBtn {
   height: 28px;
   padding: 0 var(--space-3);
@@ -298,6 +305,40 @@
   overflow-y: auto;
 }
 
+.advancedDetails {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.advancedDetails summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.advancedDetails summary::before {
+  content: '▶';
+  font-size: 9px;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.advancedDetails[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.advancedDetailsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
 /* ──────────────────────────────────────────────────────────────────
    Spinner
    ────────────────────────────────────────────────────────────────── */
@@ -315,4 +356,110 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+.capabilitySection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.capabilityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.capabilityMeta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.capabilityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.capabilityCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+}
+
+.capabilityCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.capabilityTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.capabilityStateOk,
+.capabilityStateWarn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.capabilityStateOk {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border: 1px solid var(--color-status-success);
+}
+
+.capabilityStateWarn {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+}
+
+.capabilityBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.nextActionRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+}
+
+.nextActionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-tertiary);
+}
+
+.nextActionBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
 }

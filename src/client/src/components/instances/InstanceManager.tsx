@@ -1,4 +1,4 @@
-/* Iranti Control Plane — Instance & Project Manager */
+﻿/* Iranti Control Plane — Instance & Project Manager */
 /* Route: /instances and /instances/:instanceId */
 /* CP-T015 — Two-column instance list + detail panel */
 /* CP-T029 — Last-checked timestamp, staleness indicator, precise status labels */
@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects } from '../../api/client'
-import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject } from '../../api/types'
+import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject, ProjectBinding } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSettings } from '../../hooks/useSettings'
 import { DoctorDrawer } from './DoctorDrawer'
@@ -88,6 +88,16 @@ function useTimeTick(intervalMs: number): number {
   return tick
 }
 
+async function parseJsonResponse<T>(res: Response): Promise<T & { error?: string; code?: string }> {
+  const raw = await res.text()
+  if (!raw.trim()) return {} as T & { error?: string; code?: string }
+  try {
+    return JSON.parse(raw) as T & { error?: string; code?: string }
+  } catch {
+    return { error: raw.trim() } as T & { error?: string; code?: string }
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Status indicator — CP-T029: precise four-state vocabulary          */
 /* ------------------------------------------------------------------ */
@@ -157,9 +167,9 @@ function StatusBadge({ status, hasConnectionInfo }: {
 /* ------------------------------------------------------------------ */
 
 function CheckIcon({ ok, warn = false }: { ok: boolean; warn?: boolean }) {
-  if (ok) return <span className={styles.iconOk} aria-label="OK">✓</span>
-  if (warn) return <span className={styles.iconWarn} aria-label="Warning">⚠</span>
-  return <span className={styles.iconError} aria-label="Missing">✗</span>
+  if (ok) return <span className={styles.iconOk} aria-label="OK">OK</span>
+  if (warn) return <span className={styles.iconWarn} aria-label="Warning">!</span>
+  return <span className={styles.iconError} aria-label="Missing">X</span>
 }
 
 /* ------------------------------------------------------------------ */
@@ -195,7 +205,7 @@ function InstanceListItem({
         <span className={styles.instanceName}>{instance.name}</span>
         <span className={styles.instancePort}>:{instance.configuredPort}</span>
         {(staleLevel === 'stale' || staleLevel === 'very-stale') && (
-          <span className={styles.stalenessIndicatorSmall} aria-label="Status may be stale" title="Status may be stale">⏱</span>
+          <span className={styles.stalenessIndicatorSmall} aria-label="Status may be stale" title="Status may be stale">!</span>
         )}
       </div>
       <div className={styles.instanceItemMeta}>
@@ -266,7 +276,7 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
           background: 'var(--color-status-warning-bg)',
           border: '1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent)',
         }}>
-          ⚠ STALE
+          WARN STALE
         </span>
       )
     case 'unhealthy':
@@ -277,7 +287,7 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
           background: 'color-mix(in srgb, var(--color-status-warning-bg) 65%, transparent)',
           border: '1px solid color-mix(in srgb, var(--color-status-warning) 35%, transparent)',
         }}>
-          ⚠ UNHEALTHY
+          WARN UNHEALTHY
         </span>
       )
     case 'stopped':
@@ -288,7 +298,7 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
           background: 'var(--color-bg-elevated)',
           border: '1px solid var(--color-border-subtle)',
         }}>
-          ○ STOPPED
+          STOPPED
         </span>
       )
     case 'missing':
@@ -299,7 +309,7 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
           background: 'var(--color-bg-elevated)',
           border: '1px solid var(--color-border-subtle)',
         }}>
-          ○ MISSING
+          MISSING
         </span>
       )
     case 'invalid':
@@ -310,7 +320,7 @@ function RuntimeStatusBadge({ runtimeStatus }: { runtimeStatus: RuntimeStatus })
           background: 'color-mix(in srgb, var(--color-status-error) 12%, transparent)',
           border: '1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent)',
         }}>
-          ✕ INVALID
+          INVALID
         </span>
       )
     case 'unknown':
@@ -339,7 +349,7 @@ function RuntimeLifecycleSection({
         fontStyle: 'italic',
         marginTop: '4px',
       }}>
-        Runtime metadata unavailable — instance started without{' '}
+        Runtime metadata unavailable - instance started without{' '}
         <code style={{
           fontFamily: 'var(--font-mono)',
           fontSize: '11px',
@@ -397,7 +407,7 @@ function RuntimeLifecycleSection({
           <span>started {formatRelativeTime(runtime.startedAt)}</span>
           <span style={{ color: isStale ? 'var(--color-status-warning)' : 'var(--color-text-secondary)' }}>
             heartbeat {formatRelativeTime(runtime.lastHeartbeatAt)}
-            {isStale && ' ⚠'}
+            {isStale && ' !'}
           </span>
           <span>port: {runtime.port}</span>
         </div>
@@ -415,7 +425,7 @@ function RuntimeLifecycleSection({
           lineHeight: 1.5,
         }}>
           <strong>Stale runtime signal.</strong>{' '}
-          This instance&apos;s heartbeat has not updated in over 60 seconds — the process may have crashed.
+          This instance&apos;s heartbeat has not updated in over 60 seconds - the process may have crashed.
           Try running{' '}
           <code style={{
             fontFamily: 'var(--font-mono)',
@@ -472,7 +482,7 @@ function InstallStateBar({ installState }: { installState: InstallStateResult | 
         <div className={styles.installStateHeader}>
           <span className={styles.installStateLabel}>Iranti CLI</span>
           <span className={styles.installStateBadgeInstalled}>
-            ✓ Installed{installState.version ? ` — v${installState.version}` : ''}
+            Installed{installState.version ? ` - v${installState.version}` : ''}
           </span>
         </div>
         {installState.executablePath && (
@@ -488,7 +498,7 @@ function InstallStateBar({ installState }: { installState: InstallStateResult | 
     <div className={styles.installStateSection}>
       <div className={styles.installStateHeader}>
         <span className={styles.installStateLabel}>Iranti CLI</span>
-        <span className={styles.installStateBadgeNotFound}>✗ Not found</span>
+        <span className={styles.installStateBadgeNotFound}>Not found</span>
       </div>
       <div className={styles.installStateInstallRow}>
         <span>Install with:</span>
@@ -538,12 +548,12 @@ function UpgradePromoBanner({
     }
   }, [])
 
-  // If version is now up to date (e.g. after upgrade) reset to idle
+  // If version is no longer behind (e.g. after upgrade) reset to idle
   useEffect(() => {
-    if (versionSync.upToDate !== false && bannerState.phase === 'complete') {
+    if (versionSync.status !== 'behind' && bannerState.phase === 'complete') {
       setBannerState({ phase: 'idle' })
     }
-  }, [versionSync.upToDate, bannerState.phase])
+  }, [versionSync.status, bannerState.phase])
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -560,12 +570,15 @@ function UpgradePromoBanner({
           const res = await fetch(
             `/api/control-plane/instances/${encodeURIComponent(activeInstanceName)}/upgrade/${encodeURIComponent(jobId)}`
           )
+          const status = await parseJsonResponse<UpgradeJobStatus>(res)
           if (!res.ok) {
             stopPolling()
-            setBannerState({ phase: 'error', message: 'Could not check upgrade status.' })
+            setBannerState({
+              phase: 'error',
+              message: status.error ?? `Could not check upgrade status (HTTP ${res.status}).`,
+            })
             return
           }
-          const status = await res.json() as UpgradeJobStatus
           setJobStatus(status)
           if (status.status === 'complete') {
             stopPolling()
@@ -596,9 +609,16 @@ function UpgradePromoBanner({
         `/api/control-plane/instances/${encodeURIComponent(activeInstanceName)}/upgrade`,
         { method: 'POST' }
       )
-      const body = await res.json() as UpgradeJobStarted & { error?: string; code?: string }
+      const body = await parseJsonResponse<UpgradeJobStarted>(res)
       if (!res.ok) {
-        setBannerState({ phase: 'error', message: body.error ?? 'Failed to start upgrade.' })
+        setBannerState({
+          phase: 'error',
+          message: body.error ?? `Failed to start upgrade (HTTP ${res.status}).`,
+        })
+        return
+      }
+      if (!body.jobId) {
+        setBannerState({ phase: 'error', message: 'Upgrade route returned no job id.' })
         return
       }
       setBannerState({ phase: 'upgrading', jobId: body.jobId })
@@ -615,20 +635,21 @@ function UpgradePromoBanner({
   }
 
   const latestVersion = versionSync.latestVersion ?? ''
+  const installedVersion = versionSync.installedVersion ?? 'unknown'
 
   if (bannerState.phase === 'idle') {
     return (
       <div className={styles.upgradeBanner}>
-        <span className={styles.upgradeBannerIcon} aria-hidden="true">↑</span>
+        <span className={styles.upgradeBannerIcon} aria-hidden="true">^</span>
         <span className={styles.upgradeBannerText}>
-          Update available: <strong>v{latestVersion}</strong>
+          Runtime update available for <strong>{activeInstanceName}</strong>: v{installedVersion} to v{latestVersion}
         </span>
         <button
           className={styles.upgradeBannerBtn}
           type="button"
           onClick={() => setBannerState({ phase: 'confirming' })}
         >
-          Upgrade Iranti to v{latestVersion}
+          Upgrade runtime to v{latestVersion}
         </button>
       </div>
     )
@@ -639,14 +660,15 @@ function UpgradePromoBanner({
       <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="upgrade-modal-title">
         <div className={styles.modalBox}>
           <p className={styles.modalTitle} id="upgrade-modal-title">
-            Upgrade Iranti to v{latestVersion}?
+            Upgrade {activeInstanceName} to v{latestVersion}?
           </p>
           <p className={styles.modalBody}>
             This will run{' '}
             <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
               iranti upgrade --restart --instance {activeInstanceName}
             </code>
-            {' '}for the active instance. Active agents will experience a brief interruption.
+            {' '}for the selected instance runtime. This does not change the globally installed CLI version.
+            {' '}Active agents will experience a brief interruption.
             This may take up to 60 seconds.
           </p>
           <div className={styles.modalActions}>
@@ -671,7 +693,7 @@ function UpgradePromoBanner({
       <div className={styles.upgradeBanner}>
         <span className={styles.spinnerSmall} aria-hidden="true" />
         <span className={styles.upgradeBannerText}>
-          Upgrading to v{latestVersion}…
+          Upgrading {activeInstanceName} to v{latestVersion}...
           {jobStatus && jobStatus.output.length > 0 && (
             <span className={styles.upgradeBannerOutput}>
               {jobStatus.output[jobStatus.output.length - 1]}
@@ -685,9 +707,9 @@ function UpgradePromoBanner({
   if (bannerState.phase === 'complete') {
     return (
       <div className={`${styles.upgradeBanner} ${styles.upgradeBannerSuccess}`}>
-        <span aria-hidden="true">✓</span>
+        <span aria-hidden="true">OK</span>
         <span className={styles.upgradeBannerText}>
-          Upgrade complete — Iranti restarted successfully.
+          Upgrade complete - Iranti restarted successfully.
         </span>
         <button className={styles.upgradeBannerDismissBtn} type="button" onClick={reset}>
           Dismiss
@@ -699,7 +721,7 @@ function UpgradePromoBanner({
   if (bannerState.phase === 'failed' || bannerState.phase === 'error') {
     return (
       <div className={`${styles.upgradeBanner} ${styles.upgradeBannerError}`}>
-        <span aria-hidden="true">✗</span>
+        <span aria-hidden="true">X</span>
         <span className={styles.upgradeBannerText}>{bannerState.message}</span>
         <button className={styles.upgradeBannerDismissBtn} type="button" onClick={reset}>
           Try again
@@ -842,7 +864,7 @@ function DeleteInstanceModal({
             onClick={() => void handleDelete()}
             disabled={!canSubmit}
           >
-            {submitting ? 'Deleting…' : 'Delete instance'}
+            {submitting ? 'Deleting...' : 'Delete instance'}
           </button>
         </div>
       </div>
@@ -934,12 +956,12 @@ function LifecycleControls({
             type="button"
             disabled={inFlight}
             onClick={() => void handleStart()}
-            title={instance.runningStatus === 'unknown' ? 'Status unknown — starting may create a duplicate process' : undefined}
+            title={instance.runningStatus === 'unknown' ? 'Status unknown - starting may create a duplicate process' : undefined}
           >
             {inFlight ? (
-              <><span className={styles.spinnerSmall} aria-hidden="true" /> Starting…</>
+              <><span className={styles.spinnerSmall} aria-hidden="true" /> Starting...</>
             ) : (
-              <>▶ Start</>
+              <>Start</>
             )}
           </button>
         )}
@@ -951,9 +973,9 @@ function LifecycleControls({
             onClick={() => setShowStopConfirm(true)}
           >
             {inFlight ? (
-              <><span className={styles.spinnerSmall} aria-hidden="true" /> Stopping…</>
+              <><span className={styles.spinnerSmall} aria-hidden="true" /> Stopping...</>
             ) : (
-              <>■ Stop</>
+              <>Stop</>
             )}
           </button>
         )}
@@ -1005,10 +1027,10 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
           <span className={styles.dimValue}>
             {formatRelativeTime(instance.runningStatusCheckedAt)}
             {staleLevel === 'stale' && (
-              <span className={styles.stalenessWarning} aria-label="Status may be stale"> — Status may be stale</span>
+              <span className={styles.stalenessWarning} aria-label="Status may be stale"> - Status may be stale</span>
             )}
             {staleLevel === 'very-stale' && (
-              <span className={styles.stalenessWarningStrong} aria-label="Status is stale">{' '}— Status is stale</span>
+              <span className={styles.stalenessWarningStrong} aria-label="Status is stale">{' '}- Status is stale</span>
             )}
           </span>
         ) : (
@@ -1026,9 +1048,9 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
           aria-label="Refresh instance health probe"
         >
           {isRefreshing ? (
-            <><span className={styles.spinnerSmall} aria-hidden="true" /> Checking…</>
+            <><span className={styles.spinnerSmall} aria-hidden="true" /> Checking...</>
           ) : (
-            <>↺ Refresh status</>
+            <>Refresh status</>
           )}
         </button>
         {staleLevel === 'very-stale' && !isRefreshing && (
@@ -1056,7 +1078,7 @@ function DatabaseSection({ instance }: { instance: InstanceMetadata }) {
       <section className={styles.detailSection}>
         <SectionTitle>Database</SectionTitle>
         <div className={styles.warningNote}>
-          Database unreachable — check DATABASE_URL in the live instance env
+          Database unreachable - check DATABASE_URL in the live instance env
         </div>
       </section>
     )
@@ -1134,11 +1156,11 @@ function EnvironmentSection({ instance }: { instance: InstanceMetadata }) {
           <span className={styles.monoValue} title={projectModeNote ?? undefined}>
             {projectMode}
             {projectModeNote && (
-              <span className={styles.helpText}> — {projectModeNote}</span>
+              <span className={styles.helpText}> - {projectModeNote}</span>
             )}
           </span>
         ) : (
-          <span className={styles.dimValue}>—</span>
+          <span className={styles.dimValue}>-</span>
         )}
       </FieldRow>
     </section>
@@ -1202,6 +1224,19 @@ function ProjectsSection({
   })
 
   const boundProjects: BoundProject[] = projectsData?.projects ?? []
+  const projectBindingsByPath = new Map(instance.projects.map((project) => [project.projectRoot, project]))
+  const readyProjects = boundProjects.filter((project) => {
+    const binding = projectBindingsByPath.get(project.projectPath)
+    return binding ? getProjectReadiness(binding) === 'ready' : false
+  }).length
+  const partialProjects = boundProjects.filter((project) => {
+    const binding = projectBindingsByPath.get(project.projectPath)
+    return binding ? getProjectReadiness(binding) === 'partial' : false
+  }).length
+  const missingProjects = boundProjects.filter((project) => {
+    const binding = projectBindingsByPath.get(project.projectPath)
+    return binding ? getProjectReadiness(binding) === 'missing' : true
+  }).length
 
   const handleBindSuccess = () => {
     setShowBindForm(false)
@@ -1237,9 +1272,26 @@ function ProjectsSection({
         </button>
       </div>
 
+      <div className={styles.projectsSummaryCard}>
+        <div className={styles.projectsSummaryHeader}>
+          <span className={styles.projectsSummaryTitle}>Project readiness</span>
+          <span className={styles.projectsSummaryMeta}>
+            {boundProjects.length === 0 ? 'No projects bound yet' : `${boundProjects.length} bound project${boundProjects.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
+        <div className={styles.projectsSummaryStats}>
+          <span className={`${styles.projectsSummaryPill} ${styles.projectsSummaryPillReady}`}>{readyProjects} ready</span>
+          <span className={`${styles.projectsSummaryPill} ${styles.projectsSummaryPillWarning}`}>{partialProjects} partial</span>
+          <span className={`${styles.projectsSummaryPill} ${styles.projectsSummaryPillMuted}`}>{missingProjects} missing</span>
+        </div>
+        <p className={styles.projectsSummaryBody}>
+          Start here when Claude or Codex behavior feels off. Bind the project first, then inspect per-project wiring only where the summary says it is incomplete.
+        </p>
+      </div>
+
       {projectsLoading && (
         <div className={styles.projectsLoading}>
-          <span className={styles.spinnerSmall} aria-hidden="true" /> Loading projects…
+          <span className={styles.spinnerSmall} aria-hidden="true" /> Loading projects...
         </div>
       )}
 
@@ -1251,35 +1303,35 @@ function ProjectsSection({
 
       {!projectsLoading && !projectsError && boundProjects.length === 0 && (
         <div className={styles.stubNote}>
-          <span className={styles.stubIcon}>ℹ</span>
+          <span className={styles.stubIcon}>i</span>
           No projects bound. Bind a project to connect Claude Code or other agents.
         </div>
       )}
 
       {!projectsLoading && !projectsError && boundProjects.length > 0 && (
         <div className={styles.projectList}>
-          {boundProjects.map(p => (
+          {boundProjects.map(p => {
+            const binding = projectBindingsByPath.get(p.projectPath)
+            const readiness = binding ? getProjectReadiness(binding) : 'missing'
+            return (
             <div key={p.projectPath} className={styles.projectCard}>
               <div className={styles.boundProjectHeader}>
                 <span className={`${styles.monoValue} ${styles.boundProjectPath}`}>{p.projectPath}</span>
-                <button
-                  className={styles.rebindBtn}
-                  type="button"
-                  onClick={() => { setShowBindForm(true) }}
-                  title="Rebind this project"
+                <span
+                  className={`${styles.projectReadinessBadge} ${
+                    readiness === 'ready'
+                      ? styles.projectReadinessBadgeReady
+                      : readiness === 'partial'
+                        ? styles.projectReadinessBadgeWarning
+                        : styles.projectReadinessBadgeMuted
+                  }`}
                 >
-                  Rebind
-                </button>
-                {/* CP-T092: Claude Code Integration toggle */}
-                <button
-                  className={styles.rebindBtn}
-                  type="button"
-                  onClick={() => setIntegrationOpen(prev => prev === p.projectPath ? null : p.projectPath)}
-                  title="Set up or inspect Claude Code integration for this project"
-                  aria-pressed={integrationOpen === p.projectPath}
-                >
-                  Claude Setup
-                </button>
+                  {readiness === 'ready'
+                    ? 'Ready'
+                    : readiness === 'partial'
+                      ? 'Partial'
+                      : 'Needs setup'}
+                </span>
               </div>
               <div className={styles.boundProjectMeta}>
                 <span className={styles.boundProjectTag}>{p.mode}</span>
@@ -1289,6 +1341,25 @@ function ProjectsSection({
                     bound {new Date(p.boundAt).toLocaleDateString()}
                   </span>
                 )}
+              </div>
+              <div className={styles.boundProjectActions}>
+                <button
+                  className={styles.rebindBtn}
+                  type="button"
+                  onClick={() => { setShowBindForm(true) }}
+                  title="Rebind this project"
+                >
+                  Rebind project
+                </button>
+                <button
+                  className={styles.rebindBtn}
+                  type="button"
+                  onClick={() => setIntegrationOpen(prev => prev === p.projectPath ? null : p.projectPath)}
+                  title="Set up or inspect Claude Code integration for this project"
+                  aria-pressed={integrationOpen === p.projectPath}
+                >
+                  {integrationOpen === p.projectPath ? 'Hide details' : 'View project details'}
+                </button>
               </div>
               {/* CP-T092: inline integration panel */}
               {integrationOpen === p.projectPath && (
@@ -1301,11 +1372,156 @@ function ProjectsSection({
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </section>
   )
+}
+
+type PriorityTone = 'ready' | 'warning' | 'critical'
+type PriorityAction =
+  | { label: string; type: 'start' | 'doctor' | 'configure' | 'scroll'; target?: string }
+  | null
+
+interface PriorityCardDescriptor {
+  key: string
+  title: string
+  tone: PriorityTone
+  summary: string
+  detail: string
+  action: PriorityAction
+}
+
+function getProjectWiringState(instance: InstanceMetadata): { total: number; fullyWired: number; partiallyWired: number } {
+  const total = instance.projects.length
+  let fullyWired = 0
+  let partiallyWired = 0
+
+  for (const project of instance.projects) {
+    const hasClaude = project.integration.claudeMdPresent && project.integration.mcpConfigHasIranti
+    const hasCodex = project.integration.codexIntegration.configPresent
+    if (hasClaude && hasCodex) {
+      fullyWired += 1
+    } else if (hasClaude || hasCodex || project.integration.mcpConfigPresent) {
+      partiallyWired += 1
+    }
+  }
+
+  return { total, fullyWired, partiallyWired }
+}
+
+function hasUsableProvider(instance: InstanceMetadata): boolean {
+  const provider = instance.integration.defaultProvider
+  if (!provider) return false
+  if (provider === 'claude') return instance.integration.providerKeys.claude
+  if (provider === 'openai') return instance.integration.providerKeys.openai
+  if (provider === 'mock') return true
+  return (instance.integration.providerKeys.otherKeys?.length ?? 0) > 0 || Boolean(instance.integration.defaultModel)
+}
+
+type ProjectReadiness = 'ready' | 'partial' | 'missing'
+
+function getProjectReadiness(project: ProjectBinding): ProjectReadiness {
+  const hasClaude = project.integration.claudeMdPresent && project.integration.mcpConfigHasIranti
+  const hasCodex = project.integration.codexIntegration.configPresent
+  if (hasClaude && hasCodex) return 'ready'
+  if (hasClaude || hasCodex || project.integration.mcpConfigPresent) return 'partial'
+  return 'missing'
+}
+
+function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescriptor[] {
+  const runtimeStale = getStalenesLevel(instance.runningStatusCheckedAt)
+  const projectState = getProjectWiringState(instance)
+  const providerReady = hasUsableProvider(instance)
+
+  const runtimePriority: PriorityCardDescriptor =
+    instance.runningStatus !== 'running'
+      ? {
+          key: 'runtime',
+          title: 'Runtime first',
+          tone: 'critical',
+          summary: 'Instance is not reachable.',
+          detail: 'Start the runtime before spending time on bindings, MCP wiring, or client setup.',
+          action: { label: 'Start instance', type: 'start' },
+        }
+      : runtimeStale === 'very-stale'
+        ? {
+            key: 'runtime',
+            title: 'Runtime first',
+            tone: 'warning',
+            summary: 'Heartbeat looks stale.',
+            detail: 'The instance is up, but the runtime signal may be lagging. Run Doctor before you trust the rest of the page.',
+            action: { label: 'Run Doctor', type: 'doctor' },
+          }
+        : {
+            key: 'runtime',
+            title: 'Runtime first',
+            tone: 'ready',
+            summary: 'Runtime is reachable.',
+            detail: 'The core instance looks healthy enough to move on to projects and client wiring.',
+            action: { label: 'Review configuration', type: 'configure' },
+          }
+
+  const projectsPriority: PriorityCardDescriptor =
+    projectState.total === 0
+      ? {
+          key: 'projects',
+          title: 'Projects next',
+          tone: 'warning',
+          summary: 'No projects are bound.',
+          detail: 'Bind at least one project so Claude or Codex sessions have a repo to work from.',
+          action: { label: 'Bind a project', type: 'scroll', target: 'projects-section' },
+        }
+      : projectState.fullyWired === projectState.total
+        ? {
+            key: 'projects',
+            title: 'Projects next',
+            tone: 'ready',
+            summary: `${projectState.total} project${projectState.total === 1 ? '' : 's'} bound and wired.`,
+            detail: 'Project-level MCP and client setup are in a good place.',
+            action: { label: 'Review project bindings', type: 'scroll', target: 'projects-section' },
+          }
+        : {
+            key: 'projects',
+            title: 'Projects next',
+            tone: 'warning',
+            summary: `${projectState.fullyWired}/${projectState.total} project${projectState.total === 1 ? '' : 's'} fully wired.`,
+            detail: 'Some projects are only partially ready. Fix the project wiring before testing client memory behavior.',
+            action: { label: 'Fix project wiring', type: 'scroll', target: 'claude-overview-section' },
+          }
+
+  const clientsPriority: PriorityCardDescriptor =
+    !providerReady
+      ? {
+          key: 'clients',
+          title: 'Clients last',
+          tone: 'warning',
+          summary: 'Provider setup is incomplete.',
+          detail: 'Set a default provider and make sure the active provider key exists before trusting client-side tests.',
+          action: { label: 'Configure instance', type: 'configure' },
+        }
+      : projectState.total === 0
+        ? {
+            key: 'clients',
+            title: 'Clients last',
+            tone: 'warning',
+            summary: 'Clients are blocked by missing project bindings.',
+            detail: 'The instance is ready, but Claude and Codex still need at least one bound project to feel usable.',
+            action: { label: 'Bind a project', type: 'scroll', target: 'projects-section' },
+          }
+        : {
+            key: 'clients',
+            title: 'Clients last',
+            tone: projectState.fullyWired === projectState.total ? 'ready' : 'warning',
+            summary: projectState.fullyWired === projectState.total ? 'Client setup looks usable.' : 'Client setup is only partially ready.',
+            detail: projectState.fullyWired === projectState.total
+              ? 'Claude and Codex should have the wiring they need; verify the exact session you care about.'
+              : 'Use the Claude and Codex sections below to finish the wiring that matters for real sessions.',
+            action: { label: 'Review client setup', type: 'scroll', target: 'codex-integration-section' },
+          }
+
+  return [runtimePriority, projectsPriority, clientsPriority]
 }
 
 function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
@@ -1323,6 +1539,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
   const navigate = useNavigate()
   const isActive = activeInstance?.id === instance.instanceId
   const hasConnectionInfo = Boolean(instance.database)
+  const [priorityActionBusy, setPriorityActionBusy] = useState(false)
 
   // CP-T090: Configure panel inline state
   const [showConfigure, setShowConfigure] = useState(false)
@@ -1341,6 +1558,35 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
     })
     navigate(`/instances/${encodeURIComponent(instance.instanceId)}`)
   }
+
+  const scrollToSection = useCallback((target: string) => {
+    document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const handlePriorityAction = useCallback(async (action: PriorityAction) => {
+    if (!action) return
+    if (action.type === 'scroll' && action.target) {
+      scrollToSection(action.target)
+      return
+    }
+    if (action.type === 'configure') {
+      setShowConfigure(true)
+      return
+    }
+    if (action.type === 'doctor') {
+      onRunDoctor(instance.instanceId)
+      return
+    }
+    if (action.type === 'start') {
+      setPriorityActionBusy(true)
+      try {
+        await startInstance(instance.name)
+        onLifecycleChange()
+      } finally {
+        setPriorityActionBusy(false)
+      }
+    }
+  }, [instance.instanceId, instance.name, onLifecycleChange, onRunDoctor, scrollToSection])
 
   return (
     <div className={styles.detailPanel}>
@@ -1368,14 +1614,14 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
             title="Configure instance settings"
             aria-pressed={showConfigure}
           >
-            ⚙ Configure
+            Configure
           </button>
           <button
             className={styles.runDoctorBtn}
             onClick={() => onRunDoctor(instance.instanceId)}
             type="button"
           >
-            ⚕ Run Doctor
+            Run Doctor
           </button>
           <button
             className={styles.deleteBtn}
@@ -1401,21 +1647,13 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
               : 'iranti run'
             return (
               <>
-          <strong>Could not connect.</strong>{' '}
-          Iranti runtime could not be reached at the configured port (:{instance.configuredPort}).
-          {' '}Start the runtime with <code className={styles.inlineCode}>{command}</code> and refresh.
+          <strong>Runtime is not reachable.</strong>{' '}
+          Start it with <code className={styles.inlineCode}>{command}</code>, then refresh this page.
           {instance.runningStatusCheckedAt && (
             <span className={styles.errorBannerTime}>
               {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
             </span>
           )}
-          {/* CP-T058 AC-2 (M5) — remediation hint */}
-          <p className={styles.unreachableHint}>
-            {instance.name
-              ? <>To start this instance, run <code className={styles.inlineCode}>{command}</code> in your terminal.</>
-              : <>To start this instance, run <code className={styles.inlineCode}>iranti run</code> in your terminal.</>
-            }
-          </p>
           <CommandAction command={command} allowRun={canRunCommand(command)} compact />
               </>
             )
@@ -1451,22 +1689,71 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       )}
 
       <div className={styles.detailSections}>
-        <RuntimeSection instance={instance} onRefresh={onRefresh} isRefreshing={isRefreshing} />
-        <DatabaseSection instance={instance} />
-        <EnvironmentSection instance={instance} />
-        <IntegrationsSection instance={instance} />
-        <ProjectsSection
-          instance={instance}
-          instances={instances}
-          onBindSuccess={onRefetchInstances}
-        />
-        {/* CP-T093: Integration Overview — aggregated MCP/hooks status across all bound projects */}
         <section className={styles.detailSection}>
+          <h3 className={styles.sectionTitle}>Do This Now</h3>
+          <div className={styles.priorityGrid}>
+            {getOperatorPriorities(instance).map((priority) => (
+              <div
+                key={priority.key}
+                className={`${styles.priorityCard} ${
+                  priority.tone === 'ready'
+                    ? styles.priorityCardReady
+                    : priority.tone === 'warning'
+                      ? styles.priorityCardWarning
+                      : styles.priorityCardCritical
+                }`}
+              >
+                <div className={styles.priorityCardHeader}>
+                  <span className={styles.priorityCardTitle}>{priority.title}</span>
+                  <span className={styles.priorityCardState}>
+                    {priority.tone === 'ready' ? 'Ready' : priority.tone === 'warning' ? 'Needs attention' : 'Blocking'}
+                  </span>
+                </div>
+                <p className={styles.prioritySummary}>{priority.summary}</p>
+                <p className={styles.priorityBody}>{priority.detail}</p>
+                {priority.action && (
+                  <button
+                    className={styles.priorityActionBtn}
+                    type="button"
+                    disabled={priorityActionBusy}
+                    onClick={() => void handlePriorityAction(priority.action)}
+                  >
+                    {priorityActionBusy && priority.action.type === 'start' ? 'Starting...' : priority.action.label}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className={styles.workflowNote}>
+            The order matters: runtime first, then project wiring, then client validation.
+          </p>
+        </section>
+        <div id="runtime-section">
+          <RuntimeSection instance={instance} onRefresh={onRefresh} isRefreshing={isRefreshing} />
+        </div>
+        <div id="database-section">
+          <DatabaseSection instance={instance} />
+        </div>
+        <div id="environment-section">
+          <EnvironmentSection instance={instance} />
+        </div>
+        <div id="integrations-section">
+          <IntegrationsSection instance={instance} />
+        </div>
+        <div id="projects-section">
+          <ProjectsSection
+            instance={instance}
+            instances={instances}
+            onBindSuccess={onRefetchInstances}
+          />
+        </div>
+        {/* CP-T093: Integration Overview — aggregated MCP/hooks status across all bound projects */}
+        <section id="claude-overview-section" className={styles.detailSection}>
           <h3 className={styles.sectionTitle}>Claude Code Setup & Overview</h3>
           <IntegrationOverviewSection instanceName={instance.name} />
         </section>
         {/* CP-T095: Codex Integration Manager — instance-level Codex MCP registration */}
-        <section className={styles.detailSection}>
+        <section id="codex-integration-section" className={styles.detailSection}>
           <h3 className={styles.sectionTitle}>Codex Integration</h3>
           <CodexIntegrationPanel />
         </section>
@@ -1475,7 +1762,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
           <ApiKeyManager instances={instances} />
         </section>
         <UpgradeSection
-          instanceName={instance.instanceId}
+          instanceName={instance.name}
           runningVersion={instance.runtime?.version ?? null}
           onUpgradeComplete={onUpgradeComplete}
         />
@@ -1517,17 +1804,19 @@ export function InstanceManager() {
       })
   }, [])
 
-  // CP-T081: Version sync — shared cache with HealthDashboard via same query key
+  // Determine which instance is selected: route param takes priority
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
+
+  // CP-T081: Version sync for the selected/active instance runtime.
+  // This is intentionally separate from install-state, which reflects the global CLI on PATH.
+  const { activeInstance } = useInstanceContext()
+  const versionSyncInstanceId = routeInstanceId ?? localSelectedId ?? activeInstance?.id
   const { data: versionSync } = useQuery<VersionSyncResult, Error>({
-    queryKey: ['version-sync'],
-    queryFn: () => fetchVersionSync(),
+    queryKey: ['version-sync', 'instances-page', versionSyncInstanceId ?? 'default'],
+    queryFn: () => fetchVersionSync(versionSyncInstanceId),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
-
-  // Determine the active instance for upgrade purposes — use the selected instance or
-  // fall back to the first discovered instance
-  const { activeInstance } = useInstanceContext()
 
   const { data, isLoading, error, refetch } = useQuery<InstanceListResponse, Error>({
     queryKey: ['instances'],
@@ -1537,8 +1826,6 @@ export function InstanceManager() {
 
   const instances = data?.instances ?? []
 
-  // Determine which instance is selected: route param takes priority
-  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
   const selectedId = routeInstanceId ?? localSelectedId ?? instances[0]?.instanceId ?? null
   const selectedInstance = instances.find(i => i.instanceId === selectedId) ?? null
 
@@ -1582,7 +1869,7 @@ export function InstanceManager() {
         <div className={styles.stateShell}>
         <div className={styles.loadingState}>
           <Spinner size="md" label="Loading instances" />
-          <span>Discovering instances…</span>
+            <span>Discovering instances...</span>
         </div>
         </div>
       </div>
@@ -1598,7 +1885,7 @@ export function InstanceManager() {
       <div className={styles.page}>
         <div className={styles.stateShell}>
         <div className={styles.errorState}>
-          <span className={styles.errorIcon}>⚠</span>
+          <span className={styles.errorIcon}>!</span>
           <p className={styles.errorTitle}>
             {apiUnavailable ? 'Control plane API unavailable' : 'Unable to load instances'}
           </p>
@@ -1629,7 +1916,7 @@ export function InstanceManager() {
       <div className={styles.page}>
         <div className={styles.stateShell}>
         <div className={styles.emptyState}>
-          <span className={styles.emptyIcon}>◈</span>
+          <span className={styles.emptyIcon}>[]</span>
           <p className={styles.emptyTitle}>No instances discovered</p>
           <p className={styles.emptyBody}>
             {notInstalled
@@ -1663,8 +1950,8 @@ export function InstanceManager() {
       {/* CP-T079: Install state bar — spans full width above the two-column layout */}
       <InstallStateBar installState={installState} />
 
-      {/* CP-T081: Upgrade promotion banner — shown when version-sync reports upToDate: false */}
-      {versionSync && versionSync.upToDate === false && versionSync.latestVersion !== null && (
+      {/* CP-T081: Upgrade promotion banner - shown only when installed version is behind npm latest */}
+      {versionSync && versionSync.status === 'behind' && versionSync.latestVersion !== null && (
         <UpgradePromoBanner
           versionSync={versionSync}
           activeInstanceName={
@@ -1698,7 +1985,7 @@ export function InstanceManager() {
               aria-label="Refresh instance list"
               title="Refresh"
             >
-              ↺
+              Refresh
             </button>
           </div>
         </div>
@@ -1743,7 +2030,7 @@ export function InstanceManager() {
         {doctorRunning && (
           <div className={styles.doctorRunning}>
             <Spinner size="sm" label="Running doctor" />
-            <span>Running doctor checks…</span>
+            <span>Running doctor checks...</span>
           </div>
         )}
       </div>
@@ -1786,4 +2073,5 @@ export function InstanceManager() {
     </div>
   )
 }
+
 

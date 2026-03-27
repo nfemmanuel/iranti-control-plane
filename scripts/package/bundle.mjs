@@ -21,7 +21,7 @@
  */
 
 import { execFileSync } from 'child_process'
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, copyFileSync, readdirSync, rmSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -30,6 +30,8 @@ const __dirname = dirname(__filename)
 const ROOT = resolve(__dirname, '../../')
 const ENTRY = resolve(ROOT, 'src/server/index.ts')
 const OUTFILE = resolve(ROOT, 'dist/server/bundle.cjs')
+const MIGRATIONS_SRC = resolve(ROOT, 'src/server/migrations')
+const MIGRATIONS_OUT = resolve(ROOT, 'migrations')
 
 // On Windows, .bin/esbuild is a .cmd shim — use the native exe directly
 // to avoid shell quoting issues with execFileSync.
@@ -45,6 +47,17 @@ if (!existsSync(ESBUILD)) {
 }
 
 mkdirSync(resolve(ROOT, 'dist/server'), { recursive: true })
+
+// The bundled server still reads SQL migrations from disk at runtime.
+// Copy those SQL files into the publish payload so `iranti-cp` can
+// auto-run migrations after npm install, not just from the source tree.
+rmSync(MIGRATIONS_OUT, { recursive: true, force: true })
+mkdirSync(MIGRATIONS_OUT, { recursive: true })
+for (const entry of readdirSync(MIGRATIONS_SRC)) {
+  if (entry.endsWith('.sql')) {
+    copyFileSync(resolve(MIGRATIONS_SRC, entry), resolve(MIGRATIONS_OUT, entry))
+  }
+}
 
 // import.meta.url polyfill for CJS: any bundled code that references
 // import.meta.url gets the CJS-compatible equivalent via __filename.

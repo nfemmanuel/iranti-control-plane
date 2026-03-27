@@ -2,9 +2,11 @@
 
 All endpoints are served under the `/api/control-plane/` namespace. All responses use `Content-Type: application/json` unless noted.
 
-**Base URL (local development — server):** `http://localhost:3002/api/control-plane`
+**Base URL (local development - source server):** `http://localhost:3002/api/control-plane`
 
-**Base URL (local development — Vite dev server proxy):** Vite dev server runs at `http://localhost:5173` and proxies `/api/control-plane` to the server at `http://localhost:3002`.
+**Base URL (local development - Vite dev server proxy):** Vite dev server runs at `http://localhost:5173` and proxies `/api/control-plane` to the server at `http://localhost:3002`.
+
+**Packaged binary note:** When you launch `iranti-cp`, the control plane picks the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set. Replace `3002` above with the actual startup port shown in the terminal.
 
 **Authentication:** None in v1. The API is served on localhost only. Port binding is the sole access control mechanism.
 

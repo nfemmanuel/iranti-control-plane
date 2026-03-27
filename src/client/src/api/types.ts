@@ -835,6 +835,7 @@ export interface VersionSyncResult {
   installedVersion: string | null
   latestVersion: string | null
   upToDate: boolean | null
+  status: 'behind' | 'equal' | 'ahead' | 'unknown'
   releaseUrl: string
 }
 
@@ -1029,10 +1030,13 @@ export interface ClaudeIntegrationStatus {
   projectPath: string
   mcpJson: Record<string, unknown> | null
   mcpJsonPath: string | null
+  workspaceMcpJson: Record<string, unknown> | null
+  workspaceMcpJsonPath: string | null
   hooksJson: Record<string, unknown> | null
   hooksJsonPath: string | null
   irantiMcpEntry: { command: string; args: string[]; env?: Record<string, string> } | null
-  irantiHooks: { sessionStart: string | null; userPromptSubmit: string | null }
+  irantiWorkspaceMcpEntry: { command: string; args: string[]; env?: Record<string, string> } | null
+  irantiHooks: { sessionStart: string | null; userPromptSubmit: string | null; stop: string | null }
   issues: string[]
 }
 
@@ -1046,7 +1050,9 @@ export interface ScaffoldResult {
 export interface IntegrationSummaryItem {
   projectPath: string
   mcpPresent: boolean
+  workspaceMcpPresent?: boolean
   irantiMcpRegistered: boolean
+  irantiWorkspaceMcpRegistered?: boolean
   hooksPresent: boolean
   irantiHooksCount: number
   issues: string[]

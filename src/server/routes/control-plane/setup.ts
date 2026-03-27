@@ -273,7 +273,7 @@ function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: 
     integration: inspectProjectIntegration(project.projectPath),
   }))
 
-  const missing = statuses.filter(({ integration }) => !(integration.mcpJsonPresent && integration.mcpJsonHasIranti && integration.claudeMdPresent && integration.claudeMdHasIranti))
+  const missing = statuses.filter(({ integration }) => !(integration.anyMcpPresent && integration.anyMcpHasIranti && integration.claudeMdPresent && integration.claudeMdHasIranti))
   if (missing.length === 0) {
     return {
       id: 'claude_integration',
@@ -287,14 +287,14 @@ function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: 
   }
 
   const [firstMissing] = missing
-  const missingMcp = firstMissing ? !(firstMissing.integration.mcpJsonPresent && firstMissing.integration.mcpJsonHasIranti) : false
+  const missingMcp = firstMissing ? !(firstMissing.integration.anyMcpPresent && firstMissing.integration.anyMcpHasIranti) : false
   const missingClaudeMd = firstMissing ? !(firstMissing.integration.claudeMdPresent && firstMissing.integration.claudeMdHasIranti) : false
 
   return {
     id: 'claude_integration',
     label: 'Project integration',
     status: 'warning',
-    message: `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} are missing Iranti Claude integration files.`,
+    message: `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} are missing Iranti Claude or workspace MCP integration files.`,
     actionRequired: firstMissing
       ? `Run Claude setup for ${firstMissing.projectPath}, or repair the missing files from the Instance Manager.`
       : null,

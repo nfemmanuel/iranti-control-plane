@@ -8,6 +8,7 @@ import { Fragment, useState, useReducer, useEffect, useRef, type CSSProperties }
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import type {
   KBFact,
   KBListResponse,
@@ -604,10 +605,16 @@ function PaginationControls({
 /*  CP-T067 — Entity Type Browser                                      */
 /* ------------------------------------------------------------------ */
 
-function EntityTypeBrowser({ onBrowse }: { onBrowse: (entityType: string) => void }) {
+function EntityTypeBrowser({
+  onBrowse,
+  instanceId,
+}: {
+  onBrowse: (entityType: string) => void
+  instanceId?: string
+}) {
   const { data, isLoading, error } = useQuery<EntityTypesResponse, Error>({
-    queryKey: ['entity-types'],
-    queryFn: () => apiFetch<EntityTypesResponse>('/kb/entity-types'),
+    queryKey: ['entity-types', instanceId ?? 'binding'],
+    queryFn: () => apiFetch<EntityTypesResponse>('/kb/entity-types', { instanceId }),
     staleTime: 2 * 60 * 1000,
   })
 
@@ -701,10 +708,11 @@ interface SearchFetchError extends Error {
   statusCode?: number
 }
 
-async function fetchKBSearch(query: string): Promise<KBSearchResponse> {
+async function fetchKBSearch(query: string, instanceId?: string): Promise<KBSearchResponse> {
   const url = new URL('/api/control-plane/kb/search', window.location.origin)
   url.searchParams.set('query', query)
   url.searchParams.set('limit', '20')
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
 
   const res = await fetch(url.toString())
 
@@ -727,13 +735,15 @@ async function fetchKBSearch(query: string): Promise<KBSearchResponse> {
 function SearchResultsPanel({
   query,
   onClear,
+  instanceId,
 }: {
   query: string
   onClear: () => void
+  instanceId?: string
 }) {
   const { data, isLoading, error } = useQuery<KBSearchResponse, SearchFetchError>({
-    queryKey: ['kb-search', query],
-    queryFn: () => fetchKBSearch(query),
+    queryKey: ['kb-search', instanceId ?? 'binding', query],
+    queryFn: () => fetchKBSearch(query, instanceId),
     enabled: query.length > 0,
     retry: false,
   })
@@ -888,6 +898,8 @@ function SearchResultsPanel({
 export function MemoryExplorer() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { activeInstance } = useInstanceContext()
+  const activeInstanceId = activeInstance?.id
 
   // CP-T067: Initialise entityType filter from URL search param
   const urlEntityType = searchParams.get('entityType') ?? ''
@@ -930,6 +942,7 @@ export function MemoryExplorer() {
 
   // Build the effective query params (use debounced search)
   const queryParams = {
+    ...(activeInstanceId && { instanceId: activeInstanceId }),
     ...(filters.entityType && { entityType: filters.entityType }),
     ...(filters.entityId && { entityId: filters.entityId }),
     ...(filters.key && { key: filters.key }),
@@ -953,7 +966,7 @@ export function MemoryExplorer() {
   const showBrowseTable = isBrowseMode && filters.entityType !== ''
 
   const { data, isLoading, error, refetch } = useQuery<KBListResponse, Error>({
-    queryKey: ['kb', queryParams],
+    queryKey: ['kb', activeInstanceId ?? 'binding', queryParams],
     queryFn: () => apiFetch<KBListResponse>('/kb', queryParams as Record<string, string | number | boolean | undefined>),
     enabled: showBrowseTable,
   })
@@ -1038,12 +1051,13 @@ export function MemoryExplorer() {
         <SearchResultsPanel
           query={debouncedSearchQuery}
           onClear={() => setSearchQuery('')}
+          instanceId={activeInstanceId}
         />
       )}
 
       {/* ── CP-T067: EntityTypeBrowser — shown when no entityType filter ── */}
       {showEntityTypeBrowser && (
-        <EntityTypeBrowser onBrowse={handleBrowseEntityType} />
+        <EntityTypeBrowser onBrowse={handleBrowseEntityType} instanceId={activeInstanceId} />
       )}
 
       {/* ── Browse mode: normal filter bar + table ── */}

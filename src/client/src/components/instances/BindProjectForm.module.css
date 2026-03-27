@@ -87,6 +87,31 @@
   gap: var(--space-3);
 }
 
+.outcomeCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+}
+
+.outcomeTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.outcomeBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
 /* ── Field groups ───────────────────────────────────────────────── */
 
 .fieldGroup {
@@ -99,6 +124,7 @@
 .fieldGroupRow {
   display: flex;
   gap: var(--space-3);
+  align-items: flex-start;
 }
 
 .pathInputRow {
@@ -213,6 +239,7 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   user-select: none;
+  padding-top: var(--space-1);
 }
 
 .checkbox {
@@ -271,7 +298,7 @@
 .tabActions {
   display: flex;
   justify-content: flex-end;
-  padding-top: var(--space-2);
+  padding-top: var(--space-1);
 }
 
 .primaryBtn {
@@ -354,6 +381,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  max-width: 720px;
 }
 
 .successPath {
@@ -371,6 +399,7 @@
   justify-content: center;
   font-size: 11px;
   color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 /* CP-T091: .env.iranti path callout — shown after successful bind */

@@ -16,7 +16,9 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
+import pg from 'pg'
 import { query, env } from '../../db.js'
+import { resolveInstanceAuthority, ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
 import {
   KBFact,
   ArchiveFact,
@@ -31,6 +33,54 @@ import {
 } from '../../types.js'
 
 export const kbRouter = Router()
+const { Pool } = pg
+
+interface Queryable {
+  query<T extends pg.QueryResultRow = pg.QueryResultRow>(
+    text: string,
+    params?: unknown[]
+  ): Promise<pg.QueryResult<T>>
+}
+
+async function resolveScopeFromRequest(req: Request): Promise<ResolvedInstanceAuthority | null> {
+  const instanceRef = typeof req.query.instanceId === 'string' ? req.query.instanceId.trim() : ''
+  if (!instanceRef) return null
+  const scope = await resolveInstanceAuthority(instanceRef)
+  if (!scope) {
+    throw createApiError(`Instance '${instanceRef}' not found`, 'INSTANCE_NOT_FOUND', 404)
+  }
+  return scope
+}
+
+async function withRequestQueryable<T>(
+  req: Request,
+  fn: (db: Queryable, scope: ResolvedInstanceAuthority | null) => Promise<T>
+): Promise<T> {
+  const scope = await resolveScopeFromRequest(req)
+  if (!scope) {
+    return fn({ query }, null)
+  }
+  if (!scope.databaseUrl) {
+    throw createApiError(
+      `Selected instance '${scope.instanceName}' does not have a configured DATABASE_URL`,
+      'DB_UNAVAILABLE',
+      503
+    )
+  }
+
+  const pool = new Pool({
+    connectionString: scope.databaseUrl,
+    max: 1,
+    idleTimeoutMillis: 1000,
+    connectionTimeoutMillis: 3000,
+  })
+
+  try {
+    return await fn(pool, scope)
+  } finally {
+    await pool.end().catch(() => {})
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -332,47 +382,47 @@ function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFun
 
 kbRouter.get('/kb', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { limit, offset } = parsePagination(
-      req.query.limit as string | undefined,
-      req.query.offset as string | undefined,
-      50,
-      500
-    )
+    await withRequestQueryable(req, async (db) => {
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+        50,
+        500
+      )
 
-    const filters: KBFilters = {
-      entityType: req.query.entityType as string | undefined,
-      entityId: req.query.entityId as string | undefined,
-      key: req.query.key as string | undefined,
-      source: req.query.source as string | undefined,
-      createdBy: req.query.createdBy as string | undefined,
-      minConfidence: parseMinConfidence(req.query.minConfidence as string | undefined),
-      search: req.query.search as string | undefined,
-      activeOnly: req.query.activeOnly === 'true',
-    }
+      const filters: KBFilters = {
+        entityType: req.query.entityType as string | undefined,
+        entityId: req.query.entityId as string | undefined,
+        key: req.query.key as string | undefined,
+        source: req.query.source as string | undefined,
+        createdBy: req.query.createdBy as string | undefined,
+        minConfidence: parseMinConfidence(req.query.minConfidence as string | undefined),
+        search: req.query.search as string | undefined,
+        activeOnly: req.query.activeOnly === 'true',
+      }
 
-    const params: unknown[] = []
-    const where = buildKBWhereClause(filters, params)
+      const params: unknown[] = []
+      const where = buildKBWhereClause(filters, params)
 
-    // Data query
-    const dataParams = [...params, limit, offset]
-    const dataResult = await query(
-      `SELECT * FROM knowledge_base ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
-    )
+      const dataParams = [...params, limit, offset]
+      const dataResult = await db.query(
+        `SELECT * FROM knowledge_base ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      )
 
-    // Count query (same params, no limit/offset)
-    const countResult = await query(
-      `SELECT COUNT(*) AS total FROM knowledge_base ${where}`,
-      params
-    )
+      const countResult = await db.query(
+        `SELECT COUNT(*) AS total FROM knowledge_base ${where}`,
+        params
+      )
 
-    const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
+      const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
 
-    res.json({
-      items: dataResult.rows.map((r) => serializeKBRow(r as Record<string, unknown>)),
-      total,
-      limit,
-      offset,
+      res.json({
+        items: dataResult.rows.map((r) => serializeKBRow(r as Record<string, unknown>)),
+        total,
+        limit,
+        offset,
+      })
     })
   } catch (err) {
     next(err)
@@ -385,51 +435,52 @@ kbRouter.get('/kb', async (req: Request, res: Response, next: NextFunction) => {
 
 kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { limit, offset } = parsePagination(
-      req.query.limit as string | undefined,
-      req.query.offset as string | undefined,
-      50,
-      500
-    )
+    await withRequestQueryable(req, async (db) => {
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+        50,
+        500
+      )
 
-    const filters: ArchiveFilters = {
-      entityType: req.query.entityType as string | undefined,
-      entityId: req.query.entityId as string | undefined,
-      key: req.query.key as string | undefined,
-      source: req.query.source as string | undefined,
-      createdBy: req.query.createdBy as string | undefined,
-      minConfidence: parseMinConfidence(req.query.minConfidence as string | undefined),
-      search: req.query.search as string | undefined,
-      archivedReason: req.query.archivedReason as string | undefined,
-      resolutionState: req.query.resolutionState as string | undefined,
-      supersededBy: req.query.supersededBy as string | undefined,
-      archivedAfter: parseIsoDate(req.query.archivedAfter as string | undefined, 'archivedAfter'),
-      archivedBefore: parseIsoDate(req.query.archivedBefore as string | undefined, 'archivedBefore'),
-      // CP-T049: ?flagged=true returns only archive rows flagged for operator review
-      flaggedOnly: req.query.flagged === 'true',
-    }
+      const filters: ArchiveFilters = {
+        entityType: req.query.entityType as string | undefined,
+        entityId: req.query.entityId as string | undefined,
+        key: req.query.key as string | undefined,
+        source: req.query.source as string | undefined,
+        createdBy: req.query.createdBy as string | undefined,
+        minConfidence: parseMinConfidence(req.query.minConfidence as string | undefined),
+        search: req.query.search as string | undefined,
+        archivedReason: req.query.archivedReason as string | undefined,
+        resolutionState: req.query.resolutionState as string | undefined,
+        supersededBy: req.query.supersededBy as string | undefined,
+        archivedAfter: parseIsoDate(req.query.archivedAfter as string | undefined, 'archivedAfter'),
+        archivedBefore: parseIsoDate(req.query.archivedBefore as string | undefined, 'archivedBefore'),
+        flaggedOnly: req.query.flagged === 'true',
+      }
 
-    const params: unknown[] = []
-    const where = buildArchiveWhereClause(filters, params)
+      const params: unknown[] = []
+      const where = buildArchiveWhereClause(filters, params)
 
-    const dataParams = [...params, limit, offset]
-    const dataResult = await query(
-      `SELECT * FROM archive ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
-    )
+      const dataParams = [...params, limit, offset]
+      const dataResult = await db.query(
+        `SELECT * FROM archive ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      )
 
-    const countResult = await query(
-      `SELECT COUNT(*) AS total FROM archive ${where}`,
-      params
-    )
+      const countResult = await db.query(
+        `SELECT COUNT(*) AS total FROM archive ${where}`,
+        params
+      )
 
-    const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
+      const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
 
-    res.json({
-      items: dataResult.rows.map((r) => serializeArchiveRow(r as Record<string, unknown>)),
-      total,
-      limit,
-      offset,
+      res.json({
+        items: dataResult.rows.map((r) => serializeArchiveRow(r as Record<string, unknown>)),
+        total,
+        limit,
+        offset,
+      })
     })
   } catch (err) {
     next(err)
@@ -444,108 +495,104 @@ kbRouter.get(
   '/entities/:entityType/:entityId/history/:key',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { entityType, entityId, key } = req.params
+      await withRequestQueryable(req, async (db) => {
+        const { entityType, entityId, key } = req.params
 
-      // Run KB and archive queries in parallel for this entity+key.
-      // Keeping them separate lets us distinguish "current" from "archived" intervals
-      // cleanly and satisfy the { current, history, hasHistory } contract required by
-      // CP-T030 without relying on a source discriminator column.
-      const [kbResult, archiveResult] = await Promise.all([
-        query(
-          `SELECT
-            id::text                AS id,
-            "valueSummary",
-            "valueRaw",
-            confidence,
-            "createdBy"             AS "agentId",
-            source                  AS "providerSource",
-            "validFrom",
-            "validUntil",
-            "createdAt"
-          FROM knowledge_base
-          WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
-          LIMIT 1`,
-          [entityType, entityId, key]
-        ),
-        query(
-          `SELECT
-            id::text                AS id,
-            "valueSummary",
-            "valueRaw",
-            confidence,
-            "createdBy"             AS "agentId",
-            source                  AS "providerSource",
-            "validFrom",
-            "validUntil",
-            "archivedAt",
-            "archivedReason",
-            "supersededBy"::text    AS "supersededBy",
-            "resolutionState",
-            "conflictLog",
-            "createdAt"
-          FROM archive
-          WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
-          ORDER BY "validFrom" DESC NULLS LAST, "createdAt" DESC`,
-          [entityType, entityId, key]
-        ),
-      ])
+        const [kbResult, archiveResult] = await Promise.all([
+          db.query(
+            `SELECT
+              id::text                AS id,
+              "valueSummary",
+              "valueRaw",
+              confidence,
+              "createdBy"             AS "agentId",
+              source                  AS "providerSource",
+              "validFrom",
+              "validUntil",
+              "createdAt"
+            FROM knowledge_base
+            WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
+            LIMIT 1`,
+            [entityType, entityId, key]
+          ),
+          db.query(
+            `SELECT
+              id::text                AS id,
+              "valueSummary",
+              "valueRaw",
+              confidence,
+              "createdBy"             AS "agentId",
+              source                  AS "providerSource",
+              "validFrom",
+              "validUntil",
+              "archivedAt",
+              "archivedReason",
+              "supersededBy"::text    AS "supersededBy",
+              "resolutionState",
+              "conflictLog",
+              "createdAt"
+            FROM archive
+            WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
+            ORDER BY "validFrom" DESC NULLS LAST, "createdAt" DESC`,
+            [entityType, entityId, key]
+          ),
+        ])
 
-      if (kbResult.rows.length === 0 && archiveResult.rows.length === 0) {
-        throw createApiError(
-          `No history found for ${entityType}/${entityId}/${key}`,
-          'NOT_FOUND',
-          404
-        )
-      }
-
-      // Serialize the current KB fact (if it exists)
-      const currentRow = kbResult.rows.length > 0
-        ? (kbResult.rows[0] as Record<string, unknown>)
-        : null
-
-      const current = currentRow
-        ? {
-            id: String(currentRow.id),
-            valueSummary: (currentRow.valueSummary as string | null) ?? null,
-            valueRaw: serializeFullValueRaw(currentRow.valueRaw),
-            confidence: Number(currentRow.confidence ?? 0),
-            agentId: (currentRow.agentId as string | null) ?? null,
-            providerSource: (currentRow.providerSource as string | null) ?? null,
-            validFrom: toIso(currentRow.validFrom),
-            validUntil: toIso(currentRow.validUntil),
-            createdAt: toIso(currentRow.createdAt) ?? new Date(0).toISOString(),
-          }
-        : null
-
-      // Serialize archived intervals with human-readable archivedReason labels
-      const history: HistoryInterval[] = archiveResult.rows.map((row) => {
-        const r = row as Record<string, unknown>
-        return {
-          id: String(r.id),
-          source: 'archive' as const,
-          valueSummary: (r.valueSummary as string | null) ?? null,
-          valueRaw: serializeFullValueRaw(r.valueRaw),
-          confidence: Number(r.confidence ?? 0),
-          agentId: (r.agentId as string | null) ?? null,
-          providerSource: (r.providerSource as string | null) ?? null,
-          validFrom: toIso(r.validFrom),
-          validUntil: toIso(r.validUntil),
-          archivedAt: toIso(r.archivedAt),
-          archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
-          supersededBy: (r.supersededBy as string | null) ?? null,
-          resolutionState: (r.resolutionState as string | null) ?? null,
-          conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
-          createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+        if (kbResult.rows.length === 0 && archiveResult.rows.length === 0) {
+          throw createApiError(
+            `No history found for ${entityType}/${entityId}/${key}`,
+            'NOT_FOUND',
+            404
+          )
         }
-      })
 
-      res.json({
-        entityType,
-        entityId,
-        key,
-        current,
-        history,
-        hasHistory: history.length > 0,
+        const currentRow = kbResult.rows.length > 0
+          ? (kbResult.rows[0] as Record<string, unknown>)
+          : null
+
+        const current = currentRow
+          ? {
+              id: String(currentRow.id),
+              valueSummary: (currentRow.valueSummary as string | null) ?? null,
+              valueRaw: serializeFullValueRaw(currentRow.valueRaw),
+              confidence: Number(currentRow.confidence ?? 0),
+              agentId: (currentRow.agentId as string | null) ?? null,
+              providerSource: (currentRow.providerSource as string | null) ?? null,
+              validFrom: toIso(currentRow.validFrom),
+              validUntil: toIso(currentRow.validUntil),
+              createdAt: toIso(currentRow.createdAt) ?? new Date(0).toISOString(),
+            }
+          : null
+
+        const history: HistoryInterval[] = archiveResult.rows.map((row) => {
+          const r = row as Record<string, unknown>
+          return {
+            id: String(r.id),
+            source: 'archive' as const,
+            valueSummary: (r.valueSummary as string | null) ?? null,
+            valueRaw: serializeFullValueRaw(r.valueRaw),
+            confidence: Number(r.confidence ?? 0),
+            agentId: (r.agentId as string | null) ?? null,
+            providerSource: (r.providerSource as string | null) ?? null,
+            validFrom: toIso(r.validFrom),
+            validUntil: toIso(r.validUntil),
+            archivedAt: toIso(r.archivedAt),
+            archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
+            supersededBy: (r.supersededBy as string | null) ?? null,
+            resolutionState: (r.resolutionState as string | null) ?? null,
+            conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
+            createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+          }
+        })
+
+        res.json({
+          entityType,
+          entityId,
+          key,
+          current,
+          history,
+          hasHistory: history.length > 0,
+        })
       })
     } catch (err) {
       next(err)
@@ -580,163 +627,158 @@ kbRouter.get(
   '/entities/:entityType/:entityId/relationships/graph',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { entityType, entityId } = req.params
+      await withRequestQueryable(req, async (db) => {
+        const { entityType, entityId } = req.params
 
-      const rawDepth = req.query.depth !== undefined ? parseInt(String(req.query.depth), 10) : 1
-      const depth = isNaN(rawDepth) ? 1 : Math.min(Math.max(rawDepth, 1), 2)
+        const rawDepth = req.query.depth !== undefined ? parseInt(String(req.query.depth), 10) : 1
+        const depth = isNaN(rawDepth) ? 1 : Math.min(Math.max(rawDepth, 1), 2)
 
-      const rawLimit = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : 50
-      const perLevelLimit = isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 50)
+        const rawLimit = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : 50
+        const perLevelLimit = isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 50)
 
-      const relationshipTypesParam = req.query.relationshipTypes as string | undefined
-      const typeFilter = relationshipTypesParam
-        ? relationshipTypesParam.split(',').map(t => t.trim()).filter(Boolean)
-        : null
+        const relationshipTypesParam = req.query.relationshipTypes as string | undefined
+        const typeFilter = relationshipTypesParam
+          ? relationshipTypesParam.split(',').map(t => t.trim()).filter(Boolean)
+          : null
 
-      // BFS from root — visited set prevents cycles
-      const visitedKey = (et: string, ei: string) => `${et}::${ei}`
-      const visited = new Set<string>()
-      visited.add(visitedKey(entityType, entityId))
+        const visitedKey = (et: string, ei: string) => `${et}::${ei}`
+        const visited = new Set<string>()
+        visited.add(visitedKey(entityType, entityId))
 
-      const allEdges: GraphEdge[] = []
-      const allNodeKeys = new Set<string>()
-      allNodeKeys.add(visitedKey(entityType, entityId))
+        const allEdges: GraphEdge[] = []
+        const allNodeKeys = new Set<string>()
+        allNodeKeys.add(visitedKey(entityType, entityId))
 
-      let truncated = false
+        let truncated = false
+        let frontier: Array<{ et: string; ei: string }> = [{ et: entityType, ei: entityId }]
 
-      // Queue of (entityType, entityId) pairs to expand at each depth level
-      let frontier: Array<{ et: string; ei: string }> = [{ et: entityType, ei: entityId }]
+        for (let d = 0; d < depth; d++) {
+          if (frontier.length === 0) break
 
-      for (let d = 0; d < depth; d++) {
-        if (frontier.length === 0) break
+          const frontierParams: unknown[] = []
+          const frontierConditions = frontier.map(({ et, ei }) => {
+            frontierParams.push(et, ei)
+            const base = frontierParams.length - 1
+            return `("fromType" = $${base} AND "fromId" = $${base + 1}) OR ("toType" = $${base} AND "toId" = $${base + 1})`
+          })
 
-        // Build IN clause for the current frontier
-        const frontierParams: unknown[] = []
-        const frontierConditions = frontier.map(({ et, ei }) => {
-          frontierParams.push(et, ei)
-          const base = frontierParams.length - 1
-          return `("fromType" = $${base} AND "fromId" = $${base + 1}) OR ("toType" = $${base} AND "toId" = $${base + 1})`
-        })
+          const whereType = typeFilter && typeFilter.length > 0
+            ? (() => {
+                frontierParams.push(typeFilter)
+                return ` AND "relationshipType" = ANY($${frontierParams.length}::text[])`
+              })()
+            : ''
 
-        const whereType = typeFilter && typeFilter.length > 0
-          ? (() => {
-              frontierParams.push(typeFilter)
-              return ` AND "relationshipType" = ANY($${frontierParams.length}::text[])`
-            })()
-          : ''
+          const limitParam = perLevelLimit + 1
+          frontierParams.push(limitParam)
+          const limitIdx = frontierParams.length
 
-        const limitParam = perLevelLimit + 1  // fetch one extra to detect truncation
-        frontierParams.push(limitParam)
-        const limitIdx = frontierParams.length
+          const relResult = await db.query(
+            `SELECT
+              "fromType"         AS "fromEntityType",
+              "fromId"           AS "fromEntityId",
+              "toType"           AS "toEntityType",
+              "toId"             AS "toEntityId",
+              "relationshipType",
+              confidence,
+              source,
+              "createdBy"
+            FROM "EntityRelationship"
+            WHERE (${frontierConditions.join(' OR ')})${whereType}
+            ORDER BY "createdAt" DESC
+            LIMIT $${limitIdx}`,
+            frontierParams
+          )
 
-        const relResult = await query(
-          `SELECT
-            "fromType"         AS "fromEntityType",
-            "fromId"           AS "fromEntityId",
-            "toType"           AS "toEntityType",
-            "toId"             AS "toEntityId",
-            "relationshipType",
-            confidence,
-            source,
-            "createdBy"
-          FROM "EntityRelationship"
-          WHERE (${frontierConditions.join(' OR ')})${whereType}
-          ORDER BY "createdAt" DESC
-          LIMIT $${limitIdx}`,
-          frontierParams
-        )
+          const rows = relResult.rows as Record<string, unknown>[]
 
-        const rows = relResult.rows as Record<string, unknown>[]
-
-        if (rows.length > perLevelLimit) {
-          truncated = true
-        }
-
-        const effectiveRows = rows.slice(0, perLevelLimit)
-
-        const nextFrontier: Array<{ et: string; ei: string }> = []
-
-        for (const row of effectiveRows) {
-          const feType = String(row.fromEntityType ?? '')
-          const feId = String(row.fromEntityId ?? '')
-          const teType = String(row.toEntityType ?? '')
-          const teId = String(row.toEntityId ?? '')
-
-          const edge: GraphEdge = {
-            fromEntityType: feType,
-            fromEntityId: feId,
-            toEntityType: teType,
-            toEntityId: teId,
-            relationshipType: String(row.relationshipType ?? ''),
-            confidence: row.confidence != null ? Number(row.confidence) : null,
-            source: (row.source as string | null) ?? null,
-            createdBy: (row.createdBy as string | null) ?? null,
+          if (rows.length > perLevelLimit) {
+            truncated = true
           }
-          allEdges.push(edge)
-          allNodeKeys.add(visitedKey(feType, feId))
-          allNodeKeys.add(visitedKey(teType, teId))
 
-          // Add unvisited neighbors to next frontier
-          for (const [nt, ni] of [[feType, feId], [teType, teId]] as [string, string][]) {
-            const k = visitedKey(nt, ni)
-            if (!visited.has(k)) {
-              visited.add(k)
-              nextFrontier.push({ et: nt, ei: ni })
+          const effectiveRows = rows.slice(0, perLevelLimit)
+
+          const nextFrontier: Array<{ et: string; ei: string }> = []
+
+          for (const row of effectiveRows) {
+            const feType = String(row.fromEntityType ?? '')
+            const feId = String(row.fromEntityId ?? '')
+            const teType = String(row.toEntityType ?? '')
+            const teId = String(row.toEntityId ?? '')
+
+            const edge: GraphEdge = {
+              fromEntityType: feType,
+              fromEntityId: feId,
+              toEntityType: teType,
+              toEntityId: teId,
+              relationshipType: String(row.relationshipType ?? ''),
+              confidence: row.confidence != null ? Number(row.confidence) : null,
+              source: (row.source as string | null) ?? null,
+              createdBy: (row.createdBy as string | null) ?? null,
+            }
+            allEdges.push(edge)
+            allNodeKeys.add(visitedKey(feType, feId))
+            allNodeKeys.add(visitedKey(teType, teId))
+
+            for (const [nt, ni] of [[feType, feId], [teType, teId]] as [string, string][]) {
+              const k = visitedKey(nt, ni)
+              if (!visited.has(k)) {
+                visited.add(k)
+                nextFrontier.push({ et: nt, ei: ni })
+              }
             }
           }
+
+          frontier = nextFrontier
         }
 
-        frontier = nextFrontier
-      }
-
-      // Build nodes with fact counts
-      const nodeEntries = Array.from(allNodeKeys).map(k => {
-        const sep = k.indexOf('::')
-        return { et: k.slice(0, sep), ei: k.slice(sep + 2) }
-      })
-
-      // Fetch fact counts for all nodes in a single query
-      let nodes: GraphNode[]
-
-      if (nodeEntries.length > 0) {
-        const countParams: unknown[] = []
-        const countConditions = nodeEntries.map(({ et, ei }) => {
-          countParams.push(et, ei)
-          const base = countParams.length - 1
-          return `("entityType" = $${base} AND "entityId" = $${base + 1})`
+        const nodeEntries = Array.from(allNodeKeys).map(k => {
+          const sep = k.indexOf('::')
+          return { et: k.slice(0, sep), ei: k.slice(sep + 2) }
         })
 
-        const countResult = await query(
-          `SELECT "entityType", "entityId", COUNT(*) AS cnt
-           FROM knowledge_base
-           WHERE ${countConditions.join(' OR ')}
-           GROUP BY "entityType", "entityId"`,
-          countParams
-        )
+        let nodes: GraphNode[]
 
-        const countMap = new Map<string, number>()
-        for (const row of countResult.rows as Record<string, unknown>[]) {
-          countMap.set(
-            visitedKey(String(row.entityType ?? ''), String(row.entityId ?? '')),
-            Number(row.cnt ?? 0)
+        if (nodeEntries.length > 0) {
+          const countParams: unknown[] = []
+          const countConditions = nodeEntries.map(({ et, ei }) => {
+            countParams.push(et, ei)
+            const base = countParams.length - 1
+            return `("entityType" = $${base} AND "entityId" = $${base + 1})`
+          })
+
+          const countResult = await db.query(
+            `SELECT "entityType", "entityId", COUNT(*) AS cnt
+             FROM knowledge_base
+             WHERE ${countConditions.join(' OR ')}
+             GROUP BY "entityType", "entityId"`,
+            countParams
           )
+
+          const countMap = new Map<string, number>()
+          for (const row of countResult.rows as Record<string, unknown>[]) {
+            countMap.set(
+              visitedKey(String(row.entityType ?? ''), String(row.entityId ?? '')),
+              Number(row.cnt ?? 0)
+            )
+          }
+
+          nodes = nodeEntries.map(({ et, ei }) => ({
+            entityType: et,
+            entityId: ei,
+            factCount: countMap.get(visitedKey(et, ei)) ?? 0,
+            isRoot: et === entityType && ei === entityId,
+          }))
+        } else {
+          nodes = []
         }
 
-        nodes = nodeEntries.map(({ et, ei }) => ({
-          entityType: et,
-          entityId: ei,
-          factCount: countMap.get(visitedKey(et, ei)) ?? 0,
-          isRoot: et === entityType && ei === entityId,
-        }))
-      } else {
-        nodes = []
-      }
-
-      res.json({
-        rootEntity: { entityType, entityId },
-        nodes,
-        edges: allEdges,
-        truncated,
+        res.json({
+          rootEntity: { entityType, entityId },
+          nodes,
+          edges: allEdges,
+          truncated,
+        })
       })
     } catch (err) {
       next(err)
@@ -762,129 +804,127 @@ kbRouter.get(
   '/entities/:entityType/:entityId/query/:key',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { entityType, entityId, key } = req.params
-      const asOfRaw = req.query.asOf as string | undefined
+      await withRequestQueryable(req, async (db) => {
+        const { entityType, entityId, key } = req.params
+        const asOfRaw = req.query.asOf as string | undefined
 
-      if (!asOfRaw) {
-        throw createApiError('asOf query parameter is required', 'INVALID_PARAM', 400, {
-          field: 'asOf',
-        })
-      }
-
-      const asOfDate = parseIsoDate(asOfRaw, 'asOf')
-      if (!asOfDate) {
-        throw createApiError('asOf must be a valid ISO 8601 timestamp', 'INVALID_PARAM', 400, {
-          field: 'asOf',
-          received: asOfRaw,
-        })
-      }
-
-      const asOfIso = asOfDate.toISOString()
-
-      // Check KB first: a fact is active at asOf if validFrom <= asOf AND
-      // (validUntil IS NULL OR validUntil > asOf).
-      const kbResult = await query(
-        `SELECT
-          id::text                AS id,
-          "valueSummary",
-          "valueRaw",
-          confidence,
-          "createdBy"             AS "agentId",
-          source                  AS "providerSource",
-          "validFrom",
-          "validUntil",
-          "createdAt"
-        FROM knowledge_base
-        WHERE "entityType" = $1
-          AND "entityId"   = $2
-          AND key          = $3
-          AND ("validFrom" IS NULL OR "validFrom" <= $4)
-          AND ("validUntil" IS NULL OR "validUntil" > $4)
-        ORDER BY "validFrom" DESC NULLS LAST
-        LIMIT 1`,
-        [entityType, entityId, key, asOfIso]
-      )
-
-      if (kbResult.rows.length > 0) {
-        const r = kbResult.rows[0] as Record<string, unknown>
-        const fact: HistoryInterval = {
-          id: String(r.id),
-          source: 'kb',
-          valueSummary: (r.valueSummary as string | null) ?? null,
-          valueRaw: serializeFullValueRaw(r.valueRaw),
-          confidence: Number(r.confidence ?? 0),
-          agentId: (r.agentId as string | null) ?? null,
-          providerSource: (r.providerSource as string | null) ?? null,
-          validFrom: toIso(r.validFrom),
-          validUntil: toIso(r.validUntil),
-          archivedAt: null,
-          archivedReason: null,
-          supersededBy: null,
-          resolutionState: null,
-          conflictLog: null,
-          createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+        if (!asOfRaw) {
+          throw createApiError('asOf query parameter is required', 'INVALID_PARAM', 400, {
+            field: 'asOf',
+          })
         }
-        const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
-        res.json(result)
-        return
-      }
 
-      // Fallback to archive: find the row whose interval contained asOf.
-      const archiveResult = await query(
-        `SELECT
-          id::text                AS id,
-          "valueSummary",
-          "valueRaw",
-          confidence,
-          "createdBy"             AS "agentId",
-          source                  AS "providerSource",
-          "validFrom",
-          "validUntil",
-          "archivedAt",
-          "archivedReason",
-          "supersededBy"::text    AS "supersededBy",
-          "resolutionState",
-          "conflictLog",
-          "createdAt"
-        FROM archive
-        WHERE "entityType" = $1
-          AND "entityId"   = $2
-          AND key          = $3
-          AND ("validFrom" IS NULL OR "validFrom" <= $4)
-          AND "validUntil" IS NOT NULL
-          AND "validUntil" > $4
-        ORDER BY "validFrom" DESC NULLS LAST
-        LIMIT 1`,
-        [entityType, entityId, key, asOfIso]
-      )
-
-      if (archiveResult.rows.length > 0) {
-        const r = archiveResult.rows[0] as Record<string, unknown>
-        const fact: HistoryInterval = {
-          id: String(r.id),
-          source: 'archive',
-          valueSummary: (r.valueSummary as string | null) ?? null,
-          valueRaw: serializeFullValueRaw(r.valueRaw),
-          confidence: Number(r.confidence ?? 0),
-          agentId: (r.agentId as string | null) ?? null,
-          providerSource: (r.providerSource as string | null) ?? null,
-          validFrom: toIso(r.validFrom),
-          validUntil: toIso(r.validUntil),
-          archivedAt: toIso(r.archivedAt),
-          archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
-          supersededBy: (r.supersededBy as string | null) ?? null,
-          resolutionState: (r.resolutionState as string | null) ?? null,
-          conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
-          createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+        const asOfDate = parseIsoDate(asOfRaw, 'asOf')
+        if (!asOfDate) {
+          throw createApiError('asOf must be a valid ISO 8601 timestamp', 'INVALID_PARAM', 400, {
+            field: 'asOf',
+            received: asOfRaw,
+          })
         }
-        const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
-        res.json(result)
-        return
-      }
 
-      // No fact existed at this point in time
-      const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact: null }
-      res.json(result)
+        const asOfIso = asOfDate.toISOString()
+
+        const kbResult = await db.query(
+          `SELECT
+            id::text                AS id,
+            "valueSummary",
+            "valueRaw",
+            confidence,
+            "createdBy"             AS "agentId",
+            source                  AS "providerSource",
+            "validFrom",
+            "validUntil",
+            "createdAt"
+          FROM knowledge_base
+          WHERE "entityType" = $1
+            AND "entityId"   = $2
+            AND key          = $3
+            AND ("validFrom" IS NULL OR "validFrom" <= $4)
+            AND ("validUntil" IS NULL OR "validUntil" > $4)
+          ORDER BY "validFrom" DESC NULLS LAST
+          LIMIT 1`,
+          [entityType, entityId, key, asOfIso]
+        )
+
+        if (kbResult.rows.length > 0) {
+          const r = kbResult.rows[0] as Record<string, unknown>
+          const fact: HistoryInterval = {
+            id: String(r.id),
+            source: 'kb',
+            valueSummary: (r.valueSummary as string | null) ?? null,
+            valueRaw: serializeFullValueRaw(r.valueRaw),
+            confidence: Number(r.confidence ?? 0),
+            agentId: (r.agentId as string | null) ?? null,
+            providerSource: (r.providerSource as string | null) ?? null,
+            validFrom: toIso(r.validFrom),
+            validUntil: toIso(r.validUntil),
+            archivedAt: null,
+            archivedReason: null,
+            supersededBy: null,
+            resolutionState: null,
+            conflictLog: null,
+            createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+          }
+          const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
+          res.json(result)
+          return
+        }
+
+        const archiveResult = await db.query(
+          `SELECT
+            id::text                AS id,
+            "valueSummary",
+            "valueRaw",
+            confidence,
+            "createdBy"             AS "agentId",
+            source                  AS "providerSource",
+            "validFrom",
+            "validUntil",
+            "archivedAt",
+            "archivedReason",
+            "supersededBy"::text    AS "supersededBy",
+            "resolutionState",
+            "conflictLog",
+            "createdAt"
+          FROM archive
+          WHERE "entityType" = $1
+            AND "entityId"   = $2
+            AND key          = $3
+            AND ("validFrom" IS NULL OR "validFrom" <= $4)
+            AND "validUntil" IS NOT NULL
+            AND "validUntil" > $4
+          ORDER BY "validFrom" DESC NULLS LAST
+          LIMIT 1`,
+          [entityType, entityId, key, asOfIso]
+        )
+
+        if (archiveResult.rows.length > 0) {
+          const r = archiveResult.rows[0] as Record<string, unknown>
+          const fact: HistoryInterval = {
+            id: String(r.id),
+            source: 'archive',
+            valueSummary: (r.valueSummary as string | null) ?? null,
+            valueRaw: serializeFullValueRaw(r.valueRaw),
+            confidence: Number(r.confidence ?? 0),
+            agentId: (r.agentId as string | null) ?? null,
+            providerSource: (r.providerSource as string | null) ?? null,
+            validFrom: toIso(r.validFrom),
+            validUntil: toIso(r.validUntil),
+            archivedAt: toIso(r.archivedAt),
+            archivedReason: labelArchivedReason((r.archivedReason as string | null) ?? null),
+            supersededBy: (r.supersededBy as string | null) ?? null,
+            resolutionState: (r.resolutionState as string | null) ?? null,
+            conflictLog: (r.conflictLog as Record<string, unknown> | null) ?? null,
+            createdAt: toIso(r.createdAt) ?? new Date(0).toISOString(),
+          }
+          const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact }
+          res.json(result)
+          return
+        }
+
+        const result: AsOfQueryResult = { entityType, entityId, key, asOf: asOfIso, fact: null }
+        res.json(result)
+      })
     } catch (err) {
       next(err)
     }
@@ -899,51 +939,51 @@ kbRouter.get(
   '/entities/:entityType/:entityId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { entityType, entityId } = req.params
-      const includeArchived = req.query.includeArchived !== 'false'
-      const includeRelationships = req.query.includeRelationships !== 'false'
+      await withRequestQueryable(req, async (db) => {
+        const { entityType, entityId } = req.params
+        const includeArchived = req.query.includeArchived !== 'false'
+        const includeRelationships = req.query.includeRelationships !== 'false'
 
-      // Run all queries in parallel
-      const [currentResult, archivedResult, relResult] = await Promise.all([
-        query(
-          `SELECT * FROM knowledge_base WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "createdAt" DESC`,
-          [entityType, entityId]
-        ),
-        includeArchived
-          ? query(
-              `SELECT * FROM archive WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "validFrom" DESC NULLS LAST`,
-              [entityType, entityId]
-            )
-          : Promise.resolve({ rows: [] }),
-        includeRelationships
-          ? query(
-              `SELECT * FROM "EntityRelationship"
-               WHERE ("fromType" = $1 AND "fromId" = $2)
-                  OR ("toType" = $1 AND "toId" = $2)
-               ORDER BY "createdAt" DESC`,
-              [entityType, entityId]
-            )
-          : Promise.resolve({ rows: [] }),
-      ])
+        const [currentResult, archivedResult, relResult] = await Promise.all([
+          db.query(
+            `SELECT * FROM knowledge_base WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "createdAt" DESC`,
+            [entityType, entityId]
+          ),
+          includeArchived
+            ? db.query(
+                `SELECT * FROM archive WHERE "entityType" = $1 AND "entityId" = $2 ORDER BY "validFrom" DESC NULLS LAST`,
+                [entityType, entityId]
+              )
+            : Promise.resolve({ rows: [] }),
+          includeRelationships
+            ? db.query(
+                `SELECT * FROM "EntityRelationship"
+                 WHERE ("fromType" = $1 AND "fromId" = $2)
+                    OR ("toType" = $1 AND "toId" = $2)
+                 ORDER BY "createdAt" DESC`,
+                [entityType, entityId]
+              )
+            : Promise.resolve({ rows: [] }),
+        ])
 
-      const currentFacts = currentResult.rows.map((r) => serializeKBRow(r as Record<string, unknown>))
-      const archivedFacts = archivedResult.rows.map((r) => serializeArchiveRow(r as Record<string, unknown>))
-      const relationships = relResult.rows.map((r) => serializeRelationshipRow(r as Record<string, unknown>))
+        const currentFacts = currentResult.rows.map((r) => serializeKBRow(r as Record<string, unknown>))
+        const archivedFacts = archivedResult.rows.map((r) => serializeArchiveRow(r as Record<string, unknown>))
+        const relationships = relResult.rows.map((r) => serializeRelationshipRow(r as Record<string, unknown>))
 
-      if (currentFacts.length === 0 && archivedFacts.length === 0 && relationships.length === 0) {
-        throw createApiError(
-          `No data found for entity ${entityType}/${entityId}`,
-          'NOT_FOUND',
-          404
-        )
-      }
+        if (currentFacts.length === 0 && archivedFacts.length === 0 && relationships.length === 0) {
+          throw createApiError(
+            `No data found for entity ${entityType}/${entityId}`,
+            'NOT_FOUND',
+            404
+          )
+        }
 
-      // PHASE 1: entity field is always null — entities table does not exist in current Iranti schema
-      res.json({
-        entity: null,
-        currentFacts,
-        archivedFacts,
-        relationships,
+        res.json({
+          entity: null,
+          currentFacts,
+          archivedFacts,
+          relationships,
+        })
       })
     } catch (err) {
       next(err)
@@ -957,70 +997,70 @@ kbRouter.get(
 
 kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { limit, offset } = parsePagination(
-      req.query.limit as string | undefined,
-      req.query.offset as string | undefined,
-      50,
-      500
-    )
+    await withRequestQueryable(req, async (db) => {
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+        50,
+        500
+      )
 
-    const entityId = req.query.entityId as string | undefined
-    const entityType = req.query.entityType as string | undefined
-    const fromEntityId = req.query.fromEntityId as string | undefined
-    const toEntityId = req.query.toEntityId as string | undefined
-    const relationshipType = req.query.relationshipType as string | undefined
+      const entityId = req.query.entityId as string | undefined
+      const entityType = req.query.entityType as string | undefined
+      const fromEntityId = req.query.fromEntityId as string | undefined
+      const toEntityId = req.query.toEntityId as string | undefined
+      const relationshipType = req.query.relationshipType as string | undefined
 
-    const params: unknown[] = []
-    const clauses: string[] = []
+      const params: unknown[] = []
+      const clauses: string[] = []
 
-    // Bidirectional lookup: entityId matches either side
-    // fromEntityId/toEntityId take precedence over entityId when both are provided
-    if (entityId && !fromEntityId && !toEntityId) {
-      if (entityType) {
-        params.push(entityType, entityId)
-        const pt = params.length - 1
-        const pi = params.length
-        clauses.push(
-          `(("fromType" = $${pt} AND "fromId" = $${pi}) OR ("toType" = $${pt} AND "toId" = $${pi}))`
-        )
-      } else {
-        params.push(entityId)
-        const p = params.length
-        clauses.push(`("fromId" = $${p} OR "toId" = $${p})`)
+      if (entityId && !fromEntityId && !toEntityId) {
+        if (entityType) {
+          params.push(entityType, entityId)
+          const pt = params.length - 1
+          const pi = params.length
+          clauses.push(
+            `(("fromType" = $${pt} AND "fromId" = $${pi}) OR ("toType" = $${pt} AND "toId" = $${pi}))`
+          )
+        } else {
+          params.push(entityId)
+          const p = params.length
+          clauses.push(`("fromId" = $${p} OR "toId" = $${p})`)
+        }
       }
-    }
 
-    if (fromEntityId) {
-      params.push(fromEntityId)
-      clauses.push(`"fromId" = $${params.length}`)
-    }
-    if (toEntityId) {
-      params.push(toEntityId)
-      clauses.push(`"toId" = $${params.length}`)
-    }
-    if (relationshipType) {
-      params.push(relationshipType)
-      clauses.push(`"relationshipType" = $${params.length}`)
-    }
+      if (fromEntityId) {
+        params.push(fromEntityId)
+        clauses.push(`"fromId" = $${params.length}`)
+      }
+      if (toEntityId) {
+        params.push(toEntityId)
+        clauses.push(`"toId" = $${params.length}`)
+      }
+      if (relationshipType) {
+        params.push(relationshipType)
+        clauses.push(`"relationshipType" = $${params.length}`)
+      }
 
-    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
+      const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
 
-    const dataParams = [...params, limit, offset]
-    const [dataResult, countResult] = await Promise.all([
-      query(
-        `SELECT * FROM "EntityRelationship" ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-        dataParams
-      ),
-      query(`SELECT COUNT(*) AS total FROM "EntityRelationship" ${where}`, params),
-    ])
+      const dataParams = [...params, limit, offset]
+      const [dataResult, countResult] = await Promise.all([
+        db.query(
+          `SELECT * FROM "EntityRelationship" ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+          dataParams
+        ),
+        db.query(`SELECT COUNT(*) AS total FROM "EntityRelationship" ${where}`, params),
+      ])
 
-    const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
+      const total = parseInt((countResult.rows[0] as Record<string, unknown>).total as string, 10)
 
-    res.json({
-      items: dataResult.rows.map((r) => serializeRelationshipRow(r as Record<string, unknown>)),
-      total,
-      limit,
-      offset,
+      res.json({
+        items: dataResult.rows.map((r) => serializeRelationshipRow(r as Record<string, unknown>)),
+        total,
+        limit,
+        offset,
+      })
     })
   } catch (err) {
     next(err)
@@ -1051,20 +1091,20 @@ kbRouter.get('/relationships', async (req: Request, res: Response, next: NextFun
 //     Error:   400 { error: string }  (bad entity, validation failure, etc.)
 // ---------------------------------------------------------------------------
 
-function getIrantiBaseUrl(): string {
-  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+function getIrantiBaseUrl(scope: ResolvedInstanceAuthority | null): string {
+  return (scope?.apiBaseUrl ?? env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
 }
 
-function getIrantiApiKey(): string {
-  return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+function getIrantiApiKey(scope: ResolvedInstanceAuthority | null): string {
+  return scope?.apiKey ?? env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
 }
 
-function buildIrantiHeaders(req: Request): Record<string, string> {
+function buildIrantiHeaders(req: Request, scope: ResolvedInstanceAuthority | null): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const incomingKey = req.headers['x-iranti-key']
   const apiKey = typeof incomingKey === 'string' && incomingKey.trim()
     ? incomingKey
-    : getIrantiApiKey()
+    : getIrantiApiKey(scope)
   if (apiKey) headers['X-Iranti-Key'] = apiKey
   return headers
 }
@@ -1115,7 +1155,8 @@ kbRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { entityType, entityId } = req.params
-      const baseUrl = getIrantiBaseUrl()
+      const scope = await resolveScopeFromRequest(req)
+      const baseUrl = getIrantiBaseUrl(scope)
       const upstreamUrl = `${baseUrl}/kb/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/aliases`
 
       const controller = new AbortController()
@@ -1125,7 +1166,7 @@ kbRouter.get(
       try {
         irantiRes = await fetch(upstreamUrl, {
           method: 'GET',
-          headers: buildIrantiHeaders(req),
+          headers: buildIrantiHeaders(req, scope),
           signal: controller.signal,
         })
       } finally {
@@ -1231,6 +1272,7 @@ kbRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { canonicalEntity, alias, source, confidence, force } = req.body as Partial<AliasCreateRequest>
+      const scope = await resolveScopeFromRequest(req)
 
       if (!canonicalEntity || typeof canonicalEntity !== 'string' || !canonicalEntity.trim()) {
         res.status(400).json({
@@ -1256,7 +1298,7 @@ kbRouter.post(
       if (typeof confidence === 'number') upstreamBody.confidence = confidence
       if (typeof force === 'boolean') upstreamBody.force = force
 
-      const baseUrl = getIrantiBaseUrl()
+      const baseUrl = getIrantiBaseUrl(scope)
       const upstreamUrl = `${baseUrl}/kb/alias`
 
       const controller = new AbortController()
@@ -1266,7 +1308,7 @@ kbRouter.post(
       try {
         irantiRes = await fetch(upstreamUrl, {
           method: 'POST',
-          headers: buildIrantiHeaders(req),
+          headers: buildIrantiHeaders(req, scope),
           body: JSON.stringify(upstreamBody),
           signal: controller.signal,
         })
@@ -1356,7 +1398,8 @@ kbRouter.get('/kb/search', async (req: Request, res: Response, next: NextFunctio
     if (entityType) upstreamParams.set('entityType', entityType)
     if (minScore) upstreamParams.set('minScore', minScore)
 
-    const baseUrl = getIrantiBaseUrl()
+    const scope = await resolveScopeFromRequest(req)
+    const baseUrl = getIrantiBaseUrl(scope)
     const upstreamUrl = `${baseUrl}/kb/search?${upstreamParams.toString()}`
 
     const controller = new AbortController()
@@ -1366,7 +1409,7 @@ kbRouter.get('/kb/search', async (req: Request, res: Response, next: NextFunctio
     try {
       irantiRes = await fetch(upstreamUrl, {
         method: 'GET',
-        headers: buildIrantiHeaders(req),
+        headers: buildIrantiHeaders(req, scope),
         signal: controller.signal,
       })
     } finally {
@@ -1418,27 +1461,29 @@ interface EntityTypeSummaryRow {
   lastUpdatedAt: string | null
 }
 
-kbRouter.get('/kb/entity-types', async (_req: Request, res: Response, next: NextFunction) => {
+kbRouter.get('/kb/entity-types', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await query<EntityTypeSummaryRow>(
-      `SELECT
-         "entityType",
-         COUNT(*) AS "factCount",
-         MAX(COALESCE("updatedAt", "createdAt")) AS "lastUpdatedAt"
-       FROM knowledge_base
-       GROUP BY "entityType"
-       ORDER BY "factCount" DESC`
-    )
+    await withRequestQueryable(req, async (db) => {
+      const result = await db.query<EntityTypeSummaryRow>(
+        `SELECT
+           "entityType",
+           COUNT(*) AS "factCount",
+           MAX(COALESCE("updatedAt", "createdAt")) AS "lastUpdatedAt"
+         FROM knowledge_base
+         GROUP BY "entityType"
+         ORDER BY "factCount" DESC`
+      )
 
-    const entityTypes = result.rows.map((row) => ({
-      entityType: String(row.entityType),
-      factCount: parseInt(String(row.factCount), 10),
-      lastUpdatedAt: row.lastUpdatedAt != null ? toIso(row.lastUpdatedAt) : null,
-    }))
+      const entityTypes = result.rows.map((row) => ({
+        entityType: String(row.entityType),
+        factCount: parseInt(String(row.factCount), 10),
+        lastUpdatedAt: row.lastUpdatedAt != null ? toIso(row.lastUpdatedAt) : null,
+      }))
 
-    res.json({
-      entityTypes,
-      total: entityTypes.length,
+      res.json({
+        entityTypes,
+        total: entityTypes.length,
+      })
     })
   } catch (err) {
     next(err)

@@ -1,5 +1,9 @@
 # Building Iranti Control Plane Installers
 
+> Legacy distribution note:
+> the current default distribution path is the npm package (`npm install -g iranti-control-plane`).
+> Keep this guide for installer-specific packaging work, not as the primary operator install path.
+
 This guide covers how to build platform-specific installer packages for Iranti Control Plane locally and via CI.
 
 ---

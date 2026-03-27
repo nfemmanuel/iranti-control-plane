@@ -57,7 +57,7 @@ Iranti's runtime is already responsible for MCP serving, the Librarian, the Atte
 
 Instead, the control plane server is a lightweight Express application that connects to Iranti's existing PostgreSQL database as a read-only client. It:
 
-- runs on port `3002` by default (configurable via `CONTROL_PLANE_PORT` in `.env`)
+- runs on port `3002` by default in source development; the packaged `iranti-cp` binary auto-selects the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set
 - connects to PostgreSQL using the `DATABASE_URL` in its own `.env` file (typically the same value as Iranti's `.env.iranti`)
 - serves both the REST API (`/api/control-plane/`) and the compiled React frontend from the same process
 - requires no changes to the running Iranti runtime

@@ -93,6 +93,85 @@
   gap: var(--space-2);
 }
 
+.capabilityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-2);
+}
+
+.capabilityCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-canvas);
+}
+
+.capabilityCardReady {
+  border-color: color-mix(in srgb, var(--color-status-success) 55%, var(--color-border-default));
+  background: color-mix(in srgb, var(--color-status-success-bg) 55%, var(--color-bg-canvas));
+}
+
+.capabilityCardPartial {
+  border-color: color-mix(in srgb, var(--color-status-warning) 55%, var(--color-border-default));
+  background: color-mix(in srgb, var(--color-status-warning-bg) 45%, var(--color-bg-canvas));
+}
+
+.capabilityCardMissing {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-elevated);
+}
+
+.capabilityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.capabilityTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.capabilityState {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.capabilityBody {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.capabilityAction {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.capabilityActionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
 .subTitle {
   font-size: 10px;
   font-weight: 600;
@@ -386,6 +465,104 @@
    CP-T093: Integration Overview table (in DetailPanel)
    ────────────────────────────────────────────────────────────────── */
 
+.overviewSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.overviewSummaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-elevated);
+}
+
+.overviewSummaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.overviewSummaryTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.overviewSummaryMeta {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.overviewSummaryStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.overviewSummaryPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.overviewSummaryPillReady {
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  border: 1px solid var(--color-status-success);
+}
+
+.overviewSummaryPillWarning {
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
+}
+
+.overviewSummaryPillMuted {
+  background: var(--color-bg-canvas);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border-default);
+}
+
+.overviewSummaryBody {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.overviewSummaryAction {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-canvas);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.overviewSummaryActionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
 .overviewTable {
   width: 100%;
   border-collapse: collapse;
@@ -407,7 +584,7 @@
   padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .overviewTable tr:last-child td {
@@ -422,6 +599,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.overviewDetailCell {
+  min-width: 180px;
+  line-height: 1.5;
 }
 
 .issueBadge {

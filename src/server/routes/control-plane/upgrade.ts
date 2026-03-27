@@ -19,6 +19,8 @@
 import { Router, Request, Response } from 'express'
 import { spawn } from 'child_process'
 import { UpgradeJobStarted, UpgradeJobStatus } from '../../types.js'
+import { resolveIrantiCli } from '../../lib/iranti-cli.js'
+import { resolveInstanceAuthority } from '../../lib/instance-authority.js'
 
 export const upgradeRouter = Router()
 
@@ -57,33 +59,6 @@ function addJob(job: UpgradeJob): void {
 const INSTANCE_NAME_RE = /^[a-zA-Z0-9_-]+$/
 
 // ---------------------------------------------------------------------------
-// CLI availability check
-// ---------------------------------------------------------------------------
-
-function checkCliAvailable(cliName: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    // Use 'where' on Windows, 'which' on POSIX
-    const checker = process.platform === 'win32' ? 'where' : 'which'
-    const child = spawn(checker, [cliName], { stdio: 'ignore' })
-
-    const timer = setTimeout(() => {
-      child.kill()
-      resolve(false)
-    }, 3000)
-
-    child.on('exit', (code) => {
-      clearTimeout(timer)
-      resolve(code === 0)
-    })
-
-    child.on('error', () => {
-      clearTimeout(timer)
-      resolve(false)
-    })
-  })
-}
-
-// ---------------------------------------------------------------------------
 // Line buffering helper
 // ---------------------------------------------------------------------------
 
@@ -116,15 +91,17 @@ upgradeRouter.post('/:name/upgrade', async (req: Request, res: Response): Promis
     return
   }
 
-  // Check CLI availability
-  const cliAvailable = await checkCliAvailable('iranti')
-  if (!cliAvailable) {
+  const launch = await resolveIrantiCli()
+  if (!launch) {
     res.status(400).json({
       error: `iranti CLI not found on PATH. Upgrade must be run manually: iranti upgrade --restart --instance ${name}`,
       code: 'CLI_NOT_FOUND',
     })
     return
   }
+
+  const authority = await resolveInstanceAuthority(name)
+  const runtimeRoot = authority?.runtimeRoot ?? null
 
   // Generate job ID and create job entry
   const jobId = crypto.randomUUID()
@@ -142,10 +119,26 @@ upgradeRouter.post('/:name/upgrade', async (req: Request, res: Response): Promis
 
   addJob(job)
 
-  // Spawn the upgrade process
-  const child = spawn('iranti', ['upgrade', '--restart', '--instance', name], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
+  const cliArgs = [...launch.args, 'upgrade', '--restart', '--instance', name]
+  if (runtimeRoot) cliArgs.push('--root', runtimeRoot)
+
+  let child: ReturnType<typeof spawn>
+  try {
+    child = spawn(launch.command, cliArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+  } catch (error) {
+    job.status = 'failed'
+    job.completedAt = new Date().toISOString()
+    job.exitCode = -1
+    job.output.push(`[stderr] ${error instanceof Error ? error.message : String(error)}`)
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to start upgrade process.',
+      code: 'UPGRADE_SPAWN_FAILED',
+    })
+    return
+  }
 
   // Audit log
   console.log(`[upgrade] Started upgrade job ${jobId} for instance ${name} (PID: ${child.pid})`)
@@ -155,19 +148,30 @@ upgradeRouter.post('/:name/upgrade', async (req: Request, res: Response): Promis
     job.output.push(line)
   })
 
-  child.stdout.setEncoding('utf8')
-  child.stdout.on('data', (chunk: string) => {
-    stdoutBuffer(chunk)
-  })
+  if (child.stdout) {
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdoutBuffer(chunk)
+    })
+  }
 
   // Wire stderr with line buffering and prefix
   const stderrBuffer = makeLineBuffer((line) => {
     job.output.push(`[stderr] ${line}`)
   })
 
-  child.stderr.setEncoding('utf8')
-  child.stderr.on('data', (chunk: string) => {
-    stderrBuffer(chunk)
+  if (child.stderr) {
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk: string) => {
+      stderrBuffer(chunk)
+    })
+  }
+
+  child.on('error', (error) => {
+    job.exitCode = -1
+    job.status = 'failed'
+    job.completedAt = new Date().toISOString()
+    job.output.push(`[stderr] ${error.message}`)
   })
 
   // Handle process exit

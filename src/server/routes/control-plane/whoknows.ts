@@ -23,6 +23,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { env } from '../../db.js'
+import { resolveInstanceAuthority, ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
 import { ApiError } from '../../types.js'
 
 export const whoknowsRouter = Router()
@@ -66,15 +67,28 @@ interface IrantiWhoKnowsRaw {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getIrantiUrl(): string {
-  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+async function resolveScopeFromRequest(req: Request): Promise<ResolvedInstanceAuthority | null> {
+  const instanceRef = typeof req.query.instanceId === 'string' ? req.query.instanceId.trim() : ''
+  if (!instanceRef) return null
+  const scope = await resolveInstanceAuthority(instanceRef)
+  if (!scope) {
+    const err = new Error(`Instance '${instanceRef}' not found`) as ApiError
+    err.statusCode = 404
+    err.code = 'INSTANCE_NOT_FOUND'
+    throw err
+  }
+  return scope
 }
 
-function getIrantiApiKey(): string {
-  return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+function getIrantiUrl(scope: ResolvedInstanceAuthority | null): string {
+  return (scope?.apiBaseUrl ?? env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
 }
 
-function buildHeaders(req: Request): Record<string, string> {
+function getIrantiApiKey(scope: ResolvedInstanceAuthority | null): string {
+  return scope?.apiKey ?? env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
+}
+
+function buildHeaders(req: Request, scope: ResolvedInstanceAuthority | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -82,7 +96,7 @@ function buildHeaders(req: Request): Record<string, string> {
   const incomingKey = req.headers['x-iranti-key']
   const apiKey = (typeof incomingKey === 'string' && incomingKey.trim())
     ? incomingKey
-    : getIrantiApiKey()
+    : getIrantiApiKey(scope)
   if (apiKey) {
     headers['X-Iranti-Key'] = apiKey
   }
@@ -113,7 +127,8 @@ whoknowsRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { entityType, entityId } = req.params
-      const baseUrl = getIrantiUrl()
+      const scope = await resolveScopeFromRequest(req)
+      const baseUrl = getIrantiUrl(scope)
 
       // Build upstream URL: /memory/whoknows/:entityType/:entityId
       // Note: /memory/ path — distinct from /kb/ path
@@ -127,7 +142,7 @@ whoknowsRouter.get(
       try {
         irantiRes = await fetch(upstreamUrl, {
           method: 'GET',
-          headers: buildHeaders(req),
+          headers: buildHeaders(req, scope),
           signal: controller.signal,
         })
       } finally {

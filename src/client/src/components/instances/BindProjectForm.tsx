@@ -117,7 +117,7 @@ function BindNewTab({
     return (
       <div className={styles.successScreen}>
         <span className={styles.successIcon} aria-hidden="true">✓</span>
-        <h4 className={styles.successTitle}>Project bound</h4>
+        <h4 className={styles.successTitle}>Project wiring ready</h4>
         <div className={styles.successDetail}>
           <p className={styles.successPath}>{successResult.projectPath}</p>
           <div className={styles.envIrantiNote} role="alert">
@@ -128,9 +128,9 @@ function BindNewTab({
             </span>
           </div>
           <div className={styles.successMeta}>
-            <span>Agent: <code className={styles.inlineCode}>{successResult.agentId}</code></span>
-            <span>Mode: <code className={styles.inlineCode}>{successResult.mode}</code></span>
-            <span>Entity: <code className={styles.inlineCode}>{successResult.memoryEntity}</code></span>
+            <span>Default agent: <code className={styles.inlineCode}>{successResult.agentId}</code></span>
+            <span>Memory scope: <code className={styles.inlineCode}>{successResult.mode}</code></span>
+            <span>Project entity: <code className={styles.inlineCode}>{successResult.memoryEntity}</code></span>
           </div>
         </div>
         <button className={styles.primaryBtn} type="button" onClick={onSuccess}>
@@ -142,9 +142,16 @@ function BindNewTab({
 
   return (
     <div className={styles.tabContent}>
+      <div className={styles.outcomeCard}>
+        <div className={styles.outcomeTitle}>What this does</div>
+        <p className={styles.outcomeBody}>
+          Wire a repo to <code className={styles.inlineCode}>{instanceName}</code> so local tools, Claude, and Codex all point at the right Iranti instance and project memory.
+        </p>
+      </div>
+
       <div className={styles.fieldGroup}>
         <label className={styles.fieldLabel} htmlFor="bp-path">
-          Project path <span className={styles.required}>*</span>
+          Project folder <span className={styles.required}>*</span>
         </label>
         <div className={styles.pathInputRow}>
           <input
@@ -168,25 +175,26 @@ function BindNewTab({
           </button>
         </div>
         {pathError && <p className={styles.fieldError}>{pathError}</p>}
-        <p className={styles.fieldHint}>Absolute path to the project root directory.</p>
+        <p className={styles.fieldHint}>Choose the repo root you want this instance to serve.</p>
       </div>
 
       <div className={styles.fieldGroupRow}>
         <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel} htmlFor="bp-mode">Mode</label>
+          <label className={styles.fieldLabel} htmlFor="bp-mode">Memory scope</label>
           <select
             id="bp-mode"
             className={styles.select}
             value={mode}
             onChange={e => setMode(e.target.value as 'isolated' | 'shared')}
           >
-            <option value="isolated">isolated</option>
-            <option value="shared">shared</option>
+            <option value="isolated">Private to this project</option>
+            <option value="shared">Shared across bound projects</option>
           </select>
+          <p className={styles.fieldHint}>Private keeps this repo in its own memory lane. Shared lets several repos work from the same project memory.</p>
         </div>
 
         <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel} htmlFor="bp-agent">Agent ID</label>
+          <label className={styles.fieldLabel} htmlFor="bp-agent">Default agent</label>
           <input
             id="bp-agent"
             className={styles.input}
@@ -196,11 +204,12 @@ function BindNewTab({
             placeholder="main_agent"
             autoComplete="off"
           />
+          <p className={styles.fieldHint}>Used when a connected tool does not send an explicit agent name.</p>
         </div>
       </div>
 
       <div className={styles.fieldGroup}>
-        <label className={styles.fieldLabel} htmlFor="bp-entity">Memory entity</label>
+        <label className={styles.fieldLabel} htmlFor="bp-entity">Project memory entity</label>
         <input
           id="bp-entity"
           className={`${styles.input} ${styles.inputMono}`}
@@ -211,7 +220,7 @@ function BindNewTab({
           autoComplete="off"
           spellCheck={false}
         />
-        <p className={styles.fieldHint}>Auto-populated from path. Overridable.</p>
+        <p className={styles.fieldHint}>Auto-filled from the folder name. Override only when this repo should write into a different project entity.</p>
       </div>
 
       <label className={styles.checkboxLabel}>
@@ -221,7 +230,7 @@ function BindNewTab({
           onChange={e => setAddToGitignore(e.target.checked)}
           className={styles.checkbox}
         />
-        <span>Add .env.iranti to .gitignore</span>
+        <span>Keep the local binding file out of git</span>
       </label>
 
       {submitError && (
@@ -240,7 +249,7 @@ function BindNewTab({
           {submitting ? (
             <><span className={styles.spinnerSmall} aria-hidden="true" /> Binding…</>
           ) : (
-            'Bind project'
+            'Wire this project'
           )}
         </button>
       </div>
@@ -306,7 +315,7 @@ function RebindExistingTab({
     return (
       <div className={styles.successScreen}>
         <span className={styles.successIcon} aria-hidden="true">✓</span>
-        <h4 className={styles.successTitle}>Project rebound</h4>
+        <h4 className={styles.successTitle}>Project wiring updated</h4>
         {successPaths.length > 0 && (
           <p className={styles.successMeta}>
             Changed: {successPaths.join(', ')}
@@ -344,8 +353,8 @@ function RebindExistingTab({
     return (
       <div className={styles.tabContent}>
         <div className={styles.emptyNote}>
-          No projects currently bound to {instanceName}.
-          Use the Bind New tab to add one.
+          No projects are currently wired to {instanceName}.
+          Use Add Project to wire one now.
         </div>
       </div>
     )
@@ -353,8 +362,15 @@ function RebindExistingTab({
 
   return (
     <div className={styles.tabContent}>
+      <div className={styles.outcomeCard}>
+        <div className={styles.outcomeTitle}>What this does</div>
+        <p className={styles.outcomeBody}>
+          Update an existing repo binding without starting over. Use this when a project should move to a new instance or switch between private and shared memory.
+        </p>
+      </div>
+
       <div className={styles.fieldGroup}>
-        <label className={styles.fieldLabel} htmlFor="rb-project">Project to rebind</label>
+        <label className={styles.fieldLabel} htmlFor="rb-project">Project</label>
         <select
           id="rb-project"
           className={`${styles.select} ${styles.selectMono}`}
@@ -367,36 +383,39 @@ function RebindExistingTab({
             </option>
           ))}
         </select>
+        <p className={styles.fieldHint}>Pick the repo whose `.env.iranti` binding you want to update.</p>
       </div>
 
       <div className={styles.fieldGroupRow}>
         <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel} htmlFor="rb-target">New instance</label>
+          <label className={styles.fieldLabel} htmlFor="rb-target">Move to instance</label>
           <select
             id="rb-target"
             className={styles.select}
             value={targetInstance}
             onChange={e => setTargetInstance(e.target.value)}
           >
-            <option value="">— keep current —</option>
+            <option value="">Keep current instance</option>
             {otherInstances.map(i => (
               <option key={i.instanceId} value={i.name}>{i.name}</option>
             ))}
           </select>
+          <p className={styles.fieldHint}>Leave this alone if the repo should stay attached to the current instance.</p>
         </div>
 
         <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel} htmlFor="rb-mode">Mode</label>
+          <label className={styles.fieldLabel} htmlFor="rb-mode">Switch memory scope</label>
           <select
             id="rb-mode"
             className={styles.select}
             value={newMode}
             onChange={e => setNewMode(e.target.value)}
           >
-            <option value="">— keep current —</option>
-            <option value="isolated">isolated</option>
-            <option value="shared">shared</option>
+            <option value="">Keep current scope</option>
+            <option value="isolated">Private to this project</option>
+            <option value="shared">Shared across bound projects</option>
           </select>
+          <p className={styles.fieldHint}>Only change this when the repo should move into or out of a shared project memory lane.</p>
         </div>
       </div>
 
@@ -416,7 +435,7 @@ function RebindExistingTab({
           {submitting ? (
             <><span className={styles.spinnerSmall} aria-hidden="true" /> Rebinding…</>
           ) : (
-            'Rebind project'
+            'Apply wiring changes'
           )}
         </button>
       </div>
@@ -439,7 +458,7 @@ export function BindProjectForm({
   return (
     <div className={styles.formContainer}>
       <div className={styles.formHeader}>
-        <span className={styles.formTitle}>Project Bindings — {instanceName}</span>
+        <span className={styles.formTitle}>Project Wiring - {instanceName}</span>
         <button
           className={styles.cancelHeaderBtn}
           type="button"
@@ -459,7 +478,7 @@ export function BindProjectForm({
           type="button"
           onClick={() => setActiveTab('bind')}
         >
-          Bind New
+          Add Project
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'rebind' ? styles.tabActive : ''}`}
@@ -468,7 +487,7 @@ export function BindProjectForm({
           type="button"
           onClick={() => setActiveTab('rebind')}
         >
-          Rebind Existing
+          Move Existing Project
         </button>
       </div>
 
@@ -485,3 +504,5 @@ export function BindProjectForm({
     </div>
   )
 }
+
+

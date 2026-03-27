@@ -340,19 +340,20 @@ function EdgeListView({
 interface RelationshipGraphViewProps {
   entityType: string
   entityId: string
+  instanceId?: string
 }
 
-export function RelationshipGraphView({ entityType, entityId }: RelationshipGraphViewProps) {
+export function RelationshipGraphView({ entityType, entityId, instanceId }: RelationshipGraphViewProps) {
   const [depth, setDepth] = useState<1 | 2>(1)
   const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const navigate = useNavigate()
 
   const { data, isLoading, error } = useQuery<RelationshipGraph, Error>({
-    queryKey: ['relationship-graph', entityType, entityId, depth],
+    queryKey: ['relationship-graph', instanceId ?? 'binding', entityType, entityId, depth],
     queryFn: () =>
       apiFetch<RelationshipGraph>(
         `/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/relationships/graph`,
-        { depth }
+        { instanceId, depth }
       ),
     enabled: Boolean(entityType && entityId),
   })

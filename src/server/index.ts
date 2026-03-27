@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import net from 'net'
 import { resolve, dirname } from 'path'
+import { existsSync } from 'fs'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { controlPlaneRouter } from './routes/control-plane/index.js'
@@ -31,11 +32,20 @@ const __dirname = _isSea
 // IRANTI_CP_ASSETS_DIR allows platform-specific launchers (macOS .app wrapper,
 // Linux AppRun) to override the asset path when the binary is inside a bundle
 // where process.execPath does not sit next to the public/ directory.
-const clientDist = process.env.IRANTI_CP_ASSETS_DIR
-  ? resolve(process.env.IRANTI_CP_ASSETS_DIR)
+const clientDistCandidates = process.env.IRANTI_CP_ASSETS_DIR
+  ? [resolve(process.env.IRANTI_CP_ASSETS_DIR)]
   : _isSea
-  ? resolve(dirname(process.execPath), 'public', 'control-plane')
-  : resolve(__dirname, '../../../public/control-plane')
+  ? [resolve(dirname(process.execPath), 'public', 'control-plane')]
+  : [
+      resolve(__dirname, '../../../public/control-plane'),
+      resolve(__dirname, '../../public/control-plane'),
+      resolve(process.cwd(), '../../public/control-plane'),
+      resolve(process.cwd(), '../public/control-plane'),
+    ]
+
+const clientDist =
+  clientDistCandidates.find(candidate => existsSync(resolve(candidate, 'index.html'))) ??
+  clientDistCandidates[0]
 
 // ---------------------------------------------------------------------------
 // Version detection
@@ -54,9 +64,25 @@ try {
     _version = pkg.version ?? '0.0.0'
   } else {
     // In dev/tsc, resolve relative to src/server/dist/index.js.
+    // In the bundled npm package, resolve relative to dist/server/bundle.cjs.
     const _require = createRequire(import.meta.url)
-    const pkg = _require('../../../package.json') as { version?: string }
-    _version = pkg.version ?? '0.0.0'
+    const pkgCandidates = [
+      '../../../package.json',
+      '../../package.json',
+      '../package.json',
+    ]
+
+    for (const candidate of pkgCandidates) {
+      try {
+        const pkg = _require(candidate) as { version?: string }
+        if (pkg.version) {
+          _version = pkg.version
+          break
+        }
+      } catch {
+        // Try the next candidate.
+      }
+    }
   }
 } catch {
   // Non-fatal — version stays '0.0.0'

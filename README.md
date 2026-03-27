@@ -1,10 +1,22 @@
 # Iranti Control Plane
 
-Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti) — inspect memory, watch Staff activity, manage instances, and diagnose your setup without raw SQL.
+Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti) - inspect memory, watch Staff activity, manage instances, and diagnose your setup without raw SQL.
 
 ## Status
 
-Phase 1 in progress — targeting v0.1.0.
+Current package version: `0.4.0`.
+The operator surface is live and under active UX hardening.
+
+## Install
+
+For the packaged control-plane CLI path (after npm publish, or from a locally packed tarball):
+
+```bash
+npm install -g iranti-control-plane
+iranti-cp
+```
+
+That path uses the bundled server and picks the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set.
 
 ## Quick Start
 
@@ -15,8 +27,8 @@ Phase 1 in progress — targeting v0.1.0.
 git clone https://github.com/nfemmanuel/iranti-control-plane
 cd iranti-control-plane
 
-# 2. Create .env.iranti at the repo root
-#    DATABASE_URL=postgresql://user:password@localhost:5432/iranti
+# 2. Make sure the repo root has a project binding file (.env.iranti)
+#    created by `iranti setup` or `iranti configure project .`
 
 # 3. Install all dependencies (server, client, and root workspace tools)
 bash scripts/dev-setup.sh      # macOS/Linux
@@ -31,6 +43,15 @@ npm run dev
 ```
 
 Open http://localhost:5173 for the frontend dev server.
+
+### Port model
+
+The control plane has two common local startup modes:
+
+- **From source (`npm run dev`)**: the control-plane server listens on `3002` by default and the Vite frontend listens on `5173`.
+- **From the packaged CLI (`iranti-cp`)**: the control plane picks the first free port in `3000-3010` unless you set `CONTROL_PLANE_PORT`.
+
+Iranti runtimes themselves still typically start on `3001`, and local PostgreSQL defaults remain on `5432`.
 
 ### Local PostgreSQL with Docker
 
@@ -78,7 +99,7 @@ The root `package.json` provides convenience scripts that orchestrate both serve
 ### Run processes individually
 
 ```bash
-# Server (port 3002, hot-reloaded via tsx watch)
+# Server (port 3002 in source dev, hot-reloaded via tsx watch)
 npm run dev --prefix src/server
 
 # Client (port 5173, Vite HMR)
@@ -100,8 +121,11 @@ cd src/client && npx tsc --noEmit
 
 The control plane is a standalone Express server + React SPA that connects to the same PostgreSQL database as your Iranti instance. It never writes to Iranti's core tables — all state changes go through Iranti's API.
 
-- **Server**: Express on port 3002, TypeScript compiled via `tsc`, hot-reloaded in dev with `tsx watch`
-- **Client**: React 18 + Vite, proxies `/api` to the Iranti instance at `localhost:3001` in dev
+- **Server**: Express on port `3002` in source development; the packaged binary auto-selects the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set
+- **Client**: React 18 + Vite, proxies `/api` to the control-plane server at `localhost:3002` in development
 - **Database**: Shares the Iranti PostgreSQL instance; reads core tables, writes only to control-plane-owned tables
 
 See `docs/specs/control-plane-api.md` for the full API spec and `docs/prd/control-plane.md` for product requirements.
+
+For release and manual publish checks, see [`docs/guides/releasing.md`](docs/guides/releasing.md).
+

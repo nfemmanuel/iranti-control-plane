@@ -26,6 +26,7 @@ interface VersionSyncResult {
   installedVersion: string | null
   latestVersion: string | null
   upToDate: boolean | null
+  status: 'behind' | 'equal' | 'ahead' | 'unknown'
   releaseUrl: string
 }
 
@@ -107,6 +108,26 @@ async function fetchLatestVersion(): Promise<string | null> {
   }
 }
 
+function compareSemver(a: string, b: string): number | null {
+  const parse = (value: string): number[] | null => {
+    const normalized = value.trim().replace(/^v/i, '')
+    const match = normalized.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/)
+    if (!match) return null
+    return [Number(match[1]), Number(match[2]), Number(match[3])]
+  }
+
+  const left = parse(a)
+  const right = parse(b)
+  if (!left || !right) return null
+
+  for (let i = 0; i < 3; i += 1) {
+    const diff = left[i] - right[i]
+    if (diff !== 0) return diff
+  }
+
+  return 0
+}
+
 // ---------------------------------------------------------------------------
 // Route
 // ---------------------------------------------------------------------------
@@ -118,15 +139,30 @@ versionSyncRouter.get('/', async (req: Request, res: Response) => {
     fetchLatestVersion(),
   ])
 
-  const upToDate: boolean | null =
+  const comparison =
     installedVersion !== null && latestVersion !== null
-      ? installedVersion === latestVersion
+      ? compareSemver(installedVersion, latestVersion)
       : null
+
+  const status: VersionSyncResult['status'] =
+    comparison === null
+      ? 'unknown'
+      : comparison < 0
+        ? 'behind'
+        : comparison > 0
+          ? 'ahead'
+          : 'equal'
+
+  const upToDate: boolean | null =
+    comparison === null
+      ? null
+      : comparison >= 0
 
   const result: VersionSyncResult = {
     installedVersion,
     latestVersion,
     upToDate,
+    status,
     releaseUrl: RELEASE_URL,
   }
 

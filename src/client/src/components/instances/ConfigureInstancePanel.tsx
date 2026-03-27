@@ -200,7 +200,7 @@ export function ConfigureInstancePanel({
       <div className={styles.panelBody}>
         {/* Port */}
         <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel} htmlFor="cfg-port">Port</label>
+          <label className={styles.fieldLabel} htmlFor="cfg-port">Runtime port</label>
           <input
             id="cfg-port"
             className={`${styles.input} ${portError ? styles.inputError : ''}`}
@@ -209,9 +209,13 @@ export function ConfigureInstancePanel({
             onChange={e => setPort(e.target.value)}
             min={1024}
             max={65535}
-            placeholder={currentPort !== null ? String(currentPort) : '3002'}
+            placeholder={currentPort !== null ? String(currentPort) : '3001'}
           />
           {portError && <p className={styles.fieldError}>{portError}</p>}
+          <p className={styles.fieldHint}>
+            This changes the Iranti instance port, not the control-plane UI port. New runtimes usually start at
+            <code className={styles.inlineCode}>3001</code>.
+          </p>
         </div>
 
         <div className={styles.fieldGroup}>

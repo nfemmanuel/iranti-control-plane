@@ -1,7 +1,7 @@
-/* Iranti Control Plane — Health & Diagnostics Dashboard */
+﻿/* Iranti Control Plane â€” Health & Diagnostics Dashboard */
 /* Route: /health */
-/* CP-T016 — All 10 health checks, auto-refresh, remediation guidance */
-/* CP-T028 — Four-tier severity taxonomy: CRITICAL / WARNING / INFO / HEALTHY */
+/* CP-T016 â€” All 10 health checks, auto-refresh, remediation guidance */
+/* CP-T028 â€” Four-tier severity taxonomy: CRITICAL / WARNING / INFO / HEALTHY */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -51,12 +51,12 @@ function getCheckLabel(name: string): string {
 
 /**
  * Severity levels in descending priority order.
- * Classification rules are explicit and testable — no implicit fallbacks.
+ * Classification rules are explicit and testable â€” no implicit fallbacks.
  *
- * CRITICAL  — Iranti cannot function. User must act before Iranti works.
- * WARNING   — Iranti is functional but a specific capability is degraded.
- * INFO      — Expected state for a standard installation. No action required.
- * HEALTHY   — Check passed.
+ * CRITICAL  â€” Iranti cannot function. User must act before Iranti works.
+ * WARNING   â€” Iranti is functional but a specific capability is degraded.
+ * INFO      â€” Expected state for a standard installation. No action required.
+ * HEALTHY   â€” Check passed.
  */
 export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'HEALTHY'
 
@@ -82,19 +82,19 @@ export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'HEALTHY'
  *   - claude_md_integration:warn
  *   - staff_events_table:error
  *
- * INFO (explicitly expected states — do NOT show as warning):
- *   - runtime_version:warn      (version behind — non-breaking, expected)
- *   - staff_events_table:warn   (table not yet created — expected on clean install)
+ * INFO (explicitly expected states â€” do NOT show as warning):
+ *   - runtime_version:warn      (version behind â€” non-breaking, expected)
+ *   - staff_events_table:warn   (table not yet created â€” expected on clean install)
  *
  * Note: provider key checks (anthropic_key, openai_key) return status:ok when
- * the key is absent but the provider is not the active one — server-side logic
+ * the key is absent but the provider is not the active one â€” server-side logic
  * handles this so the frontend never needs to second-guess provider context.
  *
  * HEALTHY:
  *   - Any check with status:ok that isn't reclassified above
  *
  * When adding new checks: classify explicitly here. Do not rely on the
- * raw status field alone — backend status values may not match UX intent.
+ * raw status field alone â€” backend status values may not match UX intent.
  */
 export function classifyCheckSeverity(check: HealthCheck): Severity {
   const { name, status } = check
@@ -112,18 +112,18 @@ export function classifyCheckSeverity(check: HealthCheck): Severity {
   }
 
   // INFO: project-level setup and non-blocking states.
-  // These must not appear as warnings — they do not affect Iranti runtime health.
+  // These must not appear as warnings â€” they do not affect Iranti runtime health.
   if (
-    // Version behind latest (minor) — non-breaking, Iranti is fully operational
+    // Version behind latest (minor) â€” non-breaking, Iranti is fully operational
     (name === 'runtime_version' && status === 'warn') ||
-    // staff_events_table not created — CP-specific migration, not a runtime blocker
+    // staff_events_table not created â€” CP-specific migration, not a runtime blocker
     (name === 'staff_events_table' && status === 'warn') ||
     // MCP and CLAUDE.md are project-level integration setup, not runtime health
     (name === 'mcp_integration' && status === 'warn') ||
     (name === 'claude_md_integration' && status === 'warn')
     // Note: provider key checks (anthropic_key, openai_key) return status:ok when
-    // the key is absent but that provider is not active — server-side logic handles this.
-    // A warn status here means the key IS absent AND the provider IS active — genuine warning.
+    // the key is absent but that provider is not active â€” server-side logic handles this.
+    // A warn status here means the key IS absent AND the provider IS active â€” genuine warning.
   ) {
     return 'INFO'
   }
@@ -135,7 +135,7 @@ export function classifyCheckSeverity(check: HealthCheck): Severity {
 
 /**
  * Normalization copy for Informational items.
- * These explain why the state is expected — "this is not a problem because..."
+ * These explain why the state is expected â€” "this is not a problem because..."
  */
 export function getInfoNormalization(checkName: string): string | null {
   switch (checkName) {
@@ -208,9 +208,56 @@ function severitySortKey(severity: Severity): number {
 function getSummaryStatus(checks: HealthCheck[]): { label: string; kind: 'critical' | 'warning' | 'operational' | 'healthy' } {
   const severities = checks.map(c => classifyCheckSeverity(c))
   if (severities.includes('CRITICAL')) return { label: 'Action Required', kind: 'critical' }
-  if (severities.includes('WARNING'))  return { label: 'Operational with warnings', kind: 'warning' }
+  if (severities.includes('WARNING'))  return { label: 'Needs Attention', kind: 'warning' }
   if (severities.includes('INFO'))     return { label: 'Operational', kind: 'operational' }
   return { label: 'Healthy', kind: 'healthy' }
+}
+
+function getOperatorPriorities(checks: HealthCheck[]): Array<{ title: string; body: string }> {
+  const critical = checks.filter((check) => classifyCheckSeverity(check) === 'CRITICAL')
+  if (critical.length > 0) {
+    return critical.slice(0, 3).map((check) => ({
+      title: `Fix ${getCheckLabel(check.name)}`,
+      body: check.message,
+    }))
+  }
+
+  const warnings = checks.filter((check) => classifyCheckSeverity(check) === 'WARNING')
+  if (warnings.length > 0) {
+    return warnings.slice(0, 3).map((check) => ({
+      title: `Review ${getCheckLabel(check.name)}`,
+      body: check.message,
+    }))
+  }
+
+  const infos = checks.filter((check) => classifyCheckSeverity(check) === 'INFO')
+  if (infos.length > 0) {
+    return infos.slice(0, 3).map((check) => ({
+      title: `${getCheckLabel(check.name)} note`,
+      body: getInfoNormalization(check.name) ?? check.message,
+    }))
+  }
+
+  return [
+    {
+      title: 'No immediate operator action',
+      body: 'Runtime health, provider setup, and project-level integrations are in a good place right now.',
+    },
+  ]
+}
+
+function getOperatorSummaryLead(checks: HealthCheck[]): string {
+  const { kind } = getSummaryStatus(checks)
+  if (kind === 'critical') {
+    return 'Iranti is blocked right now. Fix the critical items first, then refresh before trusting the rest of the page.'
+  }
+  if (kind === 'warning') {
+    return 'Iranti is running, but some capabilities are degraded. Use the cards below to decide what to fix next.'
+  }
+  if (kind === 'operational') {
+    return 'Iranti is operational. The notes below are informative rather than blocking.'
+  }
+  return 'Iranti is in a healthy state. Use the cards below only if you are checking specific capabilities.'
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,7 +278,7 @@ function formatSecondsAgo(secs: number): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Overall status badge — CP-T028: uses severity taxonomy labels      */
+/*  Overall status badge â€” CP-T028: uses severity taxonomy labels      */
 /* ------------------------------------------------------------------ */
 
 function OverallBadge({ checks }: { checks: HealthCheck[] }) {
@@ -243,10 +290,10 @@ function OverallBadge({ checks }: { checks: HealthCheck[] }) {
     healthy:     styles.badgeHealthy,
   }
   const iconMap: Record<typeof kind, string> = {
-    critical:    '✗',
-    warning:     '⚠',
-    operational: '✓',
-    healthy:     '✓',
+    critical:    'X',
+    warning:     '!',
+    operational: 'OK',
+    healthy:     'OK',
   }
   return (
     <span className={`${styles.overallBadge} ${classMap[kind]}`} aria-label={`Overall status: ${label}`}>
@@ -282,7 +329,7 @@ function RefreshCountdown({ checkedAt, intervalMs }: { checkedAt: string; interv
 }
 
 /* ------------------------------------------------------------------ */
-/*  Health check card — CP-T028: four-tier severity taxonomy           */
+/*  Health check card â€” CP-T028: four-tier severity taxonomy           */
 /* ------------------------------------------------------------------ */
 
 /** Severity badge displayed in the card header */
@@ -342,17 +389,17 @@ function HealthCard({
     // trigger actions
     if (repairAction.target === 'run-diagnostics') {
       onRunDiagnostics?.()
-      setRepairActionFeedback('Running…')
+      setRepairActionFeedback('Running...')
       setTimeout(() => setRepairActionFeedback(null), 3000)
       return
     }
     if (repairAction.target === 'start-iranti') {
       const instanceName = activeInstance?.name ?? 'local'
       setRepairActionInFlight(true)
-      setRepairActionFeedback('Starting…')
+      setRepairActionFeedback('Starting...')
       try {
         await startInstance(instanceName)
-        setRepairActionFeedback('Started — checking connectivity…')
+        setRepairActionFeedback('Started - checking connectivity...')
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to start'
         setRepairActionFeedback(msg)
@@ -384,12 +431,12 @@ function HealthCard({
   }
 
   // Icon and class: use severity-based mapping (not raw status) for accessibility
-  // Using both icon and text label — do not rely on color alone (CP-T028 a11y req)
+  // Using both icon and text label â€” do not rely on color alone (CP-T028 a11y req)
   const iconMap: Record<Severity, string> = {
-    CRITICAL: '✗',
-    WARNING:  '⚠',
-    INFO:     'ℹ',
-    HEALTHY:  '✓',
+    CRITICAL: 'X',
+    WARNING:  '!',
+    INFO:     'i',
+    HEALTHY:  'OK',
   }
   const iconClassMap: Record<Severity, string> = {
     CRITICAL: styles.iconCritical,
@@ -415,7 +462,7 @@ function HealthCard({
         </span>
         <span className={styles.cardName}>{label}</span>
         <SeverityBadge severity={severity} />
-        {/* CP-T033: Repair button — only shown for WARNING/CRITICAL checks with a repair action */}
+        {/* CP-T033: Repair button â€” only shown for WARNING/CRITICAL checks with a repair action */}
         {(severity === 'WARNING' || severity === 'CRITICAL') && repairInfo && !repairResult && (
           <button
             className={styles.repairBtn}
@@ -432,9 +479,9 @@ function HealthCard({
       {/* CP-T033: Repair success result */}
       {repairResult && (
         <div className={styles.repairSuccess}>
-          <span className={styles.repairSuccessIcon} aria-hidden="true">✓</span>
+          <span className={styles.repairSuccessIcon} aria-hidden="true">OK</span>
           <div>
-            <span className={styles.repairSuccessTitle}>Repair complete — </span>
+            <span className={styles.repairSuccessTitle}>Repair complete - </span>
             <code className={styles.repairSuccessPath}>{repairResult.data.filePath}</code>
             <span className={styles.repairSuccessAction}> ({repairResult.data.action})</span>
             <p className={styles.repairSuccessWarning}>This action is not revertable.</p>
@@ -445,7 +492,7 @@ function HealthCard({
       {/* CP-T033: Repair error */}
       {repairError && (
         <div className={styles.repairError}>
-          <span aria-hidden="true">✗</span> {repairError}
+          <span aria-hidden="true">X</span> {repairError}
         </div>
       )}
 
@@ -460,15 +507,15 @@ function HealthCard({
         </dl>
       )}
 
-      {/* INFO: normalization copy — explains why this state is expected */}
+      {/* INFO: normalization copy â€” explains why this state is expected */}
       {severity === 'INFO' && normalization && (
         <div className={styles.normalization}>
-          <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+          <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>{normalization}</p>
         </div>
       )}
 
-      {/* CRITICAL / WARNING: remediation copy — explains what to do */}
+      {/* CRITICAL / WARNING: remediation copy â€” explains what to do */}
       {(severity === 'CRITICAL' || severity === 'WARNING') && remediation && (
         <div className={styles.remediation}>
           <span className={styles.remediationLabel}>
@@ -513,7 +560,7 @@ function HealthCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  CP-T052: Capability Health — severity mapping for vectorBackend    */
+/*  CP-T052: Capability Health â€” severity mapping for vectorBackend    */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -521,9 +568,9 @@ function HealthCard({
  * vectorBackend.status is independent of the overall health field and
  * must not affect the page-level OverallBadge.
  *
- *   ok    → HEALTHY (green)
- *   warn  → WARNING (amber) — backend type set but URL not configured
- *   error → CRITICAL (red)  — external service unreachable
+ *   ok    â†’ HEALTHY (green)
+ *   warn  â†’ WARNING (amber) â€” backend type set but URL not configured
+ *   error â†’ CRITICAL (red)  â€” external service unreachable
  */
 function mapVectorBackendSeverity(status: 'ok' | 'warn' | 'error'): Severity {
   switch (status) {
@@ -540,10 +587,10 @@ function mapVectorBackendSeverity(status: 'ok' | 'warn' | 'error'): Severity {
 function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
   const { enabled, stabilityBase, stabilityMax, decayThreshold } = decay
 
-  // Amber = enabled (intentional — decay active is a notable operator state)
+  // Amber = enabled (intentional â€” decay active is a notable operator state)
   // Green = disabled
   const iconClass = enabled ? styles.iconWarn : styles.iconOk
-  const icon      = enabled ? '~' : '✓'
+  const icon      = enabled ? '~' : 'OK'
   const dotLabel  = enabled ? 'Enabled' : 'Disabled'
   const cardClass = enabled ? styles.cardWarn : styles.cardOk
   const badge     = enabled ? <SeverityBadge severity="WARNING" /> : <SeverityBadge severity="HEALTHY" />
@@ -561,10 +608,10 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
         {badge}
       </div>
 
-      {/* Color direction note — operators must not mistake amber for a warning */}
+      {/* Color direction note â€” operators must not mistake amber for a warning */}
       <p className={styles.cardMessage}>
         {enabled
-          ? 'Decay is active — facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
+          ? 'Decay is active â€” facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
           : 'Memory decay is disabled. Facts are archived only by expiry, low confidence (< 30), or Resolutionist resolution.'}
       </p>
 
@@ -576,7 +623,7 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
           </div>
           <div className={styles.cardDetailRow}>
             <dt className={styles.cardDetailKey}>stability range</dt>
-            <dd className={styles.cardDetailVal}>{stabilityBase}–{stabilityMax} days</dd>
+            <dd className={styles.cardDetailVal}>{stabilityBase}-{stabilityMax} days</dd>
           </div>
           <div className={styles.cardDetailRow}>
             <dt className={styles.cardDetailKey}>decay threshold</dt>
@@ -587,10 +634,10 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
 
       {/* Always-visible note clarifying amber color direction */}
       <div className={styles.normalization}>
-        <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+        <span className={styles.normalizationLabel} aria-hidden="true">i</span>
         <p className={styles.normalizationText}>
           {enabled
-            ? 'Amber here means decay is on — this is an operator-visible state, not an error.'
+            ? 'Amber here means decay is on â€” this is an operator-visible state, not an error.'
             : 'Green means decay is off. No automatic archival by time/access pattern. Explicit actions (expiry, confidence threshold, Resolutionist) still apply.'}
         </p>
       </div>
@@ -607,10 +654,10 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
   const severity = mapVectorBackendSeverity(status)
 
   const iconMap: Record<Severity, string> = {
-    CRITICAL: '✗',
-    WARNING:  '⚠',
-    INFO:     'ℹ',
-    HEALTHY:  '✓',
+    CRITICAL: 'X',
+    WARNING:  '!',
+    INFO:     'i',
+    HEALTHY:  'OK',
   }
   const iconClassMap: Record<Severity, string> = {
     CRITICAL: styles.iconCritical,
@@ -643,7 +690,7 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
   return (
     <div
       className={`${styles.card} ${cardClassMap[severity]}`}
-      aria-label={`Vector Backend: ${typeLabel} — ${severity.toLowerCase()}`}
+      aria-label={`Vector Backend: ${typeLabel} â€” ${severity.toLowerCase()}`}
     >
       <div className={styles.cardHeader}>
         <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
@@ -667,15 +714,15 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
         {(type === 'pgvector' || type === 'unknown') && (
           <div className={styles.cardDetailRow}>
             <dt className={styles.cardDetailKey}>connection</dt>
-            <dd className={styles.cardDetailVal}>Uses primary database connection — see DB Reachability check</dd>
+            <dd className={styles.cardDetailVal}>Uses primary database connection â€” see DB Reachability check</dd>
           </div>
         )}
       </dl>
 
-      {/* Hybrid fallback note — informational, not a warning */}
+      {/* Hybrid fallback note â€” informational, not a warning */}
       {showHybridFallback && (
         <div className={styles.normalization}>
-          <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+          <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>
             Iranti v0.2.13+ falls back to in-process semantic scoring if pgvector is unavailable. Search quality may be reduced in fallback mode.
           </p>
@@ -707,10 +754,10 @@ function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
     'WARNING'
 
   const iconMap: Record<Severity, string> = {
-    CRITICAL: '✗',
-    WARNING:  '⚠',
-    INFO:     'ℹ',
-    HEALTHY:  '✓',
+    CRITICAL: 'X',
+    WARNING:  '!',
+    INFO:     'i',
+    HEALTHY:  'OK',
   }
   const iconClassMap: Record<Severity, string> = {
     CRITICAL: styles.iconCritical,
@@ -754,7 +801,7 @@ function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
 
       {attendant.status === 'unreachable' && (
         <div className={styles.normalization}>
-          <span className={styles.normalizationLabel} aria-hidden="true">ℹ</span>
+          <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>
             Start Iranti to enable the Attendant: <code className={styles.capabilityInlineCode}>iranti run --instance local</code>
           </p>
@@ -810,7 +857,7 @@ function CapabilityHealthSection({
 
 /**
  * Human-friendly labels for the 7 diagnostic checks.
- * Internal key → display name.
+ * Internal key â†’ display name.
  */
 const DIAG_CHECK_LABELS: Record<string, string> = {
   iranti_connectivity: 'Iranti Connectivity',
@@ -856,7 +903,7 @@ function DiagHintActions({ hint }: { hint: string }) {
   )
 }
 
-/** Status badge for a diagnostic check — pass/warn/fail */
+/** Status badge for a diagnostic check â€” pass/warn/fail */
 function DiagStatusBadge({ status }: { status: DiagnosticCheckResult['status'] }) {
   const labelMap: Record<DiagnosticCheckResult['status'], string> = {
     pass: 'Pass',
@@ -883,7 +930,7 @@ function DiagSummaryBanner({ result }: { result: DiagnosticRunResult }) {
   if (result.overallStatus === 'pass') {
     return (
       <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryPass}`} role="status">
-        <span aria-hidden="true">✓</span>
+        <span aria-hidden="true">OK</span>
         All checks passed
       </div>
     )
@@ -891,20 +938,20 @@ function DiagSummaryBanner({ result }: { result: DiagnosticRunResult }) {
   if (result.overallStatus === 'warn') {
     return (
       <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryWarn}`} role="status">
-        <span aria-hidden="true">⚠</span>
-        {warnCount} warning{warnCount !== 1 ? 's' : ''} — system functional but degraded
+        <span aria-hidden="true">!</span>
+        {warnCount} warning{warnCount !== 1 ? 's' : ''} - system functional but degraded
       </div>
     )
   }
   return (
     <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryFail}`} role="alert">
-      <span aria-hidden="true">✗</span>
-      {failCount} failure{failCount !== 1 ? 's' : ''} detected — action required
+      <span aria-hidden="true">X</span>
+      {failCount} failure{failCount !== 1 ? 's' : ''} detected - action required
     </div>
   )
 }
 
-/** Full diagnostics results panel — renders when expanded */
+/** Full diagnostics results panel â€” renders when expanded */
 function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
   return (
     <div className={styles.diagPanelContainer} aria-label="Diagnostic results">
@@ -940,7 +987,7 @@ function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
 }
 
 /**
- * Interactive Diagnostics Panel — CP-T059.
+ * Interactive Diagnostics Panel â€” CP-T059.
  *
  * Renders:
  *  - "Run Diagnostics" button (with loading state)
@@ -1045,10 +1092,10 @@ function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal
           aria-busy={running}
         >
           {running && <span className={styles.diagSpinner} aria-hidden="true" />}
-          {running ? 'Running diagnostics…' : 'Run Diagnostics'}
+          {running ? 'Running diagnostics...' : 'Run Diagnostics'}
         </button>
 
-        {/* Collapse/expand toggle — only visible when there is a result to show */}
+        {/* Collapse/expand toggle â€” only visible when there is a result to show */}
         {activeResult && (
           <button
             className={styles.diagPanelToggle}
@@ -1057,7 +1104,7 @@ function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal
             aria-expanded={expanded}
             aria-controls="diag-results-panel"
           >
-            {expanded ? '▲ Collapse' : '▼ Expand'}
+            {expanded ? 'Collapse' : 'Expand'}
           </button>
         )}
 
@@ -1073,12 +1120,12 @@ function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal
       {/* Error state */}
       {error && (
         <div className={styles.diagErrorStrip} role="alert">
-          <span aria-hidden="true">✗</span>
+          <span aria-hidden="true">X</span>
           {error}
         </div>
       )}
 
-      {/* Collapsed last-run summary — shown on page load if last run exists and panel is not expanded */}
+      {/* Collapsed last-run summary â€” shown on page load if last run exists and panel is not expanded */}
       {lastRunLoaded && lastRun && !expanded && !running && (
         <div className={styles.diagLastRunCollapsed}>
           <DiagStatusBadge status={lastRun.overallStatus} />
@@ -1123,7 +1170,7 @@ export function HealthDashboard() {
     staleTime: 0,
   })
 
-  // CP-T078: Version sync — compare installed vs npm latest
+  // CP-T078: Version sync â€” compare installed vs npm latest
   // Version changes rarely; 5-minute refetch interval is sufficient.
   const { data: versionSync } = useQuery<VersionSyncResult, Error>({
     queryKey: ['version-sync', activeInstance?.id ?? 'binding'],
@@ -1152,7 +1199,7 @@ export function HealthDashboard() {
     }
   }
 
-  // CP-T028: Sort by severity taxonomy — CRITICAL first, then WARNING, then INFO, then HEALTHY
+  // CP-T028: Sort by severity taxonomy â€” CRITICAL first, then WARNING, then INFO, then HEALTHY
   const sortedChecks = data
     ? [...data.checks].sort(
         (a, b) => severitySortKey(classifyCheckSeverity(a)) - severitySortKey(classifyCheckSeverity(b))
@@ -1166,7 +1213,7 @@ export function HealthDashboard() {
     return (
       <div className={styles.page}>
         <div className={styles.unavailableState}>
-          <span className={styles.unavailableIcon}>✗</span>
+          <span className={styles.unavailableIcon}>X</span>
           <h2 className={styles.unavailableTitle}>Diagnostics unavailable</h2>
           <p className={styles.unavailableBody}>
             The health endpoint returned an error. Iranti may not be running, or the control plane server is unreachable.
@@ -1190,7 +1237,7 @@ export function HealthDashboard() {
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           {data && <OverallBadge checks={data.checks} />}
-          {isLoading && <span className={styles.overallLoading}>Checking…</span>}
+          {isLoading && <span className={styles.overallLoading}>Checking...</span>}
           <div className={styles.headerMeta}>
             {data?.scope && (
               <span className={styles.checkedAt}>
@@ -1200,23 +1247,23 @@ export function HealthDashboard() {
             {data && (
               <span className={styles.checkedAt}>
                 {isRefreshing
-                  ? 'Refreshing…'
+                  ? 'Refreshing...'
                   : `Last checked: ${formatSecondsAgo(secondsAgo(data.checkedAt))}`
                 }
               </span>
             )}
-            {/* CP-T078: Version sync status — shown only when data is available */}
+            {/* CP-T078: Version sync status â€” shown only when data is available */}
             {versionSync && versionSync.installedVersion !== null && (
               <span className={styles.versionStatus}>
                 <span className={styles.versionPrefix}>Iranti</span>
                 {' '}
-                {versionSync.upToDate === true ? (
+                {versionSync.status === 'equal' ? (
                   <span className={styles.versionUpToDate}>
-                    v{versionSync.installedVersion} — up to date
+                    v{versionSync.installedVersion} - up to date
                   </span>
-                ) : versionSync.upToDate === false ? (
+                ) : versionSync.status === 'behind' ? (
                   <span className={styles.versionUpdateAvailable}>
-                    v{versionSync.installedVersion} — update available:{' '}
+                    v{versionSync.installedVersion} - update available:{' '}
                     <a
                       href={versionSync.releaseUrl}
                       target="_blank"
@@ -1225,6 +1272,10 @@ export function HealthDashboard() {
                     >
                       v{versionSync.latestVersion}
                     </a>
+                  </span>
+                ) : versionSync.status === 'ahead' ? (
+                  <span className={styles.versionUpToDate}>
+                    v{versionSync.installedVersion} - ahead of npm latest v{versionSync.latestVersion}
                   </span>
                 ) : null}
               </span>
@@ -1242,40 +1293,40 @@ export function HealthDashboard() {
             type="button"
             aria-label="Refresh health checks"
           >
-            ↺
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* CP-T028: Setup guidance banner — shown only when Critical issues are present */}
-      {data && getSummaryStatus(data.checks).kind === 'critical' && (
-        <div className={styles.setupBannerCritical}>
-          <span className={styles.setupBannerIcon} aria-hidden="true">✗</span>
-          <div>
-            <strong>Critical issue — Iranti cannot function until this is resolved.</strong>
-            {' '}Check the items marked Critical below and follow the remediation steps.
+      {data && (
+        <div className={styles.operatorSummary}>
+          <div className={styles.operatorSummaryHeader}>
+            <span className={styles.operatorSummaryTitle}>What matters now</span>
+            <span className={styles.operatorSummaryMeta}>
+              {getSummaryStatus(data.checks).label}
+            </span>
+          </div>
+          <p className={styles.operatorSummaryLead}>
+            {getOperatorSummaryLead(data.checks)}
+          </p>
+          <div className={styles.operatorSummaryGrid}>
+            {getOperatorPriorities(data.checks).map((item) => (
+              <div key={item.title} className={styles.operatorSummaryCard}>
+                <div className={styles.operatorSummaryCardTitle}>{item.title}</div>
+                <p className={styles.operatorSummaryCardBody}>{item.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* CP-T028: Warning banner — shown only when Warning (but no Critical) issues exist */}
-      {data && getSummaryStatus(data.checks).kind === 'warning' && (
-        <div className={styles.setupBannerWarning}>
-          <span className={styles.setupBannerIcon} aria-hidden="true">⚠</span>
-          <div>
-            <strong>Operational with warnings.</strong>
-            {' '}Iranti is running, but some capabilities may be degraded. Review the items below.
-          </div>
-        </div>
-      )}
-
-      {/* CP-T046: Unreachable provider banner — shown when any configured provider cannot be reached */}
+      {/* CP-T046: Unreachable provider banner â€” shown when any configured provider cannot be reached */}
       {unreachableProviders.length > 0 && (
         <div className={styles.setupBannerWarning} role="alert">
-          <span className={styles.setupBannerIcon} aria-hidden="true">⚠</span>
+          <span className={styles.setupBannerIcon} aria-hidden="true">!</span>
           <div>
             <strong>One or more providers are unreachable</strong>
-            {' '}— check your API keys and network.
+            {' '}- check your API keys and network.
             {' '}
             <Link to="/providers" className={styles.providerBannerLink}>
               Open Provider Manager
@@ -1284,7 +1335,7 @@ export function HealthDashboard() {
         </div>
       )}
 
-      {/* Scrollable content area — grid + all sections below banners */}
+      {/* Scrollable content area â€” grid + all sections below banners */}
       <div className={styles.scrollContainer}>
         {/* Loading state */}
         {isLoading && (
@@ -1310,7 +1361,7 @@ export function HealthDashboard() {
           </div>
         )}
 
-        {/* CP-T052: Capability Health section — Decay, Vector Backend, Attendant */}
+        {/* CP-T052: Capability Health section â€” Decay, Vector Backend, Attendant */}
         {!isLoading && data && (
           <CapabilityHealthSection
             decay={data.decay}
@@ -1322,12 +1373,14 @@ export function HealthDashboard() {
         {/* CP-T059: Interactive Diagnostics Panel */}
         <DiagnosticsPanel externalRunSignal={diagRunSignal} instanceId={activeInstance?.id} />
 
-        {/* CP-T034: Provider status section — key presence, reachability, models */}
+        {/* CP-T034: Provider status section â€” key presence, reachability, models */}
         {!isLoading && <ProviderStatusSection instanceId={activeInstance?.id} />}
 
-        {/* CP-T096: Attendant Debug Tools — collapsed by default */}
+        {/* CP-T096: Attendant Debug Tools â€” collapsed by default */}
         <AttendantDebugPanel />
       </div>
     </div>
   )
 }
+
+

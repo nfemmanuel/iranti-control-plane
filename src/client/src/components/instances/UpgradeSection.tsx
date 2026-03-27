@@ -1,18 +1,14 @@
-/* Iranti Control Plane — UpgradeSection */
-/* CP-T073: Upgrade coordination UI — triggers iranti upgrade --restart --instance <name> */
+/* Iranti Control Plane - UpgradeSection */
+/* CP-T073: Upgrade coordination UI - triggers iranti upgrade --restart --instance <name> */
 
 import { useState, useRef, useEffect } from 'react'
 import type { UpgradeJobStarted, UpgradeJobStatus } from '../../api/types'
 import styles from './UpgradeSection.module.css'
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                               */
-/* ------------------------------------------------------------------ */
-
 interface UpgradeSectionProps {
-  instanceName: string      // the instance's name/id (used in API path)
-  runningVersion: string | null  // from runtime.version — show in UI
-  onUpgradeComplete: () => void  // called when upgrade succeeds — triggers refetch
+  instanceName: string
+  runningVersion: string | null
+  onUpgradeComplete: () => void
 }
 
 type UpgradePhase =
@@ -23,16 +19,21 @@ type UpgradePhase =
   | { phase: 'failed'; exitCode: number | null; outputTail: string[] }
   | { phase: 'error'; message: string }
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                           */
-/* ------------------------------------------------------------------ */
+async function parseJsonResponse<T>(res: Response): Promise<T & { error?: string; code?: string }> {
+  const raw = await res.text()
+  if (!raw.trim()) return {} as T & { error?: string; code?: string }
+  try {
+    return JSON.parse(raw) as T & { error?: string; code?: string }
+  } catch {
+    return { error: raw.trim() } as T & { error?: string; code?: string }
+  }
+}
 
 export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete }: UpgradeSectionProps) {
   const [state, setState] = useState<UpgradePhase>({ phase: 'idle' })
   const [jobStatus, setJobStatus] = useState<UpgradeJobStatus | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Cleanup polling interval on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
@@ -54,12 +55,15 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
           const res = await fetch(
             `/api/control-plane/instances/${encodeURIComponent(name)}/upgrade/${encodeURIComponent(jobId)}`
           )
+          const status = await parseJsonResponse<UpgradeJobStatus>(res)
           if (!res.ok) {
             stopPolling()
-            setState({ phase: 'error', message: 'Could not check upgrade status — connection issue.' })
+            setState({
+              phase: 'error',
+              message: status.error ?? `Could not check upgrade status (HTTP ${res.status}).`,
+            })
             return
           }
-          const status = await res.json() as UpgradeJobStatus
           setJobStatus(status)
           if (status.status === 'complete' || status.status === 'failed') {
             stopPolling()
@@ -76,7 +80,7 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
           }
         } catch {
           stopPolling()
-          setState({ phase: 'error', message: 'Could not check upgrade status — connection issue.' })
+          setState({ phase: 'error', message: 'Could not check upgrade status - connection issue.' })
         }
       })()
     }, 2000)
@@ -90,7 +94,7 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
         `/api/control-plane/instances/${encodeURIComponent(instanceName)}/upgrade`,
         { method: 'POST' }
       )
-      const body = await res.json() as UpgradeJobStarted & { error?: string; code?: string }
+      const body = await parseJsonResponse<UpgradeJobStarted>(res)
 
       if (!res.ok) {
         const code = body.code
@@ -102,8 +106,13 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
         } else if (code === 'INVALID_PARAM') {
           setState({ phase: 'error', message: 'Invalid instance name.' })
         } else {
-          setState({ phase: 'error', message: body.error ?? 'Failed to start upgrade.' })
+          setState({ phase: 'error', message: body.error ?? `Failed to start upgrade (HTTP ${res.status}).` })
         }
+        return
+      }
+
+      if (!body.jobId) {
+        setState({ phase: 'error', message: 'Upgrade route returned no job id.' })
         return
       }
 
@@ -120,22 +129,16 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
     setState({ phase: 'idle' })
   }
 
-  /* ----------------------------------------------------------------
-     Render
-     ---------------------------------------------------------------- */
-
   return (
     <section className={styles.upgradeSection}>
       <h3 className={styles.upgradeSectionTitle}>Upgrade</h3>
 
-      {/* Version line — always visible */}
       {runningVersion && (
         <div className={styles.versionDisplay}>
           Running: <span className={styles.versionValue}>v{runningVersion}</span>
         </div>
       )}
 
-      {/* ── Idle ── */}
       {state.phase === 'idle' && (
         <>
           <div className={styles.upgradeControls}>
@@ -148,13 +151,12 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
             </button>
           </div>
           <p className={styles.upgradeWarning}>
-            <span className={styles.warningIcon}>⚠</span>
+            <span className={styles.warningIcon}>!</span>
             Upgrading will restart this instance. Active agents will experience a brief interruption.
           </p>
         </>
       )}
 
-      {/* ── Confirming ── */}
       {state.phase === 'confirming' && (
         <div className={styles.confirmBlock}>
           <p className={styles.confirmTitle}>
@@ -169,30 +171,21 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
             This may take up to 60 seconds.
           </p>
           <div className={styles.confirmButtons}>
-            <button
-              className={styles.cancelBtn}
-              type="button"
-              onClick={resetToIdle}
-            >
+            <button className={styles.cancelBtn} type="button" onClick={resetToIdle}>
               Cancel
             </button>
-            <button
-              className={styles.upgradeBtn}
-              type="button"
-              onClick={() => void handleUpgradeClick()}
-            >
+            <button className={styles.upgradeBtn} type="button" onClick={() => void handleUpgradeClick()}>
               Upgrade
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Upgrading ── */}
       {state.phase === 'upgrading' && (
         <div className={styles.upgradingBlock}>
           <div className={styles.upgradingHeader}>
             <span className={styles.spinnerSmall} aria-hidden="true" />
-            <span className={styles.upgradingLabel}>Upgrading…</span>
+            <span className={styles.upgradingLabel}>Upgrading...</span>
           </div>
           {jobStatus && jobStatus.output.length > 0 && (
             <div className={styles.outputBlock} aria-label="Upgrade output">
@@ -204,30 +197,24 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
         </div>
       )}
 
-      {/* ── Complete ── */}
       {state.phase === 'complete' && (
         <div className={styles.completeBlock}>
           <div className={styles.statusRow}>
-            <span className={`${styles.statusIcon} ${styles.statusIconSuccess}`} aria-label="Success">✓</span>
+            <span className={`${styles.statusIcon} ${styles.statusIconSuccess}`} aria-label="Success">OK</span>
             <span className={styles.completeMessage}>
               Upgrade complete. The instance has restarted.
             </span>
           </div>
-          <button
-            className={styles.doneBtn}
-            type="button"
-            onClick={resetToIdle}
-          >
+          <button className={styles.doneBtn} type="button" onClick={resetToIdle}>
             Done
           </button>
         </div>
       )}
 
-      {/* ── Failed ── */}
       {state.phase === 'failed' && (
         <div className={styles.failedBlock}>
           <div className={styles.statusRow}>
-            <span className={`${styles.statusIcon} ${styles.statusIconFailure}`} aria-label="Failed">✗</span>
+            <span className={`${styles.statusIcon} ${styles.statusIconFailure}`} aria-label="Failed">X</span>
             <span className={styles.failedMessage}>
               Upgrade failed{state.exitCode !== null ? ` (exit code: ${state.exitCode})` : ''}.
             </span>
@@ -239,28 +226,19 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
               ))}
             </div>
           )}
-          <button
-            className={styles.retryBtn}
-            type="button"
-            onClick={resetToIdle}
-          >
+          <button className={styles.retryBtn} type="button" onClick={resetToIdle}>
             Try again
           </button>
         </div>
       )}
 
-      {/* ── Error (API / network error) ── */}
       {state.phase === 'error' && (
         <div className={styles.failedBlock}>
           <div className={styles.statusRow}>
-            <span className={`${styles.statusIcon} ${styles.statusIconFailure}`} aria-label="Error">✗</span>
+            <span className={`${styles.statusIcon} ${styles.statusIconFailure}`} aria-label="Error">X</span>
             <span className={styles.failedMessage}>{state.message}</span>
           </div>
-          <button
-            className={styles.retryBtn}
-            type="button"
-            onClick={resetToIdle}
-          >
+          <button className={styles.retryBtn} type="button" onClick={resetToIdle}>
             Try again
           </button>
         </div>

@@ -63,7 +63,7 @@ function RevokeConfirmModal({
   return (
     <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="revoke-modal-title">
       <div className={styles.modalBox}>
-        <p className={styles.modalTitle} id="revoke-modal-title">Revoke API key?</p>
+        <p className={styles.modalTitle} id="revoke-modal-title">Revoke Iranti access key?</p>
         <p className={styles.modalBody}>
           This will permanently revoke{' '}
           <code className={styles.modalKeyId}>{target.keyId}</code>
@@ -271,7 +271,7 @@ function CreateKeyForm({
 
   return (
     <div className={styles.formPanel}>
-      <p className={styles.formTitle}>Create API Key</p>
+      <p className={styles.formTitle}>Create Iranti Access Key</p>
 
       <div className={styles.formRow}>
         <label className={styles.formLabel} htmlFor="ak-keyId">Key ID <span style={{ color: 'var(--color-status-error)' }}>*</span></label>
@@ -392,7 +392,7 @@ function CreateKeyForm({
           {inFlight ? (
             <><span className={styles.spinnerSmall} aria-hidden="true" /> Creating…</>
           ) : (
-            'Create key'
+            'Create access key'
           )}
         </button>
         <button
@@ -478,7 +478,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
-        <h3 className={styles.sectionTitle}>API Keys</h3>
+        <h3 className={styles.sectionTitle}>Iranti Access Keys</h3>
         {!showForm && (
           <button
             className={styles.createBtn}
@@ -488,7 +488,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
               setShowForm(true)
             }}
           >
-            + Create Key
+            + Create Access Key
           </button>
         )}
       </div>
@@ -523,7 +523,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
       {isLoading && (
         <div className={styles.loadingRow}>
           <span className={styles.spinnerSmall} aria-hidden="true" />
-          Loading API keys…
+          Loading Iranti access keys…
         </div>
       )}
 
@@ -553,7 +553,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
       {/* Empty state */}
       {!isLoading && !loadError && sortedKeys.length === 0 && (
         <div className={styles.emptyState}>
-          No API keys registered. Run{' '}
+          No Iranti access keys registered. Run{' '}
           <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>iranti setup</code>
           {' '}or create your first key here.
         </div>

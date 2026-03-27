@@ -835,12 +835,17 @@ describe('GET /instances/:instanceId/projects', () => {
     expect(status).toBe(404)
   })
 
-  it('PR-002: returns 200 with {instanceName, projects} for the local instance', async () => {
-    // Requires ~/.iranti-runtime/instances/local/.env to exist (standard dev setup).
-    const { status, body } = await get('/instances/local/projects')
+  it('PR-002: returns 200 with {instanceName, projects} for a discovered instance', async () => {
+    const { status: instancesStatus, body: instancesBody } = await get('/instances')
+    expect(instancesStatus).toBe(200)
+    const instances = (instancesBody as Record<string, unknown>).instances as Record<string, unknown>[]
+    expect(instances.length).toBeGreaterThan(0)
+
+    const instanceName = instances[0].name as string
+    const { status, body } = await get(`/instances/${encodeURIComponent(instanceName)}/projects`)
     expect(status).toBe(200)
     const b = body as Record<string, unknown>
-    expect(b).toHaveProperty('instanceName', 'local')
+    expect(b).toHaveProperty('instanceName', instanceName)
     expect(Array.isArray(b.projects)).toBe(true)
   })
 })

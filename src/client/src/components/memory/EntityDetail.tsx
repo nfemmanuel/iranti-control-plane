@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import type { EntityDetailResponse, KBFact, ArchiveFact, WhoKnowsResponse, AgentsListResponse, EntityAlias, EntityAliasesResponse } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import { RelationshipGraphView } from './RelationshipGraphView'
@@ -205,9 +206,11 @@ function ArchivedFactsTable({ facts }: { facts: ArchiveFact[] }) {
 function ContributorsPanel({
   entityType,
   entityId,
+  instanceId,
 }: {
   entityType: string
   entityId: string
+  instanceId?: string
 }) {
   // Fetch WhoKnows data for this entity
   const {
@@ -215,10 +218,11 @@ function ContributorsPanel({
     isLoading: wkLoading,
     error: wkError,
   } = useQuery<WhoKnowsResponse, Error>({
-    queryKey: ['whoknows', entityType, entityId],
+    queryKey: ['whoknows', instanceId ?? 'binding', entityType, entityId],
     queryFn: () =>
       apiFetch<WhoKnowsResponse>(
-        `/kb/whoknows/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`
+        `/kb/whoknows/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`,
+        { instanceId }
       ),
     retry: false,
     staleTime: 2 * 60 * 1000,
@@ -360,6 +364,7 @@ interface CreateAliasFormProps {
 }
 
 function CreateAliasForm({ entityType, entityId, onSuccess }: CreateAliasFormProps) {
+  const { activeInstance } = useInstanceContext()
   const [token, setToken] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -367,7 +372,9 @@ function CreateAliasForm({ entityType, entityId, onSuccess }: CreateAliasFormPro
 
   const mutation = useMutation<void, Error, string>({
     mutationFn: async (aliasToken) => {
-      const res = await fetch('/api/control-plane/kb/alias', {
+      const url = new URL('/api/control-plane/kb/alias', window.location.origin)
+      if (activeInstance?.id) url.searchParams.set('instanceId', activeInstance.id)
+      const res = await fetch(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -434,6 +441,8 @@ interface AliasesPanelProps {
 }
 
 function AliasesPanel({ entityType, entityId }: AliasesPanelProps) {
+  const { activeInstance } = useInstanceContext()
+  const activeInstanceId = activeInstance?.id
   const [formOpen, setFormOpen] = useState(false)
   const queryClient = useQueryClient()
 
@@ -442,17 +451,18 @@ function AliasesPanel({ entityType, entityId }: AliasesPanelProps) {
     isLoading,
     error,
   } = useQuery<EntityAliasesResponse, Error>({
-    queryKey: ['entity-aliases', entityType, entityId],
+    queryKey: ['entity-aliases', activeInstanceId ?? 'binding', entityType, entityId],
     queryFn: () =>
       apiFetch<EntityAliasesResponse>(
-        `/kb/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/aliases`
+        `/kb/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/aliases`,
+        { instanceId: activeInstanceId }
       ),
     retry: false,
     staleTime: 2 * 60 * 1000,
   })
 
   const handleAliasCreated = () => {
-    void queryClient.invalidateQueries({ queryKey: ['entity-aliases', entityType, entityId] })
+    void queryClient.invalidateQueries({ queryKey: ['entity-aliases', activeInstanceId ?? 'binding', entityType, entityId] })
     setFormOpen(false)
   }
 
@@ -539,15 +549,20 @@ type Tab = 'facts' | 'archived' | 'relationships' | 'aliases'
 
 export function EntityDetail() {
   const { entityType, entityId } = useParams<{ entityType: string; entityId: string }>()
+  const { activeInstance } = useInstanceContext()
+  const activeInstanceId = activeInstance?.id
   const [activeTab, setActiveTab] = useState<Tab>('facts')
 
   const decodedType = entityType ? decodeURIComponent(entityType) : ''
   const decodedId = entityId ? decodeURIComponent(entityId) : ''
 
   const { data, isLoading, error, refetch } = useQuery<EntityDetailResponse, Error>({
-    queryKey: ['entity-detail', decodedType, decodedId],
+    queryKey: ['entity-detail', activeInstanceId ?? 'binding', decodedType, decodedId],
     queryFn: () =>
-      apiFetch<EntityDetailResponse>(`/entities/${encodeURIComponent(decodedType)}/${encodeURIComponent(decodedId)}`),
+      apiFetch<EntityDetailResponse>(
+        `/entities/${encodeURIComponent(decodedType)}/${encodeURIComponent(decodedId)}`,
+        { instanceId: activeInstanceId }
+      ),
     enabled: Boolean(decodedType && decodedId),
   })
 
@@ -702,6 +717,7 @@ export function EntityDetail() {
           <RelationshipGraphView
             entityType={decodedType}
             entityId={decodedId}
+            instanceId={activeInstanceId}
           />
         )}
         {activeTab === 'aliases' && (
@@ -710,7 +726,7 @@ export function EntityDetail() {
       </div>
 
       {/* CP-T057: Contributors panel — always visible below tab content */}
-      <ContributorsPanel entityType={decodedType} entityId={decodedId} />
+      <ContributorsPanel entityType={decodedType} entityId={decodedId} instanceId={activeInstanceId} />
     </div>
   )
 }

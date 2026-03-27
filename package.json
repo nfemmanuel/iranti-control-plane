@@ -1,7 +1,7 @@
 {
   "name": "iranti-control-plane",
   "version": "0.4.0",
-  "description": "Operator control plane for Iranti — local-first agent memory management",
+  "description": "Operator control plane for Iranti - local-first agent memory management",
   "bin": {
     "iranti-cp": "./dist/server/bundle.cjs"
   },
@@ -17,6 +17,7 @@
     "dev:server": "node scripts/dev-server.mjs",
     "dev:client": "cd src/client && npm run dev",
     "dev": "node scripts/dev.mjs",
+    "dev:reset": "node scripts/dev-reset.mjs",
     "build:client": "cd src/client && npm run build",
     "build:server": "cd src/server && npm run build",
     "build": "npm run build:client && npm run build:server && npm run package:bundle",
@@ -33,5 +34,24 @@
   "devDependencies": {
     "@clack/prompts": "^1.1.0",
     "concurrently": "^8.2.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nfemmanuel/iranti-control-plane.git"
+  },
+  "homepage": "https://github.com/nfemmanuel/iranti-control-plane#readme",
+  "bugs": {
+    "url": "https://github.com/nfemmanuel/iranti-control-plane/issues"
+  },
+  "keywords": [
+    "iranti",
+    "control-plane",
+    "agent-memory",
+    "operator-dashboard",
+    "mcp",
+    "claude-code",
+    "codex"
+  ],
+  "author": "NF",
+  "license": "AGPL-3.0-or-later"
 }

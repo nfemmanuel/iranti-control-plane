@@ -10,7 +10,7 @@ The Iranti Control Plane is the operator surface for Iranti. It gives you a brow
 
 ## What's Available Now
 
-The following views are functional as of v0.7.0+ (Phase 7 complete):
+The following views are functional in the current operator build:
 
 | View | What it does |
 |---|---|
@@ -92,7 +92,7 @@ IRANTI_INSTANCE_ENV=C:\Users\<user>\.iranti-runtime\instances\local\.env
 
 The `IRANTI_INSTANCE_ENV` path is how the control plane finds your instance's runtime config (database URL, provider keys, port). The `DATABASE_URL` and provider keys live in the instance env — not here.
 
-The control plane server runs on port `3002` by default in development. You can change this with the `CONTROL_PLANE_PORT` variable in `.env.iranti`.
+In source development, the control plane server runs on port `3002` by default. If you launch the packaged `iranti-cp` binary instead, it picks the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set. You can override either path with `CONTROL_PLANE_PORT`.
 
 ---
 
@@ -153,9 +153,9 @@ If you see a database connection error, confirm that PostgreSQL is running and t
 
 **In development:** Navigate to `http://localhost:5173` in your browser.
 
-**In production (built frontend served by server):** Navigate to `http://localhost:3002/control-plane`.
+**In production (built frontend served by server):** Navigate to the port shown in the startup output, for example `http://localhost:3000/control-plane` or `http://localhost:3002/control-plane`.
 
-You'll land on the **Memory Explorer** by default. Use the sidebar on the left to navigate between views. The sidebar lists all live sections in order:
+You'll land on the **Overview** page by default unless your local settings choose a different landing page. Use the sidebar on the left to navigate between views. The sidebar lists all live sections in order:
 
 1. **Memory Explorer** (`/memory`) — browse the live knowledge base
 2. **Archive** (`/archive`) — browse superseded and decayed facts
