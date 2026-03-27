@@ -50,6 +50,8 @@ into the published root `migrations/` folder before packaging.
 - `npm run build:client`
 - `npm run build`
 - `npm pack --json --dry-run`
+- packaged tarball install into a temporary directory
+- packaged CLI smoke start on a non-default port
 
 The dry-run tarball now includes:
 
@@ -58,6 +60,14 @@ The dry-run tarball now includes:
 - `migrations/001_create_staff_events.sql`
 - `migrations/002_create_archive_flags.sql`
 - `migrations/003_staff_events_metrics_index.sql`
+
+The packaged CLI smoke also confirmed:
+
+- the tarball-installed bundle serves `/control-plane`
+- `favicon.svg` is present in the packaged app
+- `/api/control-plane/health` responds
+- `/api/control-plane/instances` responds
+- the packaged server now reports `v0.4.0` instead of `v0.0.0`
 
 ### Partially passed / environment-sensitive
 
