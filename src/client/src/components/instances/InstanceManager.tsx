@@ -4,9 +4,9 @@
 /* CP-T029 — Last-checked timestamp, staleness indicator, precise status labels */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance } from '../../api/client'
+import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance, migrateInstanceRoot } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject, ProjectBinding } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSettings } from '../../hooks/useSettings'
@@ -1040,10 +1040,12 @@ function LifecycleControls({
   )
 }
 
-function RuntimeSection({ instance, onRefresh, isRefreshing }: {
+function RuntimeSection({ instance, onRefresh, isRefreshing, onMigrateRoot, migrateBusy }: {
   instance: InstanceMetadata
   onRefresh: () => void
   isRefreshing: boolean
+  onMigrateRoot: () => void
+  migrateBusy: boolean
 }) {
   const hasConnectionInfo = Boolean(instance.database)
   const staleLevel = getStalenesLevel(instance.runningStatusCheckedAt)
@@ -1065,6 +1067,16 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
           >
             {runtimeRootBadgeLabel(instance.runtimeRoot)}
           </span>
+          {runtimeRootBadgeLabel(instance.runtimeRoot) === 'Legacy root' && (
+            <button
+              className={styles.inlineActionBtn}
+              type="button"
+              disabled={migrateBusy}
+              onClick={onMigrateRoot}
+            >
+              {migrateBusy ? 'Migrating…' : 'Migrate to primary root'}
+            </button>
+          )}
         </span>
       </FieldRow>
       <FieldRow label="Port">
@@ -1589,10 +1601,11 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
   return [runtimePriority, projectsPriority, clientsPriority]
 }
 
-function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
+function DetailPanel({ instance, instances, autoOpenConfigure, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
   instance: InstanceMetadata
   /** All discovered instances — passed through to ApiKeyManager for syncToProject dropdown */
   instances: InstanceMetadata[]
+  autoOpenConfigure?: boolean
   onRefresh: () => void
   isRefreshing: boolean
   onRunDoctor: (instanceId: string) => void
@@ -1605,10 +1618,16 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
   const isActive = activeInstance?.id === instance.instanceId
   const hasConnectionInfo = Boolean(instance.database)
   const [priorityActionBusy, setPriorityActionBusy] = useState(false)
+  const [migrateRootBusy, setMigrateRootBusy] = useState(false)
 
   // CP-T090: Configure panel inline state
   const [showConfigure, setShowConfigure] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  useEffect(() => {
+    if (!autoOpenConfigure) return
+    setShowConfigure(true)
+  }, [autoOpenConfigure, instance.instanceId])
 
   // Map InstanceMetadata to the Instance type expected by context
   const handleSetActive = () => {
@@ -1662,6 +1681,17 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       }
     }
   }, [instance.instanceId, instance.name, onLifecycleChange, onRunDoctor, scrollToSection])
+
+  const handleMigrateRoot = useCallback(async () => {
+    setMigrateRootBusy(true)
+    try {
+      const result = await migrateInstanceRoot(instance.name)
+      onRefetchInstances()
+      navigate(`/instances/${encodeURIComponent(result.instanceId)}`)
+    } finally {
+      setMigrateRootBusy(false)
+    }
+  }, [instance.name, navigate, onRefetchInstances])
 
   return (
     <div className={styles.detailPanel}>
@@ -1805,7 +1835,13 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
           </p>
         </section>
         <div id="runtime-section">
-          <RuntimeSection instance={instance} onRefresh={onRefresh} isRefreshing={isRefreshing} />
+          <RuntimeSection
+            instance={instance}
+            onRefresh={onRefresh}
+            isRefreshing={isRefreshing}
+            onMigrateRoot={() => void handleMigrateRoot()}
+            migrateBusy={migrateRootBusy}
+          />
         </div>
         <div id="database-section">
           <DatabaseSection instance={instance} />
@@ -1854,6 +1890,7 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
 export function InstanceManager() {
   const { id: routeInstanceId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { settings } = useSettings()
 
   // CP-T029: Track whether a manual per-instance probe refresh is in flight
@@ -1904,6 +1941,7 @@ export function InstanceManager() {
 
   const selectedId = routeInstanceId ?? localSelectedId ?? instances[0]?.instanceId ?? null
   const selectedInstance = instances.find(i => i.instanceId === selectedId) ?? null
+  const shouldAutoOpenConfigure = new URLSearchParams(location.search).get('configure') === '1'
 
   // CP-T029: Manual probe refresh — triggers a full refetch and shows spinner
   // Debounced: button is disabled while probe is in flight (no parallel probes)
@@ -2090,6 +2128,7 @@ export function InstanceManager() {
           <DetailPanel
             instance={selectedInstance}
             instances={instances}
+            autoOpenConfigure={shouldAutoOpenConfigure}
             onRefresh={() => void handleProbeRefresh()}
             isRefreshing={isRefreshing}
             onRunDoctor={instanceId => void handleRunDoctor(instanceId)}

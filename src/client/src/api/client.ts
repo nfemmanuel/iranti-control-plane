@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Shared API client */
 /* All control-plane API calls go through this module. */
 
-import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult } from './types'
+import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult } from './types'
 
 const BASE = '/api/control-plane'
 
@@ -378,6 +378,14 @@ export async function configureInstance(
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as ConfigureInstanceResult
+}
+
+export async function migrateInstanceRoot(name: string): Promise<MigrateInstanceRootResult> {
+  const url = new URL(`${BASE}/instances/${encodeURIComponent(name)}/migrate-root`, window.location.origin)
+  const res = await fetch(url.toString(), { method: 'POST' })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as MigrateInstanceRootResult
 }
 
 export async function deleteInstance(

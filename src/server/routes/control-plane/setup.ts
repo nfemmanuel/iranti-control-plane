@@ -46,6 +46,20 @@ function primaryRuntimeRootHint(scope: ResolvedInstanceAuthority): string {
   return ` This instance lives under the legacy runtime root ${scope.runtimeRoot}. Newer Iranti instances usually live under ~/.iranti-runtime, so Control Plane is intentionally showing both roots.`
 }
 
+function checkRuntimeRoot(scope: ResolvedInstanceAuthority): SetupStep | null {
+  if (classifyRuntimeRoot(scope.runtimeRoot) !== 'legacy') return null
+
+  return {
+    id: 'runtime_root',
+    label: 'Instance storage',
+    status: 'warning',
+    message: `This instance is stored under the legacy runtime root ${scope.runtimeRoot}.`,
+    actionRequired: 'Migrate this instance to the primary runtime root so new instances, runtime commands, and future repair flows all converge on the same home.',
+    cliCommand: null,
+    repairAction: 'control-plane:migrate-root',
+  }
+}
+
 async function resolveScopeOrThrow(instanceRef: string): Promise<ResolvedInstanceAuthority> {
   const scope = await resolveInstanceAuthority(instanceRef)
   if (!scope) {
@@ -139,7 +153,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       message: 'DATABASE_URL is not configured for this instance.',
       actionRequired: `Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.${legacyRootNote}`,
       cliCommand,
-      repairAction: null,
+      repairAction: 'control-plane:open-configure-db',
     }
   }
 
@@ -173,14 +187,14 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       const reachable = await isTcpPortReachable(target.host, target.port)
       if (!reachable) {
         const dbLabel = target.name ? `${target.host}:${target.port}/${target.name}` : `${target.host}:${target.port}`
-        return {
+      return {
           id: 'database',
           label: 'Database connection',
           status: 'incomplete',
           message: `Database not reachable for this instance. ${target.host}:${target.port} is not accepting connections.`,
           actionRequired: `DATABASE_URL in ${scope.instanceEnvPath} currently points to ${dbLabel}, but nothing is listening there right now. Start the database on that port or update DATABASE_URL to the actual database target, then rerun doctor.${legacyRootNote}`,
           cliCommand,
-          repairAction: null,
+          repairAction: 'control-plane:open-configure-db',
         }
       }
     }
@@ -192,7 +206,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       message: 'Database not reachable for this instance.',
       actionRequired: `Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.${legacyRootNote}`,
       cliCommand,
-      repairAction: null,
+      repairAction: 'control-plane:open-configure-db',
     }
   }
 }
@@ -359,12 +373,19 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
   const runtimeRootKind: RuntimeRootKind = classifyRuntimeRoot(scope.runtimeRoot)
 
   return withScopedPool(scope.databaseUrl, async (pool) => {
+    const runtimeRootStep = checkRuntimeRoot(scope)
     const databaseStep = await checkDatabase(scope, pool)
     const providerStep = checkProvider(scope)
     const projectStep = checkProjectBinding(scope)
     const integrationStep = checkProjectIntegration(scope, projectStep)
 
-    const steps: SetupStep[] = [databaseStep, providerStep, projectStep, integrationStep]
+    const steps: SetupStep[] = [
+      ...(runtimeRootStep ? [runtimeRootStep] : []),
+      databaseStep,
+      providerStep,
+      projectStep,
+      integrationStep,
+    ]
     const isFullyConfigured = steps.every((step) => step.status === 'complete' || step.status === 'not_applicable' || step.status === 'warning')
 
     return {

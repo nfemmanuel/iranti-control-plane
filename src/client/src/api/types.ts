@@ -989,6 +989,17 @@ export interface ConfigureInstanceResult {
   changed: string[]
 }
 
+export interface MigrateInstanceRootResult {
+  ok: boolean
+  name: string
+  migrated: boolean
+  runtimeRoot: string
+  runtimeRootKind: 'primary' | 'legacy' | 'custom'
+  instanceId: string
+  note: string
+  updatedBindings: number
+}
+
 export interface DeleteInstanceResult {
   ok: boolean
   name: string

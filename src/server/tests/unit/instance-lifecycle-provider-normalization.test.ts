@@ -8,6 +8,12 @@ import { join } from 'path'
 
 vi.mock('../../lib/runtime-roots.js', () => ({
   runtimeRootCandidates: vi.fn(),
+  classifyRuntimeRoot: (runtimeRoot: string) => {
+    const normalized = runtimeRoot.replace(/\\/g, '/').toLowerCase()
+    if (normalized.endsWith('/.iranti-runtime')) return 'primary'
+    if (normalized.endsWith('/.iranti')) return 'legacy'
+    return 'custom'
+  },
 }))
 
 vi.mock('../../lib/iranti-cli.js', () => ({
@@ -379,5 +385,66 @@ describe('instance lifecycle routes', () => {
     expect(poolInstance.query).toHaveBeenCalledTimes(2)
     expect(poolInstance.query.mock.calls[0]?.[0]).toContain('pg_terminate_backend')
     expect(poolInstance.query.mock.calls[1]?.[0]).toContain('DROP DATABASE IF EXISTS')
+  })
+
+  it('migrates a legacy-root instance to the preferred runtime root and rewrites bound project env files', async () => {
+    const legacyRoot = join(tempRoot, '.iranti')
+    const primaryRoot = join(tempRoot, '.iranti-runtime-primary')
+    const projectPath = join(tempRoot, 'legacy-bound-project')
+    await mkdir(projectPath, { recursive: true })
+    await mkdir(join(legacyRoot, 'instances'), { recursive: true })
+    await mkdir(join(primaryRoot, 'instances'), { recursive: true })
+
+    runtimeRootCandidatesMock.mockReturnValue([legacyRoot, primaryRoot])
+    process.env['IRANTI_HOME'] = primaryRoot
+
+    await writeInstanceFiles(legacyRoot, 'legacyalpha', {
+      IRANTI_INSTANCE_NAME: 'legacyalpha',
+      IRANTI_PORT: '4315',
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/legacyalpha',
+      LLM_PROVIDER: 'claude',
+      IRANTI_API_KEY: 'replace_me_with_api_key',
+    }, 4315)
+
+    const oldEnvPath = join(legacyRoot, 'instances', 'legacyalpha', '.env')
+    await writeFile(
+      join(legacyRoot, 'instances', 'legacyalpha', 'projects.json'),
+      JSON.stringify({ projects: [{ projectPath }] }, null, 2),
+      'utf8',
+    )
+    await writeFile(
+      join(projectPath, '.env.iranti'),
+      [
+        'IRANTI_INSTANCE=legacyalpha',
+        `IRANTI_INSTANCE_ENV=${oldEnvPath}`,
+      ].join('\n') + '\n',
+      'utf8',
+    )
+
+    runIrantiJsonMock.mockResolvedValue({
+      resolution: null as never,
+      stdout: '',
+      stderr: '',
+      json: {
+        instances: [{ name: 'legacyalpha', runtime: { running: false, classification: 'stale' } }],
+      },
+    })
+
+    const res = await fetch(`${apiBase}/instances/legacyalpha/migrate-root`, {
+      method: 'POST',
+    })
+
+    const body = await res.json() as Record<string, unknown>
+    expect(res.status, JSON.stringify(body)).toBe(200)
+    expect(body.migrated).toBe(true)
+    expect(body.runtimeRoot).toBe(primaryRoot)
+    expect(body.runtimeRootKind).toBe('custom')
+
+    const newEnvPath = join(primaryRoot, 'instances', 'legacyalpha', '.env')
+    expect(existsSync(newEnvPath)).toBe(true)
+    expect(existsSync(join(legacyRoot, 'instances', 'legacyalpha'))).toBe(false)
+
+    const bindingRaw = await readFile(join(projectPath, '.env.iranti'), 'utf8')
+    expect(bindingRaw).toContain(`IRANTI_INSTANCE_ENV=${newEnvPath}`)
   })
 })

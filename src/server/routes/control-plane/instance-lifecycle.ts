@@ -1,13 +1,13 @@
 import { Router, Request, Response } from 'express'
 import { existsSync, readFileSync } from 'fs'
-import { rm } from 'fs/promises'
+import { rm, rename, mkdir, readFile, writeFile, cp } from 'fs/promises'
 import { join, resolve, dirname } from 'path'
 import { homedir } from 'os'
 import pg from 'pg'
 import { env as controlPlaneEnv } from '../../db.js'
 import { runIrantiCommand, runIrantiJson } from '../../lib/iranti-cli.js'
-import { resolveInstanceAuthority } from '../../lib/instance-authority.js'
-import { runtimeRootCandidates } from '../../lib/runtime-roots.js'
+import { deriveInstanceId, parseSimpleEnv, resolveInstanceAuthority } from '../../lib/instance-authority.js'
+import { classifyRuntimeRoot, runtimeRootCandidates } from '../../lib/runtime-roots.js'
 
 const INSTANCE_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/
 const ALLOWED_PROVIDERS = ['openai', 'claude', 'gemini', 'groq', 'mistral', 'ollama', 'mock'] as const
@@ -85,6 +85,12 @@ function parseEnvFile(filePath: string): Record<string, string> {
   return parsed
 }
 
+function buildSimpleEnvFile(entries: Record<string, string>): string {
+  return Object.entries(entries)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n') + '\n'
+}
+
 function diffEnvKeys(before: Record<string, string>, after: Record<string, string>): string[] {
   const keys = new Set([...Object.keys(before), ...Object.keys(after)])
   return Array.from(keys)
@@ -152,6 +158,30 @@ function instancePaths(runtimeRoot: string, name: string) {
     instanceDir,
     envFile: join(instanceDir, '.env'),
   }
+}
+
+async function moveDirectory(fromPath: string, toPath: string): Promise<void> {
+  try {
+    await rename(fromPath, toPath)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'EXDEV') throw error
+    await cp(fromPath, toPath, { recursive: true, force: true })
+    await rm(fromPath, { recursive: true, force: true })
+  }
+}
+
+async function rewriteProjectBindingInstanceEnv(projectPath: string, oldEnvPath: string, newEnvPath: string): Promise<void> {
+  const bindingPath = join(projectPath, '.env.iranti')
+  if (!existsSync(bindingPath)) return
+
+  const parsed = parseSimpleEnv(await readFile(bindingPath, 'utf8'))
+  const current = parsed['IRANTI_INSTANCE_ENV']?.trim() ?? ''
+  if (!current) return
+  if (resolve(current) !== resolve(oldEnvPath)) return
+
+  parsed['IRANTI_INSTANCE_ENV'] = newEnvPath
+  await writeFile(bindingPath, buildSimpleEnvFile(parsed), 'utf8')
 }
 
 function escapePgIdentifier(value: string): string {
@@ -507,4 +537,89 @@ instanceLifecycleRouter.delete('/instances/:name', async (req: Request, res: Res
     removedProjectBindings: removedBindingFiles,
     droppedDatabase: droppedDatabaseName,
   })
+})
+
+instanceLifecycleRouter.post('/instances/:name/migrate-root', async (req: Request, res: Response): Promise<void> => {
+  const { name } = req.params
+
+  if (!isValidInstanceName(name)) {
+    res.status(400).json({
+      error: 'Invalid instance name. Use only alphanumeric characters, hyphens, and underscores (1-64 chars).',
+      code: 'INVALID_PARAM',
+    })
+    return
+  }
+
+  const resolvedAuthority = await resolveInstanceAuthority(name)
+  if (!resolvedAuthority) {
+    res.status(404).json({
+      error: `Instance "${name}" not found.`,
+      code: 'NOT_FOUND',
+    })
+    return
+  }
+
+  const currentRoot = resolvedAuthority.runtimeRoot
+  const targetRoot = preferredRuntimeRoot()
+
+  if (resolve(currentRoot) === resolve(targetRoot)) {
+    res.status(200).json({
+      ok: true,
+      name,
+      migrated: false,
+      runtimeRoot: currentRoot,
+      runtimeRootKind: classifyRuntimeRoot(currentRoot),
+      instanceId: resolvedAuthority.instanceId,
+      note: 'Instance is already stored in the preferred runtime root.',
+      updatedBindings: 0,
+    })
+    return
+  }
+
+  if (await isInstanceRunning(currentRoot, name)) {
+    res.status(409).json({
+      error: `Instance "${name}" is still running. Stop or recover it before migrating the runtime root.`,
+      code: 'INSTANCE_RUNNING',
+    })
+    return
+  }
+
+  const targetInstanceDir = join(targetRoot, 'instances', name)
+  if (existsSync(targetInstanceDir)) {
+    res.status(409).json({
+      error: `Target runtime root already contains an instance named "${name}".`,
+      code: 'TARGET_EXISTS',
+    })
+    return
+  }
+
+  const oldEnvPath = resolvedAuthority.instanceEnvPath
+  const newEnvPath = join(targetInstanceDir, '.env')
+
+  try {
+    await mkdir(join(targetRoot, 'instances'), { recursive: true })
+    await moveDirectory(resolvedAuthority.instanceDir, targetInstanceDir)
+
+    let updatedBindings = 0
+    for (const project of resolvedAuthority.boundProjects) {
+      await rewriteProjectBindingInstanceEnv(project.projectPath, oldEnvPath, newEnvPath)
+      updatedBindings += 1
+    }
+
+    res.status(200).json({
+      ok: true,
+      name,
+      migrated: true,
+      runtimeRoot: targetRoot,
+      runtimeRootKind: classifyRuntimeRoot(targetRoot),
+      instanceId: deriveInstanceId(targetInstanceDir),
+      note: 'Instance moved to the preferred runtime root and bound project env files were updated.',
+      updatedBindings,
+    })
+  } catch (error) {
+    res.status(500).json({
+      error: commandFailureMessage(error),
+      code: 'MIGRATE_FAILED',
+    })
+  }
 })

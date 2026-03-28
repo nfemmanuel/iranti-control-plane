@@ -158,6 +158,27 @@
   background: var(--color-accent-subtle);
 }
 
+.inlineActionBtn {
+  background: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.inlineActionBtn:hover:not(:disabled) {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.inlineActionBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .listFooter {
   padding: var(--space-2) var(--section-padding);
   font-size: 10px;

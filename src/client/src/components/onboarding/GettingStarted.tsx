@@ -11,6 +11,7 @@ import { Spinner } from '../ui/Spinner'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { CommandAction } from '../ui/CommandAction'
 import { canRunCommand } from '../ui/commandText'
+import { migrateInstanceRoot } from '../../api/client'
 
 /* ------------------------------------------------------------------ */
 /*  API helpers                                                         */
@@ -73,9 +74,17 @@ interface StepRowProps {
   stepNumber: number
   expanded: boolean
   onToggle: () => void
+  onRepair: (repairAction: string) => void
+  repairLoading: boolean
 }
 
-function StepRow({ step, stepNumber, expanded, onToggle }: StepRowProps) {
+function repairActionLabel(repairAction: string): string {
+  if (repairAction === 'control-plane:migrate-root') return 'Migrate to primary root'
+  if (repairAction === 'control-plane:open-configure-db') return 'Repair database target'
+  return 'Run repair'
+}
+
+function StepRow({ step, stepNumber, expanded, onToggle, onRepair, repairLoading }: StepRowProps) {
   const isActionable = step.status === 'incomplete' || step.status === 'warning'
   const isDone = step.status === 'complete'
   const cliCommand = step.cliCommand ?? null
@@ -111,6 +120,16 @@ function StepRow({ step, stepNumber, expanded, onToggle }: StepRowProps) {
                   command={cliCommand}
                   allowRun={canRunCommand(cliCommand)}
                 />
+              )}
+              {step.repairAction && (
+                <button
+                  className={styles.repairBtn}
+                  type="button"
+                  disabled={repairLoading}
+                  onClick={() => onRepair(step.repairAction!)}
+                >
+                  {repairLoading ? 'Working…' : repairActionLabel(step.repairAction)}
+                </button>
               )}
             </div>
           )}
@@ -191,6 +210,8 @@ export function GettingStarted() {
 
   // Refresh all — re-runs setup status from server (POST refresh endpoint)
   const [refreshing, setRefreshing] = useState(false)
+  const [repairError, setRepairError] = useState<string | null>(null)
+  const [repairLoadingAction, setRepairLoadingAction] = useState<string | null>(null)
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true)
     try {
@@ -200,6 +221,44 @@ export function GettingStarted() {
       setRefreshing(false)
     }
   }, [instanceId, queryClient])
+
+  const handleRepairAction = useCallback(async (repairAction: string) => {
+    setRepairError(null)
+    setRepairLoadingAction(repairAction)
+    try {
+      if (repairAction === 'control-plane:open-configure-db') {
+        const targetId = data?.scope?.instanceId ?? instanceId
+        navigate(`/instances/${encodeURIComponent(targetId)}?configure=1&focus=database`)
+        return
+      }
+
+      if (repairAction === 'control-plane:migrate-root') {
+        const instanceName = data?.scope?.instanceName ?? activeInstance?.name ?? null
+        if (!instanceName) throw new Error('Instance name unavailable for migration.')
+        const result = await migrateInstanceRoot(instanceName)
+        await queryClient.invalidateQueries({ queryKey: ['instances'] })
+        navigate(`/instances/${encodeURIComponent(result.instanceId)}`)
+        return
+      }
+
+      if (repairAction.startsWith('/api/control-plane/')) {
+        const res = await fetch(`${repairAction}?confirm=true`, { method: 'POST' })
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        if (!res.ok) {
+          throw new Error((body as { error?: string }).error ?? res.statusText)
+        }
+        const fresh = await refreshSetupStatus(instanceId)
+        queryClient.setQueryData(['setup-status', instanceId], fresh)
+        return
+      }
+
+      throw new Error(`Unknown repair action: ${repairAction}`)
+    } catch (error) {
+      setRepairError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setRepairLoadingAction(null)
+    }
+  }, [activeInstance?.name, data?.scope?.instanceId, data?.scope?.instanceName, instanceId, navigate, queryClient])
 
   // Mark complete mutation
   const completeMutation = useMutation({
@@ -313,6 +372,8 @@ export function GettingStarted() {
               stepNumber={idx + 1}
               expanded={effectiveExpanded === idx}
               onToggle={() => handleToggle(idx)}
+              onRepair={handleRepairAction}
+              repairLoading={repairLoadingAction === step.repairAction}
             />
           </div>
         ))}
@@ -332,6 +393,10 @@ export function GettingStarted() {
 
         {completeMutation.isError && (
           <p className={styles.footerError}>{completeMutation.error.message}</p>
+        )}
+
+        {repairError && (
+          <p className={styles.footerError}>{repairError}</p>
         )}
 
         <button
