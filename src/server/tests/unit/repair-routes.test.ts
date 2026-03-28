@@ -552,4 +552,28 @@ describe('repair — POST doctor', () => {
       await teardownFixture(f2)
     }
   })
+
+  it('adds structured pgvector remediation commands for unreachable local databases', async () => {
+    const f2 = await createFixture({
+      databaseUrl: 'postgresql://postgres:secret@localhost:59997/iranti_local',
+    })
+    try {
+      const res = await fetch(`${f2.base()}/${f2.instanceId}/doctor`, { method: 'POST' })
+      expect(res.status).toBe(200)
+      const body = await res.json() as Record<string, unknown>
+      const checks = body.checks as Array<Record<string, unknown>>
+      const dbCheck = checks.find((c) => c.id === 'database_reachability')
+
+      expect(dbCheck?.status).toBe('fail')
+      expect(String(dbCheck?.operatorNote)).toContain('macOS, Windows, and Linux')
+
+      const commands = dbCheck?.commands as Array<Record<string, unknown>>
+      expect(Array.isArray(commands)).toBe(true)
+      expect(String(commands[0]?.label)).toContain('Docker')
+      expect(String(commands[0]?.command)).toContain('-p 59997:5432')
+      expect(String(commands[1]?.command)).toContain('iranti doctor --instance beta')
+    } finally {
+      await teardownFixture(f2)
+    }
+  })
 })

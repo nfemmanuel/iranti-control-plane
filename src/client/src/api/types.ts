@@ -575,6 +575,13 @@ export interface DoctorCheck {
   status: 'pass' | 'fail' | 'warn'
   message: string
   repairAction: string | null
+  operatorNote: string | null
+  commands: Array<{
+    label: string
+    command: string
+    allowRun?: boolean
+    cwd?: string | null
+  }>
 }
 
 export interface DoctorResponse {

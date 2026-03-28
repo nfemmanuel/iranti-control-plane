@@ -10,6 +10,7 @@ import {
 } from '../../lib/instance-authority.js'
 import { runIrantiJson } from '../../lib/iranti-cli.js'
 import { inspectProjectIntegration } from '../../lib/project-integration.js'
+import { buildPgvectorRemediation, type DoctorCommand } from '../../lib/doctor-remediation.js'
 
 export const repairRouter = Router()
 const { Pool } = pg
@@ -20,6 +21,8 @@ interface DoctorCheck {
   status: 'pass' | 'fail' | 'warn'
   message: string
   repairAction: string | null
+  operatorNote: string | null
+  commands: DoctorCommand[]
 }
 
 interface CliDoctorCheck {
@@ -51,6 +54,8 @@ async function doctorCheckRuntimeAvailability(scope: ResolvedInstanceAuthority):
         status: 'pass',
         message: `Iranti runtime is running and reachable at ${scope.apiBaseUrl}.`,
         repairAction: null,
+        operatorNote: null,
+        commands: [],
       }
     }
 
@@ -60,6 +65,8 @@ async function doctorCheckRuntimeAvailability(scope: ResolvedInstanceAuthority):
       status: res.status >= 500 ? 'fail' : 'warn',
       message: `Iranti runtime responded with HTTP ${res.status}; runtime-only checks may be incomplete.`,
       repairAction: null,
+      operatorNote: null,
+      commands: [],
     }
   } catch {
     return {
@@ -68,6 +75,8 @@ async function doctorCheckRuntimeAvailability(scope: ResolvedInstanceAuthority):
       status: 'warn',
       message: `Iranti runtime is not running or not reachable at ${scope.apiBaseUrl}; runtime-only checks were skipped.`,
       repairAction: null,
+      operatorNote: null,
+      commands: [],
     }
   } finally {
     clearTimeout(timeout)
@@ -306,19 +315,21 @@ repairRouter.post(
   }
 )
 
-async function doctorCheckDatabase(databaseUrl: string | null): Promise<DoctorCheck> {
-  if (!databaseUrl) {
+async function doctorCheckDatabase(scope: ResolvedInstanceAuthority): Promise<DoctorCheck> {
+  if (!scope.databaseUrl) {
     return {
       id: 'database_reachability',
       label: 'Database connection',
       status: 'fail',
       message: 'DATABASE_URL is not configured for this instance.',
       repairAction: null,
+      operatorNote: 'This instance cannot reach PostgreSQL until DATABASE_URL is configured.',
+      commands: [],
     }
   }
 
   const pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: scope.databaseUrl,
     max: 1,
     idleTimeoutMillis: 1000,
     connectionTimeoutMillis: 2000,
@@ -335,14 +346,20 @@ async function doctorCheckDatabase(databaseUrl: string | null): Promise<DoctorCh
       status: 'pass',
       message: 'Database connection is healthy.',
       repairAction: null,
+      operatorNote: null,
+      commands: [],
     }
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    const remediation = buildPgvectorRemediation(scope, detail)
     return {
       id: 'database_reachability',
       label: 'Database connection',
       status: 'fail',
       message: 'Database not reachable for this instance. Check DATABASE_URL and the database service.',
       repairAction: null,
+      operatorNote: remediation.operatorNote,
+      commands: remediation.commands,
     }
   } finally {
     await pool.end().catch(() => {})
@@ -362,6 +379,8 @@ function doctorCheckProvider(scope: ResolvedInstanceAuthority): DoctorCheck {
       ? 'At least one LLM provider key is configured.'
       : 'No LLM provider key found in this instance env. Configure a provider key, then restart Iranti.',
     repairAction: null,
+    operatorNote: null,
+    commands: [],
   }
 }
 
@@ -374,6 +393,8 @@ function doctorCheckProjectBindings(scope: ResolvedInstanceAuthority): DoctorChe
       ? `${scope.boundProjects.length} bound project${scope.boundProjects.length === 1 ? '' : 's'} discovered for this instance.`
       : 'No bound projects found for this instance. Project integration checks cannot be run until a project is bound.',
     repairAction: null,
+    operatorNote: null,
+    commands: [],
   }
 }
 
@@ -397,6 +418,8 @@ function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
       repairAction: integration.anyMcpPresent && integration.anyMcpHasIranti
         ? null
         : projectRepairUrl(scope, project.projectPath, 'mcp-json'),
+      operatorNote: null,
+      commands: [],
     }
 
     const claudeCheck: DoctorCheck = {
@@ -409,6 +432,8 @@ function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
       repairAction: integration.claudeMdPresent && integration.claudeMdHasIranti
         ? null
         : projectRepairUrl(scope, project.projectPath, 'claude-md'),
+      operatorNote: null,
+      commands: [],
     }
 
     return [mcpCheck, claudeCheck]
@@ -422,13 +447,18 @@ function slugifyDoctorCheckId(value: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
-function mapCliDoctorChecks(payload: CliDoctorResponse): DoctorCheck[] {
+function mapCliDoctorChecks(payload: CliDoctorResponse, scope: ResolvedInstanceAuthority): DoctorCheck[] {
   const checks = payload.checks.map((check) => ({
     id: `iranti_doctor:${slugifyDoctorCheckId(check.name)}`,
     label: check.name,
     status: check.status,
     message: check.detail,
     repairAction: null,
+    ...(check.name.toLowerCase().includes('vector backend')
+      && (scope.env['IRANTI_VECTOR_BACKEND'] ?? 'pgvector').trim().toLowerCase() === 'pgvector'
+      && check.status !== 'pass'
+      ? buildPgvectorRemediation(scope, check.detail)
+      : { operatorNote: null, commands: [] }),
   }))
 
   const remediations = (payload.remediations ?? []).map((detail, index) => ({
@@ -437,6 +467,8 @@ function mapCliDoctorChecks(payload: CliDoctorResponse): DoctorCheck[] {
     status: payload.status === 'fail' ? 'fail' as const : 'warn' as const,
     message: detail,
     repairAction: null,
+    operatorNote: null,
+    commands: [],
   }))
 
   return [...checks, ...remediations]
@@ -448,7 +480,7 @@ repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, nex
     if (!scope) return
 
     const [dbCheck, runtimeCheck] = await Promise.all([
-      doctorCheckDatabase(scope.databaseUrl),
+      doctorCheckDatabase(scope),
       doctorCheckRuntimeAvailability(scope),
     ])
 
@@ -463,7 +495,7 @@ repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, nex
         scope.runtimeRoot,
         '--json',
       ], { allowNonZeroExit: true })
-      checks = mapCliDoctorChecks(doctor.json)
+      checks = mapCliDoctorChecks(doctor.json, scope)
     } catch (error) {
       checks = [
         {
@@ -474,6 +506,8 @@ repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, nex
             ? error.message
             : String(error),
           repairAction: null,
+          operatorNote: null,
+          commands: [],
         },
         runtimeCheck,
         dbCheck,

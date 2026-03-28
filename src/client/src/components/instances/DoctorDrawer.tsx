@@ -44,6 +44,11 @@ function DoctorCheckRow({
   onRepair: (repairUrl: string, label: string) => void
 }) {
   const recommendedCommand = extractFirstCommand(check.message)
+  const commands = check.commands.length > 0
+    ? check.commands
+    : recommendedCommand
+      ? [{ label: 'Suggested command', command: recommendedCommand, allowRun: canRunCommand(recommendedCommand), cwd: null }]
+      : []
   return (
     <div className={`${styles.checkRow} ${styles[`checkRow_${check.status}`]}`}>
       <div className={styles.checkHeader}>
@@ -51,13 +56,18 @@ function DoctorCheckRow({
         <span className={styles.checkLabel}>{check.label}</span>
       </div>
       <p className={styles.checkMessage}>{check.message}</p>
-      {recommendedCommand && (
-        <CommandAction
-          command={recommendedCommand}
-          allowRun={canRunCommand(recommendedCommand)}
-          compact
-        />
-      )}
+      {check.operatorNote && <p className={styles.operatorNote}>{check.operatorNote}</p>}
+      {commands.map((command) => (
+        <div key={`${check.id}:${command.label}:${command.command}`} className={styles.commandBlock}>
+          <p className={styles.commandLabel}>{command.label}</p>
+          <CommandAction
+            command={command.command}
+            allowRun={command.allowRun ?? canRunCommand(command.command)}
+            cwd={command.cwd ?? null}
+            compact
+          />
+        </div>
+      ))}
       {check.repairAction && (
         <button
           className={styles.inlineRepairBtn}
