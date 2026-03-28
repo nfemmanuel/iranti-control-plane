@@ -1013,17 +1013,19 @@ function LifecycleControls({
     if (inFlight) return
     setInFlight(true)
     setLifecycleError(null)
-    setLifecycleInfo(null)
+    setLifecycleInfo('Stopping...')
 
     try {
       await stopInstance(instance.name)
-      // Immediately re-poll — the instance should show unreachable quickly
       setTimeout(() => {
+        setLifecycleInfo('Stopped')
         onStatusChange()
+        setTimeout(() => setLifecycleInfo(null), 3000)
       }, 500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setLifecycleError(msg)
+      setLifecycleInfo(null)
     } finally {
       setInFlight(false)
     }
@@ -2176,7 +2178,7 @@ export function InstanceManager() {
       <div className={styles.instanceList}>
         <div className={styles.listHeader}>
           <span className={styles.listTitle}>Instances</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+          <div className={styles.listHeaderActions}>
             {/* CP-T089: Create Instance button */}
             <button
               className={styles.createInstanceBtn}
@@ -2185,7 +2187,7 @@ export function InstanceManager() {
               title="Create a new Iranti instance"
               aria-label="Create instance"
             >
-              +
+              + New
             </button>
             <button
               className={styles.refreshBtn}
@@ -2270,7 +2272,10 @@ export function InstanceManager() {
                 void refetch().then((result) => {
                   // Select the newly created instance by name
                   const newInstance = result.data?.instances.find(i => i.name === newName)
-                  if (newInstance) setLocalSelectedId(newInstance.instanceId)
+                  if (newInstance) {
+                    setLocalSelectedId(newInstance.instanceId)
+                    void navigate(`/instances/${encodeURIComponent(newInstance.instanceId)}`)
+                  }
                 })
               }}
               onCancel={() => setShowCreateForm(false)}

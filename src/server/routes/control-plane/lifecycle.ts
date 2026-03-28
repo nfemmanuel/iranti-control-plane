@@ -205,6 +205,15 @@ async function waitForRuntimeReady(name: string, runtimeRoot: string): Promise<S
   )
 }
 
+async function terminateRuntimePid(pid: number): Promise<void> {
+  if (process.platform === 'win32') {
+    await execFileAsync('taskkill', ['/PID', String(pid), '/T', '/F'])
+    return
+  }
+
+  process.kill(pid, 'SIGTERM')
+}
+
 async function waitForConfirmedStart(name: string, runtimeRoot: string, pid: number, child: ChildProcess): Promise<StatusInstanceSummary> {
   const timeoutMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_TIMEOUT_MS'], 15000)
   const intervalMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_POLL_MS'], 500)
@@ -423,19 +432,18 @@ lifecycleRouter.post('/:name/stop', async (req: Request, res: Response): Promise
   const resolved = await resolveInstanceAuthority(name)
   const runtimeRoot = resolved?.runtimeRoot ?? getConfiguredInstanceIdentifiers().runtimeRoot
   const entry = managedProcesses.get(name)
-  let pid: number | null = entry?.pid ?? null
-  let method: StopResponse['method'] = entry ? 'tracked-process' : 'runtime-metadata'
-
-  if (!pid) {
-    try {
-      const instance = await readInstanceStatus(name, runtimeRoot, 5000)
-      pid = instance?.runtime?.state?.pid ?? null
-    } catch {
-      pid = null
-    }
+  let currentStatus: StatusInstanceSummary | null = null
+  try {
+    currentStatus = await readInstanceStatus(name, runtimeRoot, 5000)
+  } catch {
+    currentStatus = null
   }
 
-  if (!pid) {
+  const trackedPid = entry?.pid ?? null
+  const runtimePid = currentStatus?.runtime?.state?.pid ?? null
+  const candidatePids = Array.from(new Set([runtimePid, trackedPid].filter((value): value is number => Boolean(value))))
+
+  if (candidatePids.length === 0) {
     res.status(404).json({
       error: 'No tracked process or runtime PID was found for this instance. Refresh status or recover it before trying again.',
       code: 'NOT_TRACKED',
@@ -445,22 +453,33 @@ lifecycleRouter.post('/:name/stop', async (req: Request, res: Response): Promise
     return
   }
 
+  const pid = runtimePid ?? trackedPid ?? candidatePids[0]
+  const method: StopResponse['method'] =
+    trackedPid && runtimePid && trackedPid !== runtimePid
+      ? 'reconciled-runtime'
+      : entry
+        ? 'tracked-process'
+        : 'runtime-metadata'
   const stoppedAt = new Date().toISOString()
 
   try {
     if (entry) {
-      if (process.platform === 'win32') {
-        entry.child.kill()
+      if (process.platform === 'win32' && trackedPid) {
+        await terminateRuntimePid(trackedPid)
       } else {
-        entry.child.kill('SIGTERM')
+        entry.child.kill(process.platform === 'win32' ? undefined : 'SIGTERM')
       }
-    } else {
+    }
+
+    if (runtimePid && runtimePid !== trackedPid) {
       try {
-        process.kill(pid, 'SIGTERM')
+        await terminateRuntimePid(runtimePid)
       } catch (error) {
-        if (process.platform === 'win32') {
-          await execFileAsync('taskkill', ['/PID', String(pid), '/T', '/F'])
-        } else {
+        const code =
+          typeof error === 'object' && error && 'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : ''
+        if (code !== 'ESRCH') {
           throw error
         }
       }
@@ -595,7 +614,7 @@ interface StopResponse {
   pid: number
   status: 'stopped'
   stoppedAt: string
-  method?: 'tracked-process' | 'runtime-metadata'
+  method?: 'tracked-process' | 'runtime-metadata' | 'reconciled-runtime'
 }
 
 interface ProcessStatusResult {

@@ -895,7 +895,7 @@ export interface StopInstanceResult {
   pid: number | null
   status: 'stopped'
   stoppedAt: string
-  method?: 'tracked-process' | 'runtime-metadata'
+  method?: 'tracked-process' | 'runtime-metadata' | 'reconciled-runtime'
   /** Present on error paths (404) */
   error?: string
   code?: string

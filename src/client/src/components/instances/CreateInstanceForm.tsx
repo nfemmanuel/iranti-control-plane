@@ -279,7 +279,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
 
           <div className={styles.formActions}>
             <button className={styles.primaryBtn} type="button" onClick={() => onSuccess(successResult.name)}>
-              Open instance
+              Open instance setup
             </button>
           </div>
         </div>

@@ -34,8 +34,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   padding: var(--space-3) var(--section-padding);
   border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.listHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
@@ -45,16 +53,19 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-text-tertiary);
+  min-width: 0;
 }
 
 .refreshBtn {
-  width: 24px;
-  height: 24px;
+  height: 28px;
+  padding: 0 var(--space-3);
   background: none;
   border: 1px solid var(--color-border-default);
   border-radius: var(--border-radius-sm);
   color: var(--color-text-tertiary);
-  font-size: 13px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  white-space: nowrap;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1405,19 +1416,21 @@
    ────────────────────────────────────────────────────────────────── */
 
 .createInstanceBtn {
-  width: 24px;
-  height: 24px;
+  height: 28px;
+  padding: 0 var(--space-3);
   background: none;
   border: 1px solid var(--color-accent-border);
   border-radius: var(--border-radius-sm);
   color: var(--color-accent-primary);
-  font-size: 15px;
-  line-height: 1;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.1s, border-color 0.1s;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
 
 .createInstanceBtn:hover {

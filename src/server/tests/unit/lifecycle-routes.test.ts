@@ -567,6 +567,19 @@ describe('lifecycle — POST /:name/stop', () => {
       matches: (c: string) => c === 'stopinst',
     })
     mockCliResolution()
+    execFileMock.mockImplementation(((
+      _file: string,
+      _args: readonly string[],
+      callbackOrOptions?: unknown,
+      maybeCallback?: ((error: Error | null, stdout: string, stderr: string) => void) | undefined,
+    ) => {
+      const callback =
+        typeof callbackOrOptions === 'function'
+          ? callbackOrOptions as (error: Error | null, stdout: string, stderr: string) => void
+          : maybeCallback
+      callback?.(null, '', '')
+      return {} as never
+    }) as typeof execFile)
 
     srv = buildTestServer()
     await new Promise<void>((r) => srv.server.once('listening', r))
@@ -587,28 +600,51 @@ describe('lifecycle — POST /:name/stop', () => {
   })
 
   it('stops an instance using runtime metadata when it is not tracked in-memory', async () => {
-    runIrantiJsonMock.mockResolvedValue({
-      resolution: null as never,
-      stdout: '',
-      stderr: '',
-      json: {
-        instances: [
-          {
-            name: 'stopinst',
-            runtime: {
-              classification: 'running',
-              running: true,
-              stale: false,
-              detail: 'pid=77800 version=0.2.48',
-              state: { pid: 77800 },
-              health: { checked: true, ok: true, detail: 'health ok' },
+    runIrantiJsonMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'running',
+                running: true,
+                stale: false,
+                detail: 'pid=77800 version=0.2.48',
+                state: { pid: 77800 },
+                health: { checked: true, ok: true, detail: 'health ok' },
+              },
             },
-          },
-        ],
-      },
-    })
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'stopped',
+                running: false,
+                stale: false,
+                detail: 'runtime stopped',
+                state: null,
+                health: { checked: false, ok: false, detail: 'runtime stopped' },
+              },
+            },
+          ],
+        },
+      })
 
-    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+    const killSpy = process.platform === 'win32'
+      ? null
+      : vi.spyOn(process, 'kill').mockImplementation(() => true)
 
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
@@ -617,9 +653,12 @@ describe('lifecycle — POST /:name/stop', () => {
     expect(body.pid).toBe(77800)
     expect(body.method).toBe('runtime-metadata')
     expect(body.status).toBe('stopped')
-    expect(killSpy).toHaveBeenCalledWith(77800, 'SIGTERM')
-
-    killSpy.mockRestore()
+    if (process.platform === 'win32') {
+      expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '77800', '/T', '/F'], expect.any(Function))
+    } else {
+      expect(killSpy).toHaveBeenCalledWith(77800, 'SIGTERM')
+      killSpy?.mockRestore()
+    }
   })
 
   it('returns 200, calls kill(), and includes pid + stoppedAt for a tracked process', async () => {
@@ -632,6 +671,52 @@ describe('lifecycle — POST /:name/stop', () => {
     const startRes = await fetch(`${srv.base()}/stopinst/start`, { method: 'POST' })
     expect(startRes.status).toBe(200)
 
+    runIrantiJsonMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'running',
+                running: true,
+                stale: false,
+                detail: 'pid=77700 version=0.2.48',
+                state: { pid: 77700 },
+                health: { checked: true, ok: true, detail: 'health ok' },
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'stopped',
+                running: false,
+                stale: false,
+                detail: 'runtime stopped',
+                state: null,
+                health: { checked: false, ok: false, detail: 'runtime stopped' },
+              },
+            },
+          ],
+        },
+      })
+
+    const runtimeKillSpy = process.platform === 'win32'
+      ? null
+      : vi.spyOn(process, 'kill').mockImplementation(() => true)
+
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
     const body = await stopRes.json() as Record<string, unknown>
@@ -639,18 +724,82 @@ describe('lifecycle — POST /:name/stop', () => {
     expect(body.pid).toBe(77700)
     expect(body.status).toBe('stopped')
     expect(typeof body.stoppedAt).toBe('string')
-    expect(proc.kill).toHaveBeenCalledOnce()
+    if (process.platform === 'win32') {
+      expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '77700', '/T', '/F'], expect.any(Function))
+      expect(proc.kill).not.toHaveBeenCalled()
+    } else {
+      expect(proc.kill).toHaveBeenCalledOnce()
+    }
   })
 
   it('returns 200 even when kill() throws (process already exited race condition)', async () => {
     const proc = makeRunningProcess(77701)
-    proc.kill = vi.fn().mockImplementation(() => { throw new Error('ESRCH — no such process') })
+    if (process.platform === 'win32') {
+      execFileMock.mockImplementation(((
+        _file: string,
+        _args: readonly string[],
+        callbackOrOptions?: unknown,
+        maybeCallback?: ((error: Error | null, stdout: string, stderr: string) => void) | undefined,
+      ) => {
+        const callback =
+          typeof callbackOrOptions === 'function'
+            ? callbackOrOptions as (error: Error | null, stdout: string, stderr: string) => void
+            : maybeCallback
+        callback?.(new Error('ESRCH — no such process'), '', '')
+        return {} as never
+      }) as typeof execFile)
+    } else {
+      proc.kill = vi.fn().mockImplementation(() => { throw new Error('ESRCH — no such process') })
+    }
     spawnMock.mockImplementation((cmd: string): FakeProcess => {
       if (cmd === 'where' || cmd === 'which') return makeCliFoundProcess([CLI_JS])
       return proc
     })
     mockRunningStatus('stopinst', 77701)
     await fetch(`${srv.base()}/stopinst/start`, { method: 'POST' })
+
+    runIrantiJsonMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'running',
+                running: true,
+                stale: false,
+                detail: 'pid=77701 version=0.2.48',
+                state: { pid: 77701 },
+                health: { checked: true, ok: true, detail: 'health ok' },
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'stopped',
+                running: false,
+                stale: false,
+                detail: 'runtime stopped',
+                state: null,
+                health: { checked: false, ok: false, detail: 'runtime stopped' },
+              },
+            },
+          ],
+        },
+      })
+
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
   })
@@ -663,6 +812,49 @@ describe('lifecycle — POST /:name/stop', () => {
     })
     mockRunningStatus('stopinst', 77702)
     await fetch(`${srv.base()}/stopinst/start`, { method: 'POST' })
+
+    runIrantiJsonMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'running',
+                running: true,
+                stale: false,
+                detail: 'pid=77702 version=0.2.48',
+                state: { pid: 77702 },
+                health: { checked: true, ok: true, detail: 'health ok' },
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'stopped',
+                running: false,
+                stale: false,
+                detail: 'runtime stopped after stop request',
+                state: null,
+                health: { checked: false, ok: false, detail: 'runtime stopped after stop request' },
+              },
+            },
+          ],
+        },
+      })
+
     const first = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(first.status).toBe(200)
 
@@ -670,6 +862,72 @@ describe('lifecycle — POST /:name/stop', () => {
     const second = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(second.status).toBe(404)
     expect(((await second.json()) as Record<string, unknown>).code).toBe('NOT_TRACKED')
+  })
+
+  it('stops the live runtime pid when tracked state and runtime metadata disagree', async () => {
+    const proc = makeRunningProcess(77710)
+    spawnMock.mockImplementation((cmd: string): FakeProcess => {
+      if (cmd === 'where' || cmd === 'which') return makeCliFoundProcess([CLI_JS])
+      return proc
+    })
+    mockRunningStatus('stopinst', 77710)
+    await fetch(`${srv.base()}/stopinst/start`, { method: 'POST' })
+
+    runIrantiJsonMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'running',
+                running: true,
+                stale: false,
+                detail: 'pid=88888 version=0.2.48',
+                state: { pid: 88888 },
+                health: { checked: true, ok: true, detail: 'health ok' },
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: '',
+        stderr: '',
+        json: {
+          instances: [
+            {
+              name: 'stopinst',
+              runtime: {
+                classification: 'stopped',
+                running: false,
+                stale: false,
+                detail: 'runtime stopped',
+                state: null,
+                health: { checked: false, ok: false, detail: 'runtime stopped' },
+              },
+            },
+          ],
+        },
+      })
+
+    const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
+    expect(stopRes.status).toBe(200)
+    const body = await stopRes.json() as Record<string, unknown>
+    expect(body.method).toBe('reconciled-runtime')
+    if (process.platform === 'win32') {
+      expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '77710', '/T', '/F'], expect.any(Function))
+      expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '88888', '/T', '/F'], expect.any(Function))
+      expect(proc.kill).not.toHaveBeenCalled()
+    } else {
+      expect(proc.kill).toHaveBeenCalledOnce()
+      expect(runtimeKillSpy).toHaveBeenCalledWith(88888, 'SIGTERM')
+      runtimeKillSpy?.mockRestore()
+    }
   })
 })
 
