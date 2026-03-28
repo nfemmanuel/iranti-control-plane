@@ -258,7 +258,7 @@ export function GettingStarted() {
 
       if (repairAction === 'control-plane:open-project-binding') {
         const targetId = data?.scope?.instanceId ?? instanceId
-        navigate(`/instances/${encodeURIComponent(targetId)}`)
+        navigate(`/instances/${encodeURIComponent(targetId)}?bindProject=1`)
         return
       }
 

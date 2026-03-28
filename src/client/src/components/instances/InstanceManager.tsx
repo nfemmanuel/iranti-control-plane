@@ -1304,10 +1304,12 @@ function ProjectsSection({
   instance,
   instances,
   onBindSuccess,
+  autoOpenBind = false,
 }: {
   instance: InstanceMetadata
   instances: InstanceMetadata[]
   onBindSuccess: () => void
+  autoOpenBind?: boolean
 }) {
   const [showBindForm, setShowBindForm] = useState(false)
   const [rebindTarget, setRebindTarget] = useState<string | null>(null)
@@ -1340,6 +1342,12 @@ function ProjectsSection({
     setRebindTarget(null)
     onBindSuccess()
   }
+
+  useEffect(() => {
+    if (autoOpenBind) {
+      setShowBindForm(true)
+    }
+  }, [autoOpenBind])
 
   if (showBindForm || rebindTarget !== null) {
     return (
@@ -1630,11 +1638,12 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
   return [runtimePriority, projectsPriority, clientsPriority]
 }
 
-function DetailPanel({ instance, instances, autoOpenConfigure, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
+function DetailPanel({ instance, instances, autoOpenConfigure, autoOpenBind, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
   instance: InstanceMetadata
   /** All discovered instances — passed through to ApiKeyManager for syncToProject dropdown */
   instances: InstanceMetadata[]
   autoOpenConfigure?: boolean
+  autoOpenBind?: boolean
   onRefresh: () => void
   isRefreshing: boolean
   onRunDoctor: (instanceId: string) => void
@@ -1887,6 +1896,7 @@ function DetailPanel({ instance, instances, autoOpenConfigure, onRefresh, isRefr
             instance={instance}
             instances={instances}
             onBindSuccess={onRefetchInstances}
+            autoOpenBind={autoOpenBind}
           />
         </div>
         {/* CP-T093: Integration Overview — aggregated MCP/hooks status across all bound projects */}
@@ -1972,6 +1982,7 @@ export function InstanceManager() {
   const selectedId = routeInstanceId ?? localSelectedId ?? instances[0]?.instanceId ?? null
   const selectedInstance = instances.find(i => i.instanceId === selectedId) ?? null
   const shouldAutoOpenConfigure = new URLSearchParams(location.search).get('configure') === '1'
+  const shouldAutoOpenBind = new URLSearchParams(location.search).get('bindProject') === '1'
 
   // CP-T029: Manual probe refresh — triggers a full refetch and shows spinner
   // Debounced: button is disabled while probe is in flight (no parallel probes)
@@ -2159,6 +2170,7 @@ export function InstanceManager() {
             instance={selectedInstance}
             instances={instances}
             autoOpenConfigure={shouldAutoOpenConfigure}
+            autoOpenBind={shouldAutoOpenBind}
             onRefresh={() => void handleProbeRefresh()}
             isRefreshing={isRefreshing}
             onRunDoctor={instanceId => void handleRunDoctor(instanceId)}
