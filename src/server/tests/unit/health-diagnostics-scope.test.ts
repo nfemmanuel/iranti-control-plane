@@ -175,6 +175,7 @@ describe('health and diagnostics instance scoping', () => {
       agent: 'control_plane_operator',
       latestMessage: 'health check probe',
       currentContext: 'health check probe',
+      suppressEvents: true,
     })
     expect(attendBody).not.toHaveProperty('query')
   })
@@ -189,6 +190,7 @@ describe('health and diagnostics instance scoping', () => {
       agent: 'control_plane_operator',
       latestMessage: 'diagnostic probe',
       currentContext: 'diagnostic probe',
+      suppressEvents: true,
     })
     expect(attendBody).not.toHaveProperty('query')
 

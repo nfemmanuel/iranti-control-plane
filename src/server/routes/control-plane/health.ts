@@ -578,6 +578,7 @@ async function buildAttendantStatus(scope: ResolvedInstanceAuthority): Promise<A
         agent: 'control_plane_operator',
         latestMessage: 'health check probe',
         currentContext: 'health check probe',
+        suppressEvents: true,
       }),
       signal: controller.signal,
     })

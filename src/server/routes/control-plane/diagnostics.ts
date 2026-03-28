@@ -443,6 +443,7 @@ async function checkAttend(scope: ResolvedInstanceAuthority): Promise<CheckResul
         agent: 'control_plane_operator',
         latestMessage: 'diagnostic probe',
         currentContext: 'diagnostic probe',
+        suppressEvents: true,
       }),
     })
 
