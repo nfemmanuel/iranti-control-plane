@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Shared API client */
 /* All control-plane API calls go through this module. */
 
-import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult } from './types'
+import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
 
 const BASE = '/api/control-plane'
 
@@ -342,6 +342,7 @@ export async function createInstance(params: {
   port: number
   dbUrl: string
   provider: string
+  dbIntent?: DatabaseIntentChoice
   providerKey?: string
 }): Promise<CreateInstanceResult> {
   const url = new URL(`${BASE}/instances`, window.location.origin)
@@ -366,6 +367,7 @@ export async function configureInstance(
     port?: number
     dbUrl?: string
     provider?: string
+    dbIntent?: DatabaseIntentChoice
     providerKey?: string
   }
 ): Promise<ConfigureInstanceResult> {

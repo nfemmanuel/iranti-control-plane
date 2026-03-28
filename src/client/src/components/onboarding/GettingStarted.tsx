@@ -156,6 +156,23 @@ function runtimeRootKindLabel(kind: SetupStatusResponse['runtimeRootKind']): str
   }
 }
 
+function databaseIntentLabel(intent: SetupStatusResponse['databaseIntent']): string | null {
+  if (!intent) return null
+  const strategy =
+    intent.strategy === 'dedicated-local'
+      ? 'Dedicated local database'
+      : intent.strategy === 'shared-local'
+        ? 'Shared local database'
+        : 'External existing database'
+  const provisioning =
+    intent.provisioning === 'docker'
+      ? 'Docker-managed'
+      : intent.provisioning === 'managed'
+        ? 'Managed'
+        : 'Local'
+  return `${strategy} (${provisioning})`
+}
+
 /* ------------------------------------------------------------------ */
 /*  Success state                                                       */
 /* ------------------------------------------------------------------ */
@@ -360,6 +377,11 @@ export function GettingStarted() {
               <> Newer Iranti instances usually live under <code className={styles.inlineCode}>~/.iranti-runtime</code>, so Control Plane may show both locations until older instances are migrated.</>
             )}
           </p>
+          {databaseIntentLabel(data.databaseIntent) && (
+            <p className={styles.scopeNoteBody}>
+              Database strategy: <code className={styles.inlineCode}>{databaseIntentLabel(data.databaseIntent)}</code>.
+            </p>
+          )}
         </div>
       )}
 

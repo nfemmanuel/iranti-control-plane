@@ -11,8 +11,10 @@ import { classifyRuntimeRoot, runtimeRootCandidates } from '../../lib/runtime-ro
 
 const INSTANCE_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/
 const ALLOWED_PROVIDERS = ['openai', 'claude', 'gemini', 'groq', 'mistral', 'ollama', 'mock'] as const
+const ALLOWED_DB_INTENTS = ['dedicated', 'shared', 'external'] as const
 
 type Provider = typeof ALLOWED_PROVIDERS[number]
+type DatabaseIntentChoice = typeof ALLOWED_DB_INTENTS[number]
 const { Pool } = pg
 
 type StatusResponse = {
@@ -34,6 +36,14 @@ function normalizeProviderInput(value: string): Provider | null {
   if (!normalized) return null
   const canonical = normalized === 'anthropic' ? 'claude' : normalized
   return (ALLOWED_PROVIDERS as readonly string[]).includes(canonical) ? (canonical as Provider) : null
+}
+
+function normalizeDbIntentInput(value: unknown): DatabaseIntentChoice | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return (ALLOWED_DB_INTENTS as readonly string[]).includes(normalized)
+    ? (normalized as DatabaseIntentChoice)
+    : null
 }
 
 function validateDbUrl(dbUrl: string): string | null {
@@ -316,6 +326,14 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     })
     return
   }
+  const dbIntent = normalizeDbIntentInput(body['dbIntent'])
+  if (body['dbIntent'] !== undefined && !dbIntent) {
+    res.status(400).json({
+      error: `Invalid dbIntent. Allowed values: ${ALLOWED_DB_INTENTS.join(', ')}.`,
+      code: 'INVALID_PARAM',
+    })
+    return
+  }
 
   const runtimeRoot = preferredRuntimeRoot()
   const { instanceDir, envFile } = instancePaths(runtimeRoot, name)
@@ -340,6 +358,9 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     '--provider',
     provider,
   ]
+  if (dbIntent) {
+    cliArgs.push('--db-intent', dbIntent)
+  }
   if (providerKey) {
     cliArgs.push('--provider-key', providerKey)
   }
@@ -434,6 +455,18 @@ instanceLifecycleRouter.patch('/instances/:name', async (req: Request, res: Resp
     }
     targetProvider = normalizedProvider
     cliArgs.push('--provider', normalizedProvider)
+  }
+
+  if (body['dbIntent'] !== undefined) {
+    const dbIntent = normalizeDbIntentInput(body['dbIntent'])
+    if (!dbIntent) {
+      res.status(400).json({
+        error: `Invalid dbIntent. Allowed values: ${ALLOWED_DB_INTENTS.join(', ')}.`,
+        code: 'INVALID_PARAM',
+      })
+      return
+    }
+    cliArgs.push('--db-intent', dbIntent)
   }
 
   if (body['providerKey'] !== undefined) {

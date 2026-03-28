@@ -33,6 +33,27 @@ interface SetupStep {
 
 type RuntimeRootKind = 'primary' | 'legacy' | 'custom'
 
+function describeDatabaseIntent(scope: ResolvedInstanceAuthority): string | null {
+  const intent = scope.databaseIntent
+  if (!intent) return null
+
+  const strategyLabel =
+    intent.strategy === 'dedicated-local'
+      ? 'dedicated local database'
+      : intent.strategy === 'shared-local'
+      ? 'shared local database'
+      : 'external existing database'
+
+  const provisioningLabel =
+    intent.provisioning === 'docker'
+      ? 'Docker-managed'
+      : intent.provisioning === 'managed'
+      ? 'managed'
+      : 'local'
+
+  return `${strategyLabel} (${provisioningLabel})`
+}
+
 function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
   return {
     instanceId: scope.instanceId,
@@ -144,6 +165,8 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
   const cliCommand = `iranti doctor --instance ${scope.instanceName} --debug`
   const target = parseDatabaseTarget(scope.databaseUrl)
   const legacyRootNote = primaryRuntimeRootHint(scope)
+  const intentLabel = describeDatabaseIntent(scope)
+  const intentLead = intentLabel ? `This instance is configured for a ${intentLabel}. ` : ''
 
   if (!pool) {
     return {
@@ -151,7 +174,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       label: 'Database connection',
       status: 'incomplete',
       message: 'DATABASE_URL is not configured for this instance.',
-      actionRequired: `Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.${legacyRootNote}`,
+      actionRequired: `${intentLead}Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.${legacyRootNote}`,
       cliCommand,
       repairAction: 'control-plane:open-configure-db',
     }
@@ -177,7 +200,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       id: 'database',
       label: 'Database connection',
       status: 'complete',
-      message: `Connected to PostgreSQL for ${scope.instanceName}. ${count} facts in knowledge base.`,
+      message: `Connected to PostgreSQL for ${scope.instanceName}. ${count} facts in knowledge base.${intentLabel ? ` Strategy: ${intentLabel}.` : ''}`,
       actionRequired: null,
       cliCommand,
       repairAction: null,
@@ -192,7 +215,9 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
           label: 'Database connection',
           status: 'incomplete',
           message: `Database not reachable for this instance. ${target.host}:${target.port} is not accepting connections.`,
-          actionRequired: `DATABASE_URL in ${scope.instanceEnvPath} currently points to ${dbLabel}, but nothing is listening there right now. Start the database on that port or update DATABASE_URL to the actual database target, then rerun doctor.${legacyRootNote}`,
+          actionRequired: intentLabel
+            ? `${intentLead}DATABASE_URL in ${scope.instanceEnvPath} currently points to ${dbLabel}, but nothing is listening there right now. ${scope.databaseIntent?.strategy === 'external-existing' ? 'Verify the external database is online and still meant to serve this instance, or update DATABASE_URL.' : 'Start the expected database on that port or update DATABASE_URL to the actual database target.'} Then rerun doctor.${legacyRootNote}`
+            : `DATABASE_URL in ${scope.instanceEnvPath} currently points to ${dbLabel}, but nothing is listening there right now. Start the database on that port or update DATABASE_URL to the actual database target, then rerun doctor.${legacyRootNote}`,
           cliCommand,
           repairAction: 'control-plane:open-configure-db',
         }
@@ -204,7 +229,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       label: 'Database connection',
       status: 'incomplete',
       message: 'Database not reachable for this instance.',
-      actionRequired: `Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.${legacyRootNote}`,
+      actionRequired: `${intentLead}Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.${legacyRootNote}`,
       cliCommand,
       repairAction: 'control-plane:open-configure-db',
     }
@@ -393,6 +418,7 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
       scope: scopeSummary(scope),
       runtimeRoot: scope.runtimeRoot,
       runtimeRootKind,
+      databaseIntent: scope.databaseIntent,
       steps,
       isFullyConfigured,
       firstRunDetected,

@@ -152,6 +152,24 @@ function runtimeRootBadgeLabel(runtimeRoot: string): string {
   return 'Custom root'
 }
 
+function databaseIntentLabel(instance: InstanceMetadata): string | null {
+  const intent = instance.databaseIntent
+  if (!intent) return null
+  const strategy =
+    intent.strategy === 'dedicated-local'
+      ? 'Dedicated local'
+      : intent.strategy === 'shared-local'
+        ? 'Shared local'
+        : 'External existing'
+  const provisioning =
+    intent.provisioning === 'docker'
+      ? 'Docker'
+      : intent.provisioning === 'managed'
+        ? 'Managed'
+        : 'Local'
+  return `${strategy} · ${provisioning}`
+}
+
 function StatusBadge({ status, hasConnectionInfo }: {
   status: InstanceMetadata['runningStatus']
   hasConnectionInfo: boolean
@@ -1141,10 +1159,16 @@ function RuntimeSection({ instance, onRefresh, isRefreshing, onMigrateRoot, migr
 }
 
 function DatabaseSection({ instance }: { instance: InstanceMetadata }) {
+  const strategy = databaseIntentLabel(instance)
   if (!instance.database) {
     return (
       <section className={styles.detailSection}>
         <SectionTitle>Database</SectionTitle>
+        {strategy && (
+          <FieldRow label="Strategy">
+            <span className={styles.monoValue}>{strategy}</span>
+          </FieldRow>
+        )}
         <div className={styles.warningNote}>
           Database unreachable - check DATABASE_URL in the live instance env
         </div>
@@ -1155,6 +1179,11 @@ function DatabaseSection({ instance }: { instance: InstanceMetadata }) {
   return (
     <section className={styles.detailSection}>
       <SectionTitle>Database</SectionTitle>
+      {strategy && (
+        <FieldRow label="Strategy">
+          <span className={styles.monoValue}>{strategy}</span>
+        </FieldRow>
+      )}
       <FieldRow label="Host">
         <span className={styles.monoValue}>{db.host}:{db.port}</span>
       </FieldRow>
@@ -1772,6 +1801,7 @@ function DetailPanel({ instance, instances, autoOpenConfigure, onRefresh, isRefr
             currentPort={instance.configuredPort}
             currentProvider={instance.integration.defaultProvider}
             currentDbUrlRedacted={instance.database?.urlRedacted ?? null}
+            currentDbIntent={instance.databaseIntent ?? null}
             onSuccess={() => { setShowConfigure(false); onRefetchInstances() }}
             onCancel={() => setShowConfigure(false)}
           />

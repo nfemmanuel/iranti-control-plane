@@ -35,6 +35,15 @@ interface ParsedDbUrl {
   urlRedacted: string | null
 }
 
+interface ParsedDatabaseIntent {
+  strategy: 'dedicated-local' | 'shared-local' | 'external-existing'
+  provisioning: 'local' | 'docker' | 'managed'
+  host: string
+  port?: number
+  database: string
+  dockerContainerName?: string
+}
+
 interface ProbeResult {
   runningStatus: 'running' | 'stopped' | 'unreachable'
   irantVersion: string | null
@@ -47,6 +56,7 @@ interface InstanceMetadata {
   setupState: 'running' | 'configured' | 'incomplete'
   runtimeRoot: string
   database: { user: string | null; host: string | null; port: number | null; name: string | null; urlRedacted: string | null } | null
+  databaseIntent: ParsedDatabaseIntent | null
   configuredPort: number | null
   runningStatus: 'running' | 'stopped' | 'unreachable'
   runningStatusCheckedAt: string
@@ -73,6 +83,46 @@ interface InstanceMetadata {
   notes: string | null
   runtime: IrantiRuntimeMetadata | null
   runtimeStatus: RuntimeStatus
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+async function readInstanceDatabaseIntent(instanceDir: string): Promise<ParsedDatabaseIntent | null> {
+  try {
+    const metaPath = join(instanceDir, 'instance.json')
+    const parsed = JSON.parse(await readFile(metaPath, 'utf8')) as Record<string, unknown>
+    const raw = parsed['databaseIntent']
+    if (!isRecord(raw)) return null
+
+    const strategy = typeof raw['strategy'] === 'string' ? raw['strategy'] : null
+    const provisioning = typeof raw['provisioning'] === 'string' ? raw['provisioning'] : null
+    const host = typeof raw['host'] === 'string' ? raw['host'] : null
+    const database = typeof raw['database'] === 'string' ? raw['database'] : null
+    const port = typeof raw['port'] === 'number' ? raw['port'] : undefined
+    const dockerContainerName = typeof raw['dockerContainerName'] === 'string' ? raw['dockerContainerName'] : undefined
+
+    if (
+      (strategy !== 'dedicated-local' && strategy !== 'shared-local' && strategy !== 'external-existing')
+      || (provisioning !== 'local' && provisioning !== 'docker' && provisioning !== 'managed')
+      || !host
+      || !database
+    ) {
+      return null
+    }
+
+    return {
+      strategy,
+      provisioning,
+      host,
+      port,
+      database,
+      ...(dockerContainerName ? { dockerContainerName } : {}),
+    }
+  } catch {
+    return null
+  }
 }
 
 interface CliStatusRuntimeState extends IrantiRuntimeMetadata {
@@ -376,6 +426,7 @@ async function aggregateInstance(
     ? Number.parseInt(rawPort, 10)
     : null
   const dbParsed = parseAndRedactDbUrl(envResult.raw?.['DATABASE_URL'])
+  const databaseIntent = await readInstanceDatabaseIntent(instanceDir)
   const runtime = runtimeStateOrNull(summary.runtime.state)
   const runtimeStatus = cliRuntimeStatus(summary.runtime.classification)
   const runningStatus = legacyRunningStatus(summary.runtime.classification)
@@ -399,6 +450,7 @@ async function aggregateInstance(
     database: envResult.raw?.['DATABASE_URL']
       ? { user: dbParsed.user, host: dbParsed.host, port: dbParsed.port, name: dbParsed.name, urlRedacted: dbParsed.urlRedacted }
       : null,
+    databaseIntent,
     configuredPort,
     runningStatus,
     runningStatusCheckedAt: checkedAt,
@@ -444,6 +496,7 @@ export function buildErrorInstance(
     setupState: 'incomplete',
     runtimeRoot,
     database: null,
+    databaseIntent: null,
     configuredPort: null,
     runningStatus: 'unreachable',
     runningStatusCheckedAt: new Date().toISOString(),
@@ -496,6 +549,7 @@ async function aggregateFilesystemInstance(
 ): Promise<InstanceMetadata> {
   const envResult = await parseInstanceEnvFile(instanceDir, runtimeRoot)
   const dbParsed = parseAndRedactDbUrl(envResult.raw?.['DATABASE_URL'])
+  const databaseIntent = await readInstanceDatabaseIntent(instanceDir)
   const { keysPresent, keysMissing } = summarizeEnvKeys(envResult.raw, envResult.keyCompleteness)
   const hasRequiredKeys = envResult.keyCompleteness?.allRequiredKeysPresent ?? false
   const setupState: InstanceMetadata['setupState'] = envResult.present && hasRequiredKeys && !looksPlaceholder(envResult.raw?.['IRANTI_API_KEY'])
@@ -516,6 +570,7 @@ async function aggregateFilesystemInstance(
     database: envResult.raw?.['DATABASE_URL']
       ? { user: dbParsed.user, host: dbParsed.host, port: dbParsed.port, name: dbParsed.name, urlRedacted: dbParsed.urlRedacted }
       : null,
+    databaseIntent,
     configuredPort,
     runningStatus: 'unreachable',
     runningStatusCheckedAt: new Date().toISOString(),

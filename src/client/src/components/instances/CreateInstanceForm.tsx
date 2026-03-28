@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { createInstance } from '../../api/client'
-import type { CreateInstanceResult, InstanceMetadata } from '../../api/types'
+import type { CreateInstanceResult, InstanceMetadata, DatabaseIntentChoice } from '../../api/types'
 import { useSettings } from '../../hooks/useSettings'
 import styles from './CreateInstanceForm.module.css'
 
@@ -81,6 +81,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
   const [portError, setPortError] = useState<string | null>(null)
 
   const [databaseMode, setDatabaseMode] = useState<DatabaseMode>(createDefaults.databaseMode)
+  const [dbIntent, setDbIntent] = useState<DatabaseIntentChoice>(createDefaults.databaseMode === 'compose' ? 'dedicated' : 'external')
   const [dbTemplateSource, setDbTemplateSource] = useState('')
   const [dbHost, setDbHost] = useState(createDefaults.dbHost)
   const [dbPort, setDbPort] = useState(createDefaults.dbPort)
@@ -202,6 +203,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
         name: name.trim(),
         port: parseInt(port, 10),
         dbUrl: effectiveDbUrl,
+        dbIntent,
         provider,
         ...(PROVIDERS_WITH_KEY.includes(provider) && providerKey.trim()
           ? { providerKey: providerKey.trim() }
@@ -213,7 +215,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
     } finally {
       setSubmitting(false)
     }
-  }, [effectiveDbUrl, name, port, provider, providerKey, submitting])
+  }, [effectiveDbUrl, dbIntent, name, port, provider, providerKey, submitting])
 
   if (successResult) {
     return (
@@ -324,17 +326,40 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
               <button
                 className={`${styles.modeToggleBtn} ${databaseMode === 'compose' ? styles.modeToggleBtnActive : ''}`}
                 type="button"
-                onClick={() => setDatabaseMode('compose')}
+                onClick={() => {
+                  setDatabaseMode('compose')
+                  setDbIntent((current) => current === 'external' ? 'dedicated' : current)
+                }}
               >
                 Build from parts
               </button>
               <button
                 className={`${styles.modeToggleBtn} ${databaseMode === 'url' ? styles.modeToggleBtnActive : ''}`}
                 type="button"
-                onClick={() => setDatabaseMode('url')}
+                onClick={() => {
+                  setDatabaseMode('url')
+                  setDbIntent((current) => current === 'dedicated' ? 'external' : current)
+                }}
               >
                 Paste full URL
               </button>
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel} htmlFor="ci-db-intent">Database strategy</label>
+              <select
+                id="ci-db-intent"
+                className={styles.select}
+                value={dbIntent}
+                onChange={(e) => setDbIntent(e.target.value as DatabaseIntentChoice)}
+              >
+                <option value="dedicated">Dedicated local database</option>
+                <option value="shared">Shared local database</option>
+                <option value="external">External existing database</option>
+              </select>
+              <p className={styles.fieldHint}>
+                This tells Iranti whether the instance owns its own local database, shares a local one with other instances, or depends on an external database you manage separately.
+              </p>
             </div>
 
             {databaseMode === 'compose' ? (

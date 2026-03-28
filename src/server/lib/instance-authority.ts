@@ -19,6 +19,14 @@ export interface ResolvedInstanceAuthority {
   apiBaseUrl: string
   apiKey: string | null
   databaseUrl: string | null
+  databaseIntent: {
+    strategy: 'dedicated-local' | 'shared-local' | 'external-existing'
+    provisioning: 'local' | 'docker' | 'managed'
+    host: string
+    port?: number
+    database: string
+    dockerContainerName?: string
+  } | null
   env: Record<string, string>
   boundProjects: BoundProjectRef[]
   source: 'query' | 'binding'
@@ -31,6 +39,8 @@ interface ProjectRegistryEntry {
 interface ProjectRegistry {
   projects: ProjectRegistryEntry[]
 }
+
+type ParsedDatabaseIntent = ResolvedInstanceAuthority['databaseIntent']
 
 export function deriveInstanceId(instanceDir: string): string {
   const normalized = instanceDir.toLowerCase().replace(/\\/g, '/')
@@ -49,6 +59,48 @@ export function parseSimpleEnv(content: string): Record<string, string> {
     if (key) result[key] = value
   }
   return result
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parseDatabaseIntentFromMeta(raw: unknown): ParsedDatabaseIntent {
+  if (!isRecord(raw)) return null
+  const strategy = typeof raw['strategy'] === 'string' ? raw['strategy'] : null
+  const provisioning = typeof raw['provisioning'] === 'string' ? raw['provisioning'] : null
+  const host = typeof raw['host'] === 'string' ? raw['host'] : null
+  const database = typeof raw['database'] === 'string' ? raw['database'] : null
+  const port = typeof raw['port'] === 'number' ? raw['port'] : undefined
+  const dockerContainerName = typeof raw['dockerContainerName'] === 'string' ? raw['dockerContainerName'] : undefined
+
+  if (
+    (strategy !== 'dedicated-local' && strategy !== 'shared-local' && strategy !== 'external-existing')
+    || (provisioning !== 'local' && provisioning !== 'docker' && provisioning !== 'managed')
+    || !host
+    || !database
+  ) {
+    return null
+  }
+
+  return {
+    strategy,
+    provisioning,
+    host,
+    port,
+    database,
+    ...(dockerContainerName ? { dockerContainerName } : {}),
+  }
+}
+
+async function readInstanceDatabaseIntent(instanceDir: string): Promise<ParsedDatabaseIntent> {
+  try {
+    const metaPath = join(instanceDir, 'instance.json')
+    const parsed = JSON.parse(await readFile(metaPath, 'utf8')) as Record<string, unknown>
+    return parseDatabaseIntentFromMeta(parsed['databaseIntent'])
+  } catch {
+    return null
+  }
 }
 
 function configuredBindingInstanceName(): string | null {
@@ -181,6 +233,7 @@ export async function resolveInstanceAuthority(instanceRef?: string): Promise<Re
     apiBaseUrl: apiBaseUrl.replace(/\/$/, ''),
     apiKey: parsedEnv['IRANTI_API_KEY']?.trim() || null,
     databaseUrl: parsedEnv['DATABASE_URL']?.trim() || null,
+    databaseIntent: await readInstanceDatabaseIntent(match.instanceDir),
     env: parsedEnv,
     boundProjects: await resolveBoundProjects(match.instanceName, match.runtimeRoot, instanceEnvPath),
     source: match.source,

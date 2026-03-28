@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { configureInstance, restartInstance } from '../../api/client'
+import type { DatabaseIntentChoice, DatabaseIntentMeta } from '../../api/types'
 import styles from './ConfigureInstancePanel.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -21,8 +22,15 @@ interface ConfigureInstancePanelProps {
   currentPort: number | null
   currentProvider: string | null
   currentDbUrlRedacted?: string | null
+  currentDbIntent?: DatabaseIntentMeta | null
   onSuccess: () => void
   onCancel: () => void
+}
+
+function choiceFromIntent(intent: DatabaseIntentMeta | null | undefined): DatabaseIntentChoice {
+  if (intent?.strategy === 'shared-local') return 'shared'
+  if (intent?.strategy === 'external-existing') return 'external'
+  return 'dedicated'
 }
 
 /* ------------------------------------------------------------------ */
@@ -34,12 +42,14 @@ export function ConfigureInstancePanel({
   currentPort,
   currentProvider,
   currentDbUrlRedacted,
+  currentDbIntent,
   onSuccess,
   onCancel,
 }: ConfigureInstancePanelProps) {
   const [port, setPort] = useState<string>(currentPort !== null ? String(currentPort) : '')
   const [provider, setProvider] = useState<string>(currentProvider ?? 'claude')
   const [dbUrl, setDbUrl] = useState('')
+  const [dbIntent, setDbIntent] = useState<DatabaseIntentChoice>(choiceFromIntent(currentDbIntent))
   const [providerKey, setProviderKey] = useState('')
 
   const [portError, setPortError] = useState<string | null>(null)
@@ -54,13 +64,14 @@ export function ConfigureInstancePanel({
     setPort(currentPort !== null ? String(currentPort) : '')
     setProvider(currentProvider ?? 'claude')
     setDbUrl('')
+    setDbIntent(choiceFromIntent(currentDbIntent))
     setProviderKey('')
     setPortError(null)
     setDbUrlError(null)
     setSubmitError(null)
     setRestartWarning(null)
     setChangedFields(null)
-  }, [instanceName, currentPort, currentProvider, currentDbUrlRedacted])
+  }, [instanceName, currentPort, currentProvider, currentDbUrlRedacted, currentDbIntent])
 
   const needsKey = PROVIDERS_WITH_KEY.includes(provider)
 
@@ -91,6 +102,7 @@ export function ConfigureInstancePanel({
     const params: {
       port?: number
       dbUrl?: string
+      dbIntent?: DatabaseIntentChoice
       provider?: string
       providerKey?: string
     } = {}
@@ -98,6 +110,7 @@ export function ConfigureInstancePanel({
     const portNum = parseInt(port, 10)
     if (!isNaN(portNum) && portNum !== currentPort) params.port = portNum
     if (dbUrl.trim()) params.dbUrl = dbUrl.trim()
+    if (dbIntent !== choiceFromIntent(currentDbIntent)) params.dbIntent = dbIntent
     if (provider !== currentProvider) params.provider = provider
     if (PROVIDERS_WITH_KEY.includes(provider) && providerKey.trim()) {
       params.providerKey = providerKey.trim()
@@ -124,7 +137,7 @@ export function ConfigureInstancePanel({
       setSubmitting(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitting, port, dbUrl, provider, providerKey, instanceName, currentPort, currentProvider])
+  }, [submitting, port, dbUrl, dbIntent, provider, providerKey, instanceName, currentPort, currentProvider, currentDbIntent])
 
   const handleRestartNow = useCallback(async () => {
     if (restarting) return
@@ -215,6 +228,23 @@ export function ConfigureInstancePanel({
           <p className={styles.fieldHint}>
             This changes the Iranti instance port, not the control-plane UI port. New runtimes usually start at
             <code className={styles.inlineCode}>3001</code>.
+          </p>
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel} htmlFor="cfg-db-intent">Database strategy</label>
+          <select
+            id="cfg-db-intent"
+            className={styles.select}
+            value={dbIntent}
+            onChange={e => setDbIntent(e.target.value as DatabaseIntentChoice)}
+          >
+            <option value="dedicated">Dedicated local database</option>
+            <option value="shared">Shared local database</option>
+            <option value="external">External existing database</option>
+          </select>
+          <p className={styles.fieldHint}>
+            This tells Iranti whether this instance owns its own local database, shares a local one, or depends on an external target for future repair decisions.
           </p>
         </div>
 

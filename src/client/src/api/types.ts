@@ -282,6 +282,15 @@ export interface ProjectBinding {
   integration: ProjectIntegration
 }
 
+export interface DatabaseIntentMeta {
+  strategy: 'dedicated-local' | 'shared-local' | 'external-existing'
+  provisioning: 'local' | 'docker' | 'managed'
+  host: string
+  port?: number
+  database: string
+  dockerContainerName?: string
+}
+
 export interface InstanceMetadata {
   instanceId: string
   name: string
@@ -292,6 +301,7 @@ export interface InstanceMetadata {
   runningStatusCheckedAt: string | null
   irantVersion: string | null
   database: DatabaseMeta | null
+  databaseIntent?: DatabaseIntentMeta | null
   envFile: EnvFileMeta
   integration: IntegrationMeta
   projects: ProjectBinding[]
@@ -548,6 +558,7 @@ export interface SetupStatusResponse {
   scope?: InstanceScopeSummary
   runtimeRoot?: string
   runtimeRootKind?: 'primary' | 'legacy' | 'custom'
+  databaseIntent?: DatabaseIntentMeta | null
   steps: SetupStep[]
   isFullyConfigured: boolean
   firstRunDetected: boolean
@@ -988,6 +999,8 @@ export interface ConfigureInstanceResult {
   restartRequired: boolean
   changed: string[]
 }
+
+export type DatabaseIntentChoice = 'dedicated' | 'shared' | 'external'
 
 export interface MigrateInstanceRootResult {
   ok: boolean
