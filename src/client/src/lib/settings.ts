@@ -34,6 +34,11 @@ export const LEGACY_CHAT_PANEL_KEY = 'iranti_cp_chat_panel_open'
 export const SETUP_DISMISSED_KEY = 'iranti_cp_setup_dismissed'
 export const SETUP_COMPLETE_KEY = 'iranti_setup_complete'
 
+function preferredLocalDbHost(): string {
+  if (typeof navigator === 'undefined') return 'localhost'
+  return /win/i.test(navigator.userAgent) ? '127.0.0.1' : 'localhost'
+}
+
 export const DEFAULT_SETTINGS: ControlPlaneSettings = {
   theme: 'dark',
   landingPage: '/overview',
@@ -45,7 +50,7 @@ export const DEFAULT_SETTINGS: ControlPlaneSettings = {
     startPort: 3001,
     provider: 'claude',
     databaseMode: 'compose',
-    dbHost: 'localhost',
+    dbHost: preferredLocalDbHost(),
     dbPort: '5432',
     dbUser: 'postgres',
     dbNamePrefix: 'iranti_',

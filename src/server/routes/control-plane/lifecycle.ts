@@ -19,7 +19,7 @@
  */
 
 import { Router, Request, Response } from 'express'
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, execFile, ChildProcess } from 'child_process'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { getConfiguredInstanceIdentifiers } from './instance-identifiers.js'
@@ -147,6 +147,18 @@ function createLifecycleError(code: string, message: string, detail?: Record<str
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function execFileAsync(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, (error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+  })
 }
 
 async function readInstanceStatus(name: string, runtimeRoot: string, timeoutMs: number): Promise<StatusInstanceSummary | null> {
@@ -408,11 +420,24 @@ lifecycleRouter.post('/:name/stop', async (req: Request, res: Response): Promise
     return
   }
 
+  const resolved = await resolveInstanceAuthority(name)
+  const runtimeRoot = resolved?.runtimeRoot ?? getConfiguredInstanceIdentifiers().runtimeRoot
   const entry = managedProcesses.get(name)
+  let pid: number | null = entry?.pid ?? null
+  let method: StopResponse['method'] = entry ? 'tracked-process' : 'runtime-metadata'
 
-  if (!entry) {
+  if (!pid) {
+    try {
+      const instance = await readInstanceStatus(name, runtimeRoot, 5000)
+      pid = instance?.runtime?.state?.pid ?? null
+    } catch {
+      pid = null
+    }
+  }
+
+  if (!pid) {
     res.status(404).json({
-      error: 'No tracked process for this instance. Stop it manually using your OS process manager.',
+      error: 'No tracked process or runtime PID was found for this instance. Refresh status or recover it before trying again.',
       code: 'NOT_TRACKED',
       instanceName: name,
       pid: null,
@@ -420,16 +445,25 @@ lifecycleRouter.post('/:name/stop', async (req: Request, res: Response): Promise
     return
   }
 
-  const pid = entry.pid
   const stoppedAt = new Date().toISOString()
 
   try {
-    // On Windows: child.kill() sends a terminate signal.
-    // On Unix: send SIGTERM for graceful shutdown.
-    if (process.platform === 'win32') {
-      entry.child.kill()
+    if (entry) {
+      if (process.platform === 'win32') {
+        entry.child.kill()
+      } else {
+        entry.child.kill('SIGTERM')
+      }
     } else {
-      entry.child.kill('SIGTERM')
+      try {
+        process.kill(pid, 'SIGTERM')
+      } catch (error) {
+        if (process.platform === 'win32') {
+          await execFileAsync('taskkill', ['/PID', String(pid), '/T', '/F'])
+        } else {
+          throw error
+        }
+      }
     }
   } catch (err) {
     // If the process already exited between the check and the kill call,
@@ -447,6 +481,7 @@ lifecycleRouter.post('/:name/stop', async (req: Request, res: Response): Promise
     pid,
     status: 'stopped',
     stoppedAt,
+    method,
   }
 
   res.status(200).json(response)
@@ -560,6 +595,7 @@ interface StopResponse {
   pid: number
   status: 'stopped'
   stoppedAt: string
+  method?: 'tracked-process' | 'runtime-metadata'
 }
 
 interface ProcessStatusResult {

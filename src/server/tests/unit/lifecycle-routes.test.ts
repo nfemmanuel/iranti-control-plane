@@ -586,6 +586,42 @@ describe('lifecycle — POST /:name/stop', () => {
     expect(body.pid).toBeNull()
   })
 
+  it('stops an instance using runtime metadata when it is not tracked in-memory', async () => {
+    runIrantiJsonMock.mockResolvedValue({
+      resolution: null as never,
+      stdout: '',
+      stderr: '',
+      json: {
+        instances: [
+          {
+            name: 'stopinst',
+            runtime: {
+              classification: 'running',
+              running: true,
+              stale: false,
+              detail: 'pid=77800 version=0.2.48',
+              state: { pid: 77800 },
+              health: { checked: true, ok: true, detail: 'health ok' },
+            },
+          },
+        ],
+      },
+    })
+
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+
+    const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
+    expect(stopRes.status).toBe(200)
+    const body = await stopRes.json() as Record<string, unknown>
+    expect(body.instanceName).toBe('stopinst')
+    expect(body.pid).toBe(77800)
+    expect(body.method).toBe('runtime-metadata')
+    expect(body.status).toBe('stopped')
+    expect(killSpy).toHaveBeenCalledWith(77800, 'SIGTERM')
+
+    killSpy.mockRestore()
+  })
+
   it('returns 200, calls kill(), and includes pid + stoppedAt for a tracked process', async () => {
     const proc = makeRunningProcess(77700)
     spawnMock.mockImplementation((cmd: string): FakeProcess => {
@@ -630,6 +666,7 @@ describe('lifecycle — POST /:name/stop', () => {
     const first = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(first.status).toBe(200)
 
+    mockStoppedStatus('stopinst', 'runtime stopped after stop request')
     const second = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(second.status).toBe(404)
     expect(((await second.json()) as Record<string, unknown>).code).toBe('NOT_TRACKED')

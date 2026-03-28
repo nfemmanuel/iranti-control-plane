@@ -383,7 +383,7 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     envFile,
     port,
     provider: instanceEnv['LLM_PROVIDER'] ?? provider,
-    note: `Instance created. Review it with \`iranti instance show ${name}\` or start it with \`iranti run --instance ${name}\`.`,
+    note: 'Instance created. Open it in Control Plane to start the runtime, finish provider setup, and bind projects.',
   })
 })
 

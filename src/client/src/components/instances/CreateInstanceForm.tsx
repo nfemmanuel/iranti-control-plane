@@ -9,7 +9,13 @@ import styles from './CreateInstanceForm.module.css'
 const PROVIDERS = ['gemini', 'claude', 'openai', 'groq', 'mistral', 'ollama', 'mock'] as const
 const PROVIDERS_WITH_KEY: string[] = ['gemini', 'claude', 'openai', 'groq', 'mistral']
 const NAME_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
-const DB_PLACEHOLDER = 'postgresql://user:password@localhost:5432/iranti_myproject'
+
+function preferredLocalDbHost(): string {
+  if (typeof navigator === 'undefined') return 'localhost'
+  return /win/i.test(navigator.userAgent) ? '127.0.0.1' : 'localhost'
+}
+
+const DB_PLACEHOLDER = `postgresql://user:password@${preferredLocalDbHost()}:5432/iranti_myproject`
 
 type DatabaseMode = 'compose' | 'url'
 
@@ -229,7 +235,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
             <div className={styles.migrationNote} role="alert">
               <span className={styles.migrationNoteIcon} aria-hidden="true">!</span>
               <div>
-                <strong>Database setup required</strong>
+                <strong>Next step</strong>
                 <p className={styles.migrationNoteText}>{successResult.note}</p>
               </div>
             </div>
@@ -256,7 +262,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
 
           <div className={styles.formActions}>
             <button className={styles.primaryBtn} type="button" onClick={() => onSuccess(successResult.name)}>
-              Done
+              Open instance
             </button>
           </div>
         </div>
@@ -455,7 +461,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
 
             {dbUrlError && <p className={styles.fieldError}>{dbUrlError}</p>}
             <p className={styles.fieldHint}>
-              The database must exist before first start. After creation, review the instance and start it with the normal Iranti lifecycle flow.
+              Control Plane will take you into the instance after creation so you can start it, wire providers, and bind projects without dropping into the terminal.
             </p>
           </div>
         )}
