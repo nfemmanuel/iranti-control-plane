@@ -1672,10 +1672,11 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
   return [runtimePriority, projectsPriority, clientsPriority]
 }
 
-function DetailPanel({ instance, instances, autoOpenConfigure, autoOpenBind, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
+function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfigure, autoOpenBind, onRefresh, isRefreshing, onRunDoctor, onUpgradeComplete, onLifecycleChange, onRefetchInstances }: {
   instance: InstanceMetadata
   /** All discovered instances — passed through to ApiKeyManager for syncToProject dropdown */
   instances: InstanceMetadata[]
+  siblingConflictNames?: string[]
   autoOpenConfigure?: boolean
   autoOpenBind?: boolean
   onRefresh: () => void
@@ -1864,6 +1865,21 @@ function DetailPanel({ instance, instances, autoOpenConfigure, autoOpenBind, onR
       )}
 
       <div className={styles.detailSections}>
+        {siblingConflictNames && siblingConflictNames.length > 0 && (
+          <div className={styles.instanceCollisionBanner}>
+            <strong>Instance name collision:</strong> {instance.name} is too close to {siblingConflictNames.join(', ')}.
+            {' '}These sibling instances can look interchangeable in the UI and may share the same default database slug.
+            <div className={styles.instanceCollisionActions}>
+              <button
+                className={styles.inlineActionBtn}
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                Review delete options
+              </button>
+            </div>
+          </div>
+        )}
         <section className={styles.detailSection}>
           <h3 className={styles.sectionTitle}>Do This Now</h3>
           <div className={styles.priorityGrid}>
@@ -2204,16 +2220,11 @@ export function InstanceManager() {
 
       {/* Right: detail panel */}
       <div className={styles.detailColumn}>
-        {selectedSiblingConflicts.length > 0 && (
-          <div className={styles.instanceCollisionBanner}>
-            <strong>Instance name collision:</strong> {selectedInstance?.name} is too close to {selectedSiblingConflicts.join(', ')}.
-            {' '}These sibling instances can look interchangeable in the UI and may share the same default database slug. Prefer one canonical instance and retire the duplicate when you are ready.
-          </div>
-        )}
         {selectedInstance ? (
           <DetailPanel
             instance={selectedInstance}
             instances={instances}
+            siblingConflictNames={selectedSiblingConflicts}
             autoOpenConfigure={shouldAutoOpenConfigure}
             autoOpenBind={shouldAutoOpenBind}
             onRefresh={() => void handleProbeRefresh()}
