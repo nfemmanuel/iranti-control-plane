@@ -91,6 +91,7 @@ describe('upgrade routes', () => {
       [
         'C:\\Users\\NF\\AppData\\Roaming\\npm\\node_modules\\iranti\\bin\\iranti.js',
         'upgrade',
+        '--yes',
         '--restart',
         '--instance',
         'iranti_dev',

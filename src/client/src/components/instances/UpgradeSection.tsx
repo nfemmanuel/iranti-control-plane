@@ -1,5 +1,5 @@
 /* Iranti Control Plane - UpgradeSection */
-/* CP-T073: Upgrade coordination UI - triggers iranti upgrade --restart --instance <name> */
+/* CP-T073: Upgrade coordination UI - triggers iranti upgrade --yes --restart --instance <name> */
 
 import { useState, useRef, useEffect } from 'react'
 import type { UpgradeJobStarted, UpgradeJobStatus } from '../../api/types'
@@ -165,7 +165,7 @@ export function UpgradeSection({ instanceName, runningVersion, onUpgradeComplete
           <p className={styles.confirmDetail}>
             This will run{' '}
             <code className={styles.confirmCode}>
-              iranti upgrade --restart --instance {instanceName}
+              iranti upgrade --yes --restart --instance {instanceName}
             </code>
             . The instance will restart. Active agents will experience a brief interruption.
             This may take up to 60 seconds.

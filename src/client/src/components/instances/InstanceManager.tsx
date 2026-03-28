@@ -724,7 +724,7 @@ function UpgradePromoBanner({
           <p className={styles.modalBody}>
             This will run{' '}
             <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-              iranti upgrade --restart --instance {activeInstanceName}
+              iranti upgrade --yes --restart --instance {activeInstanceName}
             </code>
             {' '}for the selected instance runtime. This does not change the globally installed CLI version.
             {' '}Active agents will experience a brief interruption.

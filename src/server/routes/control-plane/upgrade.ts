@@ -1,7 +1,7 @@
 /**
  * Upgrade coordination routes — CP-T073
  *
- * Surfaces `iranti upgrade --restart --instance <name>` as HTTP endpoints so
+ * Surfaces `iranti upgrade --yes --restart --instance <name>` as HTTP endpoints so
  * operators can trigger and track upgrades from the control plane UI.
  *
  * Routes:
@@ -119,7 +119,7 @@ upgradeRouter.post('/:name/upgrade', async (req: Request, res: Response): Promis
 
   addJob(job)
 
-  const cliArgs = [...launch.args, 'upgrade', '--restart', '--instance', name]
+  const cliArgs = [...launch.args, 'upgrade', '--yes', '--restart', '--instance', name]
   if (runtimeRoot) cliArgs.push('--root', runtimeRoot)
 
   let child: ReturnType<typeof spawn>
