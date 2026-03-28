@@ -4,7 +4,7 @@ Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti
 
 ## Status
 
-Current package version: `0.4.2`.
+Current package version: `0.4.3`.
 The operator surface is live and under active UX hardening.
 
 ## Install

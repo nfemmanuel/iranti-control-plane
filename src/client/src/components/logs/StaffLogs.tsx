@@ -27,6 +27,7 @@ interface LogFilters {
   agentId: string
   level: 'all' | 'audit' | 'debug'
   derivedLevel: 'all' | 'info' | 'warning' | 'error'
+  hideRoutineProbes: boolean
   since: string
   until: string
   search: string
@@ -51,6 +52,7 @@ const DEFAULT_FILTERS: LogFilters = {
   agentId: '',
   level: 'all',
   derivedLevel: 'all',
+  hideRoutineProbes: true,
   since: '',
   until: '',
   search: '',
@@ -83,6 +85,20 @@ function classifyEventLevel(event: StaffEvent): DerivedLevel {
   return 'info'
 }
 
+function isRoutineProbeNoise(event: StaffEvent): boolean {
+  const reason = typeof event.metadata?.attendReason === 'string'
+    ? event.metadata.attendReason
+    : null
+
+  return (
+    event.staffComponent === 'Attendant' &&
+    event.actionType === 'attend_completed' &&
+    event.agentId === 'control_plane_operator' &&
+    event.level === 'debug' &&
+    reason === 'memory_not_needed'
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  Filter reducer                                                      */
 /* ------------------------------------------------------------------ */
@@ -94,6 +110,7 @@ type FilterAction =
   | { type: 'SET_AGENT_ID'; value: string }
   | { type: 'SET_LEVEL'; value: LogFilters['level'] }
   | { type: 'SET_DERIVED_LEVEL'; value: LogFilters['derivedLevel'] }
+  | { type: 'SET_HIDE_ROUTINE_PROBES'; value: boolean }
   | { type: 'SET_SINCE'; value: string }
   | { type: 'SET_UNTIL'; value: string }
   | { type: 'SET_SEARCH'; value: string }
@@ -121,6 +138,8 @@ function filterReducer(state: LogFilters, action: FilterAction): LogFilters {
       return { ...state, level: action.value }
     case 'SET_DERIVED_LEVEL':
       return { ...state, derivedLevel: action.value }
+    case 'SET_HIDE_ROUTINE_PROBES':
+      return { ...state, hideRoutineProbes: action.value }
     case 'SET_SINCE':
       return { ...state, since: action.value }
     case 'SET_UNTIL':
@@ -142,12 +161,14 @@ function filterReducer(state: LogFilters, action: FilterAction): LogFilters {
       }
       const level = p.get('level')
       const derivedLevel = p.get('derivedLevel')
+      const hideRoutine = p.get('hideRoutineProbes')
       return {
         components: comps.length > 0 ? new Set(comps) : new Set(ALL_COMPONENTS),
         eventType: p.get('eventType') ?? '',
         agentId: p.get('agentId') ?? '',
         level: (level === 'audit' || level === 'debug') ? level : 'all',
         derivedLevel: (derivedLevel === 'info' || derivedLevel === 'warning' || derivedLevel === 'error') ? derivedLevel : 'all',
+        hideRoutineProbes: hideRoutine === 'false' ? false : true,
         since: p.get('since') ?? '',
         until: p.get('until') ?? '',
         search: p.get('search') ?? '',
@@ -172,6 +193,7 @@ function filtersToParams(filters: LogFilters): URLSearchParams {
   if (filters.agentId) p.set('agentId', filters.agentId)
   if (filters.level !== 'all') p.set('level', filters.level)
   if (filters.derivedLevel !== 'all') p.set('derivedLevel', filters.derivedLevel)
+  if (!filters.hideRoutineProbes) p.set('hideRoutineProbes', 'false')
   if (filters.since) p.set('since', filters.since)
   if (filters.until) p.set('until', filters.until)
   if (filters.search) p.set('search', filters.search)
@@ -616,9 +638,19 @@ export function StaffLogs() {
   const total = data?.total ?? 0
 
   // Apply client-side derived level filter (not sent to server — derived from event shape)
-  const visibleEvents = filters.derivedLevel === 'all'
-    ? events
-    : events.filter(e => classifyEventLevel(e) === filters.derivedLevel)
+  const visibleEvents = events.filter((event) => {
+    if (filters.hideRoutineProbes && isRoutineProbeNoise(event)) {
+      return false
+    }
+    if (filters.derivedLevel !== 'all' && classifyEventLevel(event) !== filters.derivedLevel) {
+      return false
+    }
+    return true
+  })
+
+  const hiddenRoutineProbeCount = filters.hideRoutineProbes
+    ? events.filter(isRoutineProbeNoise).length
+    : 0
 
   const toggleRow = (id: string) => setExpandedRowId(prev => prev === id ? null : id)
 
@@ -628,6 +660,7 @@ export function StaffLogs() {
     filters.agentId !== '' ||
     filters.level !== 'all' ||
     filters.derivedLevel !== 'all' ||
+    !filters.hideRoutineProbes ||
     filters.since !== '' ||
     filters.until !== '' ||
     filters.search !== ''
@@ -733,6 +766,19 @@ export function StaffLogs() {
             <option value="warning">warning</option>
             <option value="error">error</option>
           </select>
+
+          <span className={styles.filterSep} />
+
+          <label className={styles.componentToggle}>
+            <input
+              type="checkbox"
+              className={styles.filterCheckbox}
+              checked={filters.hideRoutineProbes}
+              onChange={e => dispatch({ type: 'SET_HIDE_ROUTINE_PROBES', value: e.target.checked })}
+              aria-label="Hide routine control-plane probe noise"
+            />
+            <span>Hide routine probes</span>
+          </label>
         </div>
 
         {/* Row 2: Text filters */}
@@ -841,9 +887,10 @@ export function StaffLogs() {
           </span>
         )}
         <span className={styles.statusCount}>
-          {filters.derivedLevel !== 'all'
-            ? `${visibleEvents.length} shown (severity filter active)`
-            : ''}
+          {[
+            filters.derivedLevel !== 'all' ? `${visibleEvents.length} shown (severity filter active)` : '',
+            hiddenRoutineProbeCount > 0 ? `${hiddenRoutineProbeCount} routine probe event${hiddenRoutineProbeCount === 1 ? '' : 's'} hidden` : '',
+          ].filter(Boolean).join(' · ')}
         </span>
       </div>
 
