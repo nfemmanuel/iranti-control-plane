@@ -713,10 +713,6 @@ describe('lifecycle — POST /:name/stop', () => {
         },
       })
 
-    const runtimeKillSpy = process.platform === 'win32'
-      ? null
-      : vi.spyOn(process, 'kill').mockImplementation(() => true)
-
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
     const body = await stopRes.json() as Record<string, unknown>
@@ -799,6 +795,10 @@ describe('lifecycle — POST /:name/stop', () => {
           ],
         },
       })
+
+    const runtimeKillSpy = process.platform === 'win32'
+      ? null
+      : vi.spyOn(process, 'kill').mockImplementation(() => true)
 
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
@@ -915,6 +915,10 @@ describe('lifecycle — POST /:name/stop', () => {
         },
       })
 
+    const runtimeKillSpy = process.platform === 'win32'
+      ? null
+      : vi.spyOn(process, 'kill').mockImplementation(() => true)
+
     const stopRes = await fetch(`${srv.base()}/stopinst/stop`, { method: 'POST' })
     expect(stopRes.status).toBe(200)
     const body = await stopRes.json() as Record<string, unknown>
@@ -926,8 +930,8 @@ describe('lifecycle — POST /:name/stop', () => {
     } else {
       expect(proc.kill).toHaveBeenCalledOnce()
       expect(runtimeKillSpy).toHaveBeenCalledWith(88888, 'SIGTERM')
-      runtimeKillSpy?.mockRestore()
     }
+    runtimeKillSpy?.mockRestore()
   })
 })
 
