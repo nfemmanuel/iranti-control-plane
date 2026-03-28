@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Shared API client */
 /* All control-plane API calls go through this module. */
 
-import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
+import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ControlPlaneSelfActionResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
 
 const BASE = '/api/control-plane'
 
@@ -150,6 +150,22 @@ export async function runCommand(params: {
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as RunCommandResult
+}
+
+export async function stopControlPlane(): Promise<ControlPlaneSelfActionResult> {
+  const url = new URL(`${BASE}/self/stop`, window.location.origin)
+  const res = await fetch(url.toString(), { method: 'POST' })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as ControlPlaneSelfActionResult
+}
+
+export async function uninstallControlPlane(): Promise<ControlPlaneSelfActionResult> {
+  const url = new URL(`${BASE}/self/uninstall`, window.location.origin)
+  const res = await fetch(url.toString(), { method: 'POST' })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as ControlPlaneSelfActionResult
 }
 
 // ---------------------------------------------------------------------------

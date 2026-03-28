@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { stopControlPlane, uninstallControlPlane } from '../../api/client'
 import { useSettings } from '../../hooks/useSettings'
 import {
   clearSetupGuideFlags,
@@ -75,6 +76,11 @@ export function SettingsPage() {
   const { settings, replaceSettings } = useSettings()
   const [draft, setDraft] = useState<ControlPlaneSettings>(settings)
   const [savedState, setSavedState] = useState<'idle' | 'saved'>('idle')
+  const [controlPlaneAction, setControlPlaneAction] = useState<{
+    phase: 'idle' | 'working' | 'done' | 'error'
+    action: 'stop' | 'uninstall' | null
+    message: string
+  }>({ phase: 'idle', action: null, message: '' })
 
   useEffect(() => {
     setDraft(settings)
@@ -117,6 +123,42 @@ export function SettingsPage() {
   const handleResetSetupGuide = () => {
     clearSetupGuideFlags()
     setSavedState('saved')
+  }
+
+  const handleStopControlPlane = async () => {
+    setControlPlaneAction({
+      phase: 'working',
+      action: 'stop',
+      message: 'Stopping Control Plane. This page will stop responding once the shutdown lands.',
+    })
+    try {
+      const result = await stopControlPlane()
+      setControlPlaneAction({ phase: 'done', action: 'stop', message: result.message })
+    } catch (error) {
+      setControlPlaneAction({
+        phase: 'error',
+        action: 'stop',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const handleUninstallControlPlane = async () => {
+    setControlPlaneAction({
+      phase: 'working',
+      action: 'uninstall',
+      message: 'Starting Control Plane uninstall. The app will shut down before npm removes the package.',
+    })
+    try {
+      const result = await uninstallControlPlane()
+      setControlPlaneAction({ phase: 'done', action: 'uninstall', message: result.message })
+    } catch (error) {
+      setControlPlaneAction({
+        phase: 'error',
+        action: 'uninstall',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   return (
@@ -248,6 +290,49 @@ export function SettingsPage() {
             Open Getting Started
           </Link>
         </div>
+      </Section>
+
+      <Section
+        title="Control Plane Lifecycle"
+        description="Manage the control plane itself from inside the product when you are done with this session or want to remove the package."
+      >
+        <div className={styles.lifecycleRow}>
+          <div className={styles.lifecycleCard}>
+            <h3 className={styles.lifecycleTitle}>Stop Control Plane</h3>
+            <p className={styles.lifecycleBody}>
+              Gracefully shut down the current control-plane server. Use this when you want to stop the dashboard without opening a terminal.
+            </p>
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              onClick={handleStopControlPlane}
+              disabled={controlPlaneAction.phase === 'working'}
+            >
+              {controlPlaneAction.phase === 'working' && controlPlaneAction.action === 'stop' ? 'Stopping…' : 'Stop Control Plane'}
+            </button>
+          </div>
+
+          <div className={styles.lifecycleCard}>
+            <h3 className={styles.lifecycleTitle}>Uninstall Package</h3>
+            <p className={styles.lifecycleBody}>
+              Stop the current control plane, then launch <code>npm uninstall -g iranti-control-plane</code> in the background.
+            </p>
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              onClick={handleUninstallControlPlane}
+              disabled={controlPlaneAction.phase === 'working'}
+            >
+              {controlPlaneAction.phase === 'working' && controlPlaneAction.action === 'uninstall' ? 'Uninstalling…' : 'Uninstall Control Plane'}
+            </button>
+          </div>
+        </div>
+
+        {controlPlaneAction.phase !== 'idle' && (
+          <div className={`${styles.lifecycleNotice} ${controlPlaneAction.phase === 'error' ? styles.lifecycleNoticeError : ''}`}>
+            {controlPlaneAction.message}
+          </div>
+        )}
       </Section>
 
       <Section

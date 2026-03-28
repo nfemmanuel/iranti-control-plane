@@ -28,6 +28,7 @@ import { claudeIntegrationRouter } from './claude-integration.js'
 import { codexIntegrationRouter } from './codex-integration.js'
 import { attendantDebugRouter } from './attendant-debug.js'
 import { localToolsRouter } from './local-tools.js'
+import { controlPlaneSelfRouter } from './control-plane-self.js'
 
 export const controlPlaneRouter = Router()
 
@@ -58,6 +59,7 @@ controlPlaneRouter.use('/install-state', installStateRouter)
 controlPlaneRouter.use('/instances', lifecycleRouter)
 controlPlaneRouter.use('/open-file', openFileRouter)
 controlPlaneRouter.use('/', localToolsRouter)
+controlPlaneRouter.use('/', controlPlaneSelfRouter)
 controlPlaneRouter.use('/auth-keys', authKeysRouter)
 controlPlaneRouter.use('/', instanceLifecycleRouter)
 controlPlaneRouter.use('/integrations', codexIntegrationRouter)

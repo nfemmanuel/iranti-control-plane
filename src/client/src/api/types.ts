@@ -942,6 +942,12 @@ export interface RunCommandResult {
   durationMs: number
 }
 
+export interface ControlPlaneSelfActionResult {
+  ok: boolean
+  action: 'stop' | 'uninstall'
+  message: string
+}
+
 /* ------------------------------------------------------------------ */
 /*  Auth Key Manager (CP-T088)                                         */
 /* ------------------------------------------------------------------ */
