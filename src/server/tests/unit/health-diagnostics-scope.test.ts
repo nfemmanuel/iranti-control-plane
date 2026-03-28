@@ -18,6 +18,8 @@ describe('health and diagnostics instance scoping', () => {
   let betaInstanceId: string
   const attendBodies: Array<Record<string, unknown>> = []
   let attendResponse: Record<string, unknown>
+  let searchResults: Array<Record<string, unknown>>
+  const queryValues = new Map<string, unknown>()
 
   beforeEach(async () => {
     tempRoot = await mkdtemp(join(tmpdir(), 'iranti-cp-health-'))
@@ -25,6 +27,8 @@ describe('health and diagnostics instance scoping', () => {
     await mkdir(join(runtimeRoot, 'instances', 'alpha'), { recursive: true })
     await mkdir(join(runtimeRoot, 'instances', 'beta'), { recursive: true })
     attendResponse = { ok: true }
+    searchResults = [{ entity: '__diagnostics__/__probe__', key: 'semantic_probe', value: 'ok', vectorScore: 1 }]
+    queryValues.clear()
 
     irantiServer = http.createServer(async (req, res) => {
       if (req.url === '/health') {
@@ -50,8 +54,19 @@ describe('health and diagnostics instance scoping', () => {
       if (req.url?.startsWith('/kb/search')) {
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({
-          results: [{ entity: '__diagnostics__/__probe__', key: 'probe_timestamp', value: 'ok', vectorScore: 1 }],
+          results: searchResults,
         }))
+        return
+      }
+
+      if (req.url?.startsWith('/kb/query/')) {
+        const parts = req.url.split('/')
+        const key = decodeURIComponent(parts.at(-1) ?? '')
+        const value = queryValues.get(key)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(value === undefined
+          ? { found: false }
+          : { found: true, value }))
         return
       }
 
@@ -62,6 +77,13 @@ describe('health and diagnostics instance scoping', () => {
             bodyRaw += chunk
           }
           attendBodies.push(JSON.parse(bodyRaw) as Record<string, unknown>)
+        } else if (req.url === '/kb/write') {
+          let bodyRaw = ''
+          for await (const chunk of req) {
+            bodyRaw += chunk
+          }
+          const body = JSON.parse(bodyRaw) as Record<string, unknown>
+          queryValues.set(String(body.key), body.value)
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(attendResponse))
@@ -190,6 +212,22 @@ describe('health and diagnostics instance scoping', () => {
       status: 'warn',
       message: 'Attendant returned 200, but the diagnostic probe fell back to a conservative no-memory decision.',
       fixHint: 'This usually means the synthetic probe was ambiguous, not that the Attendant is down. Re-test with a clearer task prompt if real memory injection seems weak.',
+    })
+  })
+
+  it('treats lexical-only semantic probe matches as a vector-search warning instead of a hard failure', async () => {
+    searchResults = [{ entity: '__diagnostics__/__probe__', key: 'semantic_probe', value: 'ok', vectorScore: 0 }]
+
+    const diagRes = await fetch(`${apiBase}/diagnostics/run?instanceId=${betaInstanceId}`, { method: 'POST' })
+    const diagBody = await diagRes.json() as Record<string, unknown>
+    expect(diagRes.status).toBe(200)
+
+    const checks = diagBody.checks as Array<Record<string, unknown>>
+    const vectorCheck = checks.find((check) => check.check === 'vector_search_check')
+    expect(vectorCheck).toMatchObject({
+      status: 'warn',
+      message: 'Semantic probe surfaced, but only through lexical matching (vectorScore=0)',
+      fixHint: 'Vector backend is reachable, so this usually means embeddings are stale or the semantic probe is underweighted. Re-run doctor and inspect vector index consistency if real search feels weak.',
     })
   })
 })

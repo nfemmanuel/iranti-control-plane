@@ -608,10 +608,10 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
         {badge}
       </div>
 
-      {/* Color direction note â€” operators must not mistake amber for a warning */}
+      {/* Color direction note - operators must not mistake amber for a warning */}
       <p className={styles.cardMessage}>
         {enabled
-          ? 'Decay is active â€” facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
+          ? 'Decay is active - facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
           : 'Memory decay is disabled. Facts are archived only by expiry, low confidence (< 30), or Resolutionist resolution.'}
       </p>
 
@@ -637,7 +637,7 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
         <span className={styles.normalizationLabel} aria-hidden="true">i</span>
         <p className={styles.normalizationText}>
           {enabled
-            ? 'Amber here means decay is on â€” this is an operator-visible state, not an error.'
+            ? 'Amber here means decay is on - this is an operator-visible state, not an error.'
             : 'Green means decay is off. No automatic archival by time/access pattern. Explicit actions (expiry, confidence threshold, Resolutionist) still apply.'}
         </p>
       </div>
@@ -690,7 +690,7 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
   return (
     <div
       className={`${styles.card} ${cardClassMap[severity]}`}
-      aria-label={`Vector Backend: ${typeLabel} â€” ${severity.toLowerCase()}`}
+      aria-label={`Vector Backend: ${typeLabel} - ${severity.toLowerCase()}`}
     >
       <div className={styles.cardHeader}>
         <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
@@ -714,7 +714,7 @@ function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBacke
         {(type === 'pgvector' || type === 'unknown') && (
           <div className={styles.cardDetailRow}>
             <dt className={styles.cardDetailKey}>connection</dt>
-            <dd className={styles.cardDetailVal}>Uses primary database connection â€” see DB Reachability check</dd>
+            <dd className={styles.cardDetailVal}>Uses primary database connection - see DB Reachability check</dd>
           </div>
         )}
       </dl>

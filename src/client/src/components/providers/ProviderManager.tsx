@@ -939,20 +939,20 @@ export function ProviderManager() {
           type="button"
           aria-label="Refresh all providers"
         >
-          ↺ Refresh all
+          Refresh all
         </button>
       </div>
 
       {!isLoading && needsClaudeMigration && (
         <div className={styles.errorState}>
-          <span aria-hidden="true">âš </span> This instance still uses legacy `anthropic` provider IDs.
+          <span aria-hidden="true">!</span> This instance still uses legacy `anthropic` provider IDs.
           <button
             type="button"
             className={styles.writeBtn}
             onClick={() => void handleNormalizeClaudeProviderIds()}
             disabled={migrationPending}
           >
-            {migrationPending ? 'Fixingâ€¦' : 'Normalize to claude'}
+            {migrationPending ? 'Fixing...' : 'Normalize to claude'}
           </button>
           {migrationFeedback && <span>{migrationFeedback}</span>}
         </div>

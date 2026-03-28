@@ -25,6 +25,16 @@ interface DiagnosticResult {
   scope: InstanceScopeSummary
 }
 
+const DIAGNOSTIC_ENTITY_TYPE = '__diagnostics__'
+const DIAGNOSTIC_ENTITY_ID = '__probe__'
+const ROUNDTRIP_KEY = 'roundtrip_marker'
+const ROUNDTRIP_VALUE = 'control-plane-roundtrip-ok'
+const ROUNDTRIP_SUMMARY = 'Stable control-plane round-trip probe'
+const VECTOR_PROBE_KEY = 'semantic_probe'
+const VECTOR_PROBE_VALUE = 'Shared memory helps research teams preserve handoffs and working context.'
+const VECTOR_PROBE_SUMMARY = 'Semantic probe for vector-search diagnostics'
+const VECTOR_PROBE_QUERY = 'team memory for research workflows'
+
 const lastDiagnosticResult = new Map<string, DiagnosticResult>()
 
 function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
@@ -55,6 +65,10 @@ function buildHeaders(scope: ResolvedInstanceAuthority): Record<string, string> 
 function buildRunCommand(scope: ResolvedInstanceAuthority): string {
   const quotedRoot = /\s/.test(scope.runtimeRoot) ? `"${scope.runtimeRoot}"` : scope.runtimeRoot
   return `iranti run --instance ${scope.instanceName} --root ${quotedRoot}`
+}
+
+function buildKbQueryUrl(scope: ResolvedInstanceAuthority, key: string): string {
+  return `${scope.apiBaseUrl}/kb/query/${encodeURIComponent(DIAGNOSTIC_ENTITY_TYPE)}/${encodeURIComponent(DIAGNOSTIC_ENTITY_ID)}/${encodeURIComponent(key)}`
 }
 
 async function withScopedPool<T>(
@@ -281,58 +295,45 @@ async function checkVectorBackend(scope: ResolvedInstanceAuthority, pool: pg.Poo
   return withTimeout(work(), 3000, 'vector_backend')
 }
 
-function extractProbeValueFromSearch(body: unknown): string | null {
+function extractExactQueryValue(body: unknown): string | null {
   if (body === null || typeof body !== 'object') return null
   const obj = body as Record<string, unknown>
-  const items = Array.isArray(obj['results'])
-    ? obj['results'] as unknown[]
-    : Array.isArray(obj['facts'])
-    ? obj['facts'] as unknown[]
-    : Array.isArray(obj['items'])
-    ? obj['items'] as unknown[]
-    : []
-
-  for (const item of items) {
-    if (!item || typeof item !== 'object') continue
-    const fact = item as Record<string, unknown>
-    if (!String(fact['entity'] ?? '').startsWith('__diagnostics__')) continue
-    if (fact['key'] !== 'probe_timestamp') continue
-    const value = fact['value'] ?? fact['valueRaw'] ?? fact['valueSummary']
-    if (value !== null && value !== undefined) return String(value)
+  if (obj['found'] !== true) return null
+  const raw = obj['value']
+  if (raw === null || raw === undefined) return null
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'object' && raw !== null && typeof (raw as Record<string, unknown>)['text'] === 'string') {
+    return String((raw as Record<string, unknown>)['text'])
   }
-
-  return null
+  return String(raw)
 }
 
-async function deleteProbeFact(scope: ResolvedInstanceAuthority): Promise<void> {
-  try {
-    await fetch(`${scope.apiBaseUrl}/kb/delete?entity=__diagnostics__/__probe__&key=probe_timestamp`, {
-      method: 'DELETE',
-      headers: buildHeaders(scope),
-    })
-  } catch {
-    // best-effort cleanup only
-  }
+async function writeDiagnosticFact(
+  scope: ResolvedInstanceAuthority,
+  key: string,
+  value: string,
+  summary: string
+): Promise<globalThis.Response> {
+  return fetch(`${scope.apiBaseUrl}/kb/write`, {
+    method: 'POST',
+    headers: buildHeaders(scope),
+    body: JSON.stringify({
+      entity: `${DIAGNOSTIC_ENTITY_TYPE}/${DIAGNOSTIC_ENTITY_ID}`,
+      agent: 'control_plane_operator',
+      key,
+      value,
+      summary,
+      confidence: 50,
+      source: 'control_plane_diagnostics',
+    }),
+  })
 }
 
 async function checkIngestRoundtrip(scope: ResolvedInstanceAuthority): Promise<CheckResult> {
   const start = Date.now()
-  const probeTimestamp = new Date().toISOString()
 
   const work = async (): Promise<CheckResult> => {
-    const writeRes = await fetch(`${scope.apiBaseUrl}/kb/write`, {
-      method: 'POST',
-      headers: buildHeaders(scope),
-      body: JSON.stringify({
-        entity: '__diagnostics__/__probe__',
-        agent: 'control_plane_operator',
-        key: 'probe_timestamp',
-        value: probeTimestamp,
-        summary: 'Diagnostic probe',
-        confidence: 50,
-        source: 'control_plane_diagnostics',
-      }),
-    })
+    const writeRes = await writeDiagnosticFact(scope, ROUNDTRIP_KEY, ROUNDTRIP_VALUE, ROUNDTRIP_SUMMARY)
 
     if (!writeRes.ok) {
       return {
@@ -344,31 +345,29 @@ async function checkIngestRoundtrip(scope: ResolvedInstanceAuthority): Promise<C
       }
     }
 
-    const queryRes = await fetch(`${scope.apiBaseUrl}/kb/search?query=probe_timestamp&limit=5`, {
+    const queryRes = await fetch(buildKbQueryUrl(scope, ROUNDTRIP_KEY), {
       method: 'GET',
       headers: buildHeaders(scope),
     })
 
     if (!queryRes.ok) {
-      await deleteProbeFact(scope)
       return {
         check: 'ingest_roundtrip',
         status: 'fail',
-        message: `Read probe failed: GET /kb/search returned HTTP ${queryRes.status}`,
+        message: `Read probe failed: GET /kb/query returned HTTP ${queryRes.status}`,
         fixHint: null,
         durationMs: Date.now() - start,
       }
     }
 
     const body = await queryRes.json() as unknown
-    await deleteProbeFact(scope)
-    const value = extractProbeValueFromSearch(body)
+    const value = extractExactQueryValue(body)
     return {
       check: 'ingest_roundtrip',
-      status: value !== null ? 'pass' : 'fail',
-      message: value !== null
+      status: value === ROUNDTRIP_VALUE ? 'pass' : 'fail',
+      message: value === ROUNDTRIP_VALUE
         ? 'Ingest round-trip succeeded'
-        : 'Probe fact was written but could not be read back',
+        : 'Probe fact was written but could not be read back exactly',
       fixHint: null,
       durationMs: Date.now() - start,
     }
@@ -441,7 +440,18 @@ function extractSearchItems(body: unknown): unknown[] {
 async function checkVectorSearch(scope: ResolvedInstanceAuthority): Promise<CheckResult> {
   const start = Date.now()
   const work = async (): Promise<CheckResult> => {
-    const res = await fetch(`${scope.apiBaseUrl}/kb/search?query=diagnostic+probe&limit=1`, {
+    const writeRes = await writeDiagnosticFact(scope, VECTOR_PROBE_KEY, VECTOR_PROBE_VALUE, VECTOR_PROBE_SUMMARY)
+    if (!writeRes.ok) {
+      return {
+        check: 'vector_search_check',
+        status: 'fail',
+        message: `Write probe failed: POST /kb/write returned HTTP ${writeRes.status}`,
+        fixHint: `Check API key scopes for ${scope.instanceName}.`,
+        durationMs: Date.now() - start,
+      }
+    }
+
+    const res = await fetch(`${scope.apiBaseUrl}/kb/search?query=${encodeURIComponent(VECTOR_PROBE_QUERY)}&limit=5`, {
       method: 'GET',
       headers: buildHeaders(scope),
     })
@@ -456,25 +466,40 @@ async function checkVectorSearch(scope: ResolvedInstanceAuthority): Promise<Chec
       }
     }
 
+    let matchedProbe = false
     let hasVectorScore = false
     try {
       const body = await res.json() as unknown
-      hasVectorScore = extractSearchItems(body).some((item) => {
-        if (!item || typeof item !== 'object') return false
-        const score = (item as Record<string, unknown>)['vectorScore']
-        return typeof score === 'number' && score > 0
-      })
+      const items = extractSearchItems(body)
+      for (const item of items) {
+        if (!item || typeof item !== 'object') continue
+        const fact = item as Record<string, unknown>
+        const entity = String(fact['entity'] ?? '')
+        const key = String(fact['key'] ?? '')
+        if (entity !== `${DIAGNOSTIC_ENTITY_TYPE}/${DIAGNOSTIC_ENTITY_ID}` || key !== VECTOR_PROBE_KEY) continue
+        matchedProbe = true
+        const score = fact['vectorScore']
+        hasVectorScore = typeof score === 'number' && score > 0
+        break
+      }
     } catch {
+      matchedProbe = true
       hasVectorScore = true
     }
 
     return {
       check: 'vector_search_check',
-      status: hasVectorScore ? 'pass' : 'warn',
-      message: hasVectorScore
-        ? 'Vector search returned results with non-zero vectorScore'
-        : 'Vector search returned 200 but vectorScore=0 for all results',
-      fixHint: null,
+      status: matchedProbe && hasVectorScore ? 'pass' : 'warn',
+      message: matchedProbe && hasVectorScore
+        ? 'Semantic vector probe returned a non-zero vectorScore'
+        : matchedProbe
+        ? 'Semantic probe surfaced, but only through lexical matching (vectorScore=0)'
+        : 'Semantic vector probe did not appear in hybrid search results',
+      fixHint: matchedProbe && hasVectorScore
+        ? null
+        : matchedProbe
+        ? 'Vector backend is reachable, so this usually means embeddings are stale or the semantic probe is underweighted. Re-run doctor and inspect vector index consistency if real search feels weak.'
+        : 'Vector backend is reachable, but semantic ranking did not surface the known probe. Re-run doctor and inspect vector index consistency if this persists.',
       durationMs: Date.now() - start,
     }
   }
