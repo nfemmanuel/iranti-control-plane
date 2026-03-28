@@ -56,7 +56,9 @@ export async function startInstance(name: string): Promise<StartInstanceResult> 
     return { started: false, instance: name, reason: body.error ?? 'Already running' }
   }
   if (!res.ok) {
-    throw new Error(body.error ?? res.statusText)
+    const error = new Error(body.error ?? res.statusText) as Error & { code?: string }
+    error.code = body.code
+    throw error
   }
   return body
 }
@@ -89,7 +91,9 @@ export async function restartInstance(name: string): Promise<RestartInstanceResu
   const res = await fetch(url.toString(), { method: 'POST' })
   const body = await res.json().catch(() => ({ error: res.statusText })) as RestartInstanceResult & { error?: string }
   if (!res.ok) {
-    throw new Error(body.error ?? res.statusText)
+    const error = new Error(body.error ?? res.statusText) as Error & { code?: string }
+    error.code = body.code
+    throw error
   }
   return body
 }

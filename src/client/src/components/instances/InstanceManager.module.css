@@ -836,6 +836,16 @@
   background: var(--color-status-success-bg);
 }
 
+.recoverBtn {
+  background: none;
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.recoverBtn:hover:not(:disabled) {
+  background: var(--color-status-warning-bg);
+}
+
 .stopBtn {
   background: none;
   border-color: var(--color-status-error);

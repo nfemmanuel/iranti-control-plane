@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects } from '../../api/client'
+import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject, ProjectBinding } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSettings } from '../../hooks/useSettings'
@@ -21,7 +21,7 @@ import { CodexIntegrationPanel } from './CodexIntegrationPanel'
 import styles from './InstanceManager.module.css'
 import { Spinner } from '../ui/Spinner'
 import { CommandAction } from '../ui/CommandAction'
-import { buildIrantiRunCommand, canRunCommand } from '../ui/commandText'
+import { buildIrantiRunCommand } from '../ui/commandText'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -889,6 +889,7 @@ function LifecycleControls({
   const [showStopConfirm, setShowStopConfirm] = useState(false)
 
   const isRunning = instance.runningStatus === 'running'
+  const isRecoverable = instance.runtimeStatus === 'invalid' || instance.runtimeStatus === 'stale'
   const isUnreachable =
     instance.runningStatus === 'unreachable' ||
     instance.runningStatus === 'stopped' ||
@@ -912,11 +913,33 @@ function LifecycleControls({
       } else {
         // The backend already confirmed a durable start; refresh the UI state.
         setTimeout(() => {
-          setLifecycleInfo('Started')
+          setLifecycleInfo(result.recovered ? (result.note ?? 'Recovered and started') : 'Started')
           onStatusChange()
           setTimeout(() => setLifecycleInfo(null), 3000)
         }, 2000)
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setLifecycleError(msg)
+      setLifecycleInfo(null)
+    } finally {
+      setInFlight(false)
+    }
+  }, [inFlight, instance.name, onStatusChange])
+
+  const handleRecover = useCallback(async () => {
+    if (inFlight) return
+    setInFlight(true)
+    setLifecycleError(null)
+    setLifecycleInfo('Recovering runtime...')
+
+    try {
+      await restartInstance(instance.name)
+      setTimeout(() => {
+        setLifecycleInfo('Recovery triggered')
+        onStatusChange()
+        setTimeout(() => setLifecycleInfo(null), 3000)
+      }, 1500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setLifecycleError(msg)
@@ -950,7 +973,20 @@ function LifecycleControls({
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        {isUnreachable && (
+        {isRecoverable ? (
+          <button
+            className={`${styles.lifecycleBtn} ${styles.recoverBtn}`}
+            type="button"
+            disabled={inFlight}
+            onClick={() => void handleRecover()}
+          >
+            {inFlight ? (
+              <><span className={styles.spinnerSmall} aria-hidden="true" /> Recovering...</>
+            ) : (
+              <>Recover</>
+            )}
+          </button>
+        ) : isUnreachable && (
           <button
             className={`${styles.lifecycleBtn} ${styles.startBtn}`}
             type="button"
@@ -1381,7 +1417,7 @@ function ProjectsSection({
 
 type PriorityTone = 'ready' | 'warning' | 'critical'
 type PriorityAction =
-  | { label: string; type: 'start' | 'doctor' | 'configure' | 'scroll'; target?: string }
+  | { label: string; type: 'start' | 'recover' | 'doctor' | 'configure' | 'scroll'; target?: string }
   | null
 
 interface PriorityCardDescriptor {
@@ -1436,7 +1472,16 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
   const providerReady = hasUsableProvider(instance)
 
   const runtimePriority: PriorityCardDescriptor =
-    instance.runningStatus !== 'running'
+    instance.runtimeStatus === 'invalid'
+      ? {
+          key: 'runtime',
+          title: 'Runtime first',
+          tone: 'critical',
+          summary: 'Runtime metadata is invalid.',
+          detail: 'Control Plane can recover this instance for you. Use recovery before trusting doctor output or project wiring below.',
+          action: { label: 'Recover runtime', type: 'recover' },
+        }
+      : instance.runningStatus !== 'running'
       ? {
           key: 'runtime',
           title: 'Runtime first',
@@ -1577,6 +1622,16 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       onRunDoctor(instance.instanceId)
       return
     }
+    if (action.type === 'recover') {
+      setPriorityActionBusy(true)
+      try {
+        await restartInstance(instance.name)
+        onLifecycleChange()
+      } finally {
+        setPriorityActionBusy(false)
+      }
+      return
+    }
     if (action.type === 'start') {
       setPriorityActionBusy(true)
       try {
@@ -1639,22 +1694,19 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
       </div>
 
       {/* CP-T029: Specific message for unreachable instances */}
-      {(instance.runningStatus === 'unreachable' || instance.runningStatus === 'stopped') && (
+      {(instance.runningStatus === 'unreachable' || instance.runningStatus === 'stopped' || instance.runtimeStatus === 'invalid') && (
         <div className={styles.errorBanner}>
           {(() => {
-            const command = instance.name
-              ? buildIrantiRunCommand(instance.name, instance.runtimeRoot)
-              : 'iranti run'
+            const actionLabel = instance.runtimeStatus === 'invalid' ? 'Recover' : 'Start'
             return (
               <>
-          <strong>Runtime is not reachable.</strong>{' '}
-          Start it with <code className={styles.inlineCode}>{command}</code>, then refresh this page.
+          <strong>{instance.runtimeStatus === 'invalid' ? 'Runtime metadata is invalid.' : 'Runtime is not reachable.'}</strong>{' '}
+          Use <code className={styles.inlineCode}>{actionLabel}</code> above to let Control Plane recover or start the instance for you.
           {instance.runningStatusCheckedAt && (
             <span className={styles.errorBannerTime}>
               {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
             </span>
           )}
-          <CommandAction command={command} allowRun={canRunCommand(command)} compact />
               </>
             )
           })()}
@@ -1718,7 +1770,11 @@ function DetailPanel({ instance, instances, onRefresh, isRefreshing, onRunDoctor
                     disabled={priorityActionBusy}
                     onClick={() => void handlePriorityAction(priority.action)}
                   >
-                    {priorityActionBusy && priority.action.type === 'start' ? 'Starting...' : priority.action.label}
+                    {priorityActionBusy && priority.action.type === 'start'
+                      ? 'Starting...'
+                      : priorityActionBusy && priority.action.type === 'recover'
+                        ? 'Recovering...'
+                        : priority.action.label}
                   </button>
                 )}
               </div>

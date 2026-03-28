@@ -149,6 +149,50 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function readInstanceStatus(name: string, runtimeRoot: string, timeoutMs: number): Promise<StatusInstanceSummary | null> {
+  const status = await runIrantiJson<StatusCommandResult>(['status', '--root', runtimeRoot, '--json'], {
+    timeoutMs,
+  })
+  return status.json.instances.find((entry) => entry.name === name) ?? null
+}
+
+async function waitForRuntimeReady(name: string, runtimeRoot: string): Promise<StatusInstanceSummary> {
+  const timeoutMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_TIMEOUT_MS'], 15000)
+  const intervalMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_POLL_MS'], 500)
+  const statusTimeoutMs = Math.min(timeoutMs, 5000)
+  const deadline = Date.now() + timeoutMs
+  let lastObserved = 'no runtime status observed'
+  let lastClassification = 'missing'
+
+  while (Date.now() <= deadline) {
+    try {
+      const instance = await readInstanceStatus(name, runtimeRoot, statusTimeoutMs)
+      if (!instance) {
+        lastObserved = `instance '${name}' not reported by iranti status`
+        lastClassification = 'missing'
+      } else {
+        lastObserved = instance.runtime.detail
+        lastClassification = instance.runtime.classification
+
+        if (instance.runtime.classification === 'running' || instance.runtime.classification === 'unhealthy') {
+          return instance
+        }
+      }
+    } catch (error) {
+      lastObserved = error instanceof Error ? error.message : String(error)
+      lastClassification = 'unknown'
+    }
+
+    await sleep(intervalMs)
+  }
+
+  throw createLifecycleError(
+    'START_CONFIRMATION_TIMEOUT',
+    `Iranti instance '${name}' did not become ready within ${Math.ceil(timeoutMs / 1000)}s after recovery.`,
+    { runtimeRoot, classification: lastClassification, detail: lastObserved }
+  )
+}
+
 async function waitForConfirmedStart(name: string, runtimeRoot: string, pid: number, child: ChildProcess): Promise<StatusInstanceSummary> {
   const timeoutMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_TIMEOUT_MS'], 15000)
   const intervalMs = toPositiveInteger(process.env['IRANTI_CP_START_CONFIRM_POLL_MS'], 500)
@@ -167,10 +211,7 @@ async function waitForConfirmedStart(name: string, runtimeRoot: string, pid: num
     }
 
     try {
-      const status = await runIrantiJson<StatusCommandResult>(['status', '--root', runtimeRoot, '--json'], {
-        timeoutMs: statusTimeoutMs,
-      })
-      const instance = status.json.instances.find((entry) => entry.name === name)
+      const instance = await readInstanceStatus(name, runtimeRoot, statusTimeoutMs)
       if (!instance) {
         lastObserved = `instance '${name}' not reported by iranti status`
         lastClassification = 'missing'
@@ -186,13 +227,6 @@ async function waitForConfirmedStart(name: string, runtimeRoot: string, pid: num
           return instance
         }
 
-        if (instance.runtime.classification === 'invalid') {
-          throw createLifecycleError(
-            'START_RUNTIME_INVALID',
-            `Iranti reported invalid runtime state for '${name}' after spawn: ${instance.runtime.detail}`,
-            { pid, runtimeRoot, classification: instance.runtime.classification, detail: instance.runtime.detail }
-          )
-        }
       }
     } catch (error) {
       if (typeof error === 'object' && error && 'code' in error && typeof (error as LifecycleError).code === 'string') {
@@ -206,10 +240,19 @@ async function waitForConfirmedStart(name: string, runtimeRoot: string, pid: num
   }
 
   throw createLifecycleError(
-    'START_CONFIRMATION_TIMEOUT',
-    `Iranti instance '${name}' did not become running within ${Math.ceil(timeoutMs / 1000)}s after spawn.`,
+    lastClassification === 'invalid' ? 'START_RUNTIME_INVALID' : 'START_CONFIRMATION_TIMEOUT',
+    lastClassification === 'invalid'
+      ? `Iranti reported invalid runtime state for '${name}' after spawn: ${lastObserved}`
+      : `Iranti instance '${name}' did not become running within ${Math.ceil(timeoutMs / 1000)}s after spawn.`,
     { pid, runtimeRoot, classification: lastClassification, detail: lastObserved }
   )
+}
+
+async function recoverInvalidRuntime(name: string, runtimeRoot: string): Promise<StatusInstanceSummary> {
+  await runIrantiCommand(['instance', 'restart', name, '--root', runtimeRoot], {
+    timeoutMs: 60000,
+  })
+  return waitForRuntimeReady(name, runtimeRoot)
 }
 
 // ---------------------------------------------------------------------------
@@ -296,9 +339,24 @@ lifecycleRouter.post('/:name/start', async (req: Request, res: Response): Promis
     }
 
     const startedAt = new Date().toISOString()
-    const confirmed = await waitForConfirmedStart(name, runtimeRoot, pid, child)
+    let confirmed: StatusInstanceSummary
+    let recovered = false
+    try {
+      confirmed = await waitForConfirmedStart(name, runtimeRoot, pid, child)
+    } catch (error) {
+      const code = typeof error === 'object' && error && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : ''
+      if (code !== 'START_RUNTIME_INVALID') throw error
+      confirmed = await recoverInvalidRuntime(name, runtimeRoot)
+      recovered = true
+    }
 
-    managedProcesses.set(name, { child, pid, startedAt })
+    if (!recovered) {
+      managedProcesses.set(name, { child, pid, startedAt })
+    } else {
+      managedProcesses.delete(name)
+    }
 
     auditLog('START', name, {
       pid,
@@ -306,6 +364,7 @@ lifecycleRouter.post('/:name/start', async (req: Request, res: Response): Promis
       runtimeRoot,
       runtimeClassification: confirmed.runtime.classification,
       runtimeDetail: confirmed.runtime.detail,
+      recovered,
     })
 
     const response: StartResponse = {
@@ -313,6 +372,11 @@ lifecycleRouter.post('/:name/start', async (req: Request, res: Response): Promis
       pid,
       status: 'started',
       startedAt,
+      recovered: recovered || undefined,
+      recoveryAction: recovered ? 'restart' : undefined,
+      note: recovered
+        ? 'Control Plane detected invalid runtime metadata after spawn and recovered the instance with a restart.'
+        : undefined,
     }
 
     res.status(200).json(response)
@@ -486,6 +550,9 @@ interface StartResponse {
   pid: number
   status: 'started'
   startedAt: string
+  recovered?: boolean
+  recoveryAction?: 'restart'
+  note?: string
 }
 
 interface StopResponse {

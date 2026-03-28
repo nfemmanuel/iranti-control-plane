@@ -867,6 +867,9 @@ export interface StartInstanceResult {
   pid?: number
   status?: 'started'
   startedAt?: string
+  recovered?: boolean
+  recoveryAction?: 'restart'
+  note?: string
   started?: boolean
   reason?: string
   /** Present on error paths */

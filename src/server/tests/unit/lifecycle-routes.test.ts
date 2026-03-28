@@ -481,6 +481,60 @@ describe('lifecycle — POST /:name/start', () => {
     expect(String(body.error)).toContain('did not become running')
     expect(String(body.error)).not.toContain('Spawn succeeded')
   })
+
+  it('recovers by restarting when spawn leaves the runtime in an invalid state', async () => {
+    let restartTriggered = false
+    spawnMock.mockImplementation(cliFoundAndInstance(55005))
+    execFileMock.mockImplementation(((
+      _file: string,
+      _args: readonly string[],
+      _options: unknown,
+      callback?: ((error: Error | null, stdout: string, stderr: string) => void) | undefined,
+    ) => {
+      restartTriggered = true
+      callback?.(null, '', '')
+      return {} as never
+    }) as typeof execFile)
+
+    runIrantiJsonMock.mockImplementation(async () => ({
+      resolution: null as never,
+      stdout: '',
+      stderr: '',
+      json: {
+        instances: [
+          {
+            name: 'durableinst',
+            runtime: restartTriggered
+              ? {
+                  classification: 'running',
+                  running: true,
+                  stale: false,
+                  detail: 'pid=55005 version=0.2.21',
+                  state: { pid: 55005 },
+                  health: { checked: true, ok: true, detail: 'health ok' },
+                }
+              : {
+                  classification: 'invalid',
+                  running: false,
+                  stale: false,
+                  detail: 'runtime metadata is unreadable or incomplete',
+                  state: null,
+                  health: { checked: false, ok: false, detail: 'metadata invalid' },
+                },
+          },
+        ],
+      },
+    }))
+
+    const res = await fetch(`${srv.base()}/durableinst/start`, { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = await res.json() as Record<string, unknown>
+    expect(body.status).toBe('started')
+    expect(body.recovered).toBe(true)
+    expect(body.recoveryAction).toBe('restart')
+    expect(String(body.note)).toContain('recovered')
+    expect(execFileMock).toHaveBeenCalled()
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
