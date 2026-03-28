@@ -127,6 +127,37 @@
   display: block;
 }
 
+.runtimeRootValue {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rootBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid currentColor;
+  font-size: 11px;
+}
+
+.rootBadgePrimary {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}
+
+.rootBadgeLegacy {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+}
+
+.rootBadgeCustom {
+  color: var(--color-accent-primary);
+  background: var(--color-accent-subtle);
+}
+
 .listFooter {
   padding: var(--space-2) var(--section-padding);
   font-size: 10px;

@@ -4,6 +4,8 @@ import { homedir } from 'os'
 import { env as controlPlaneEnv } from '../db.js'
 import { basenamePortable, dirnamePortable, joinPortable, resolvePortable } from './path-utils.js'
 
+export type RuntimeRootKind = 'primary' | 'legacy' | 'custom'
+
 function parseSimpleEnv(content: string): Record<string, string> {
   const result: Record<string, string> = {}
   for (const line of content.split(/\r?\n/)) {
@@ -87,4 +89,11 @@ export function runtimeRootCandidates(): string[] {
   add(joinPortable(homedir(), '.iranti'))
 
   return Array.from(candidates)
+}
+
+export function classifyRuntimeRoot(runtimeRoot: string): RuntimeRootKind {
+  const leaf = basenamePortable(resolvePortable(runtimeRoot)).toLowerCase()
+  if (leaf === '.iranti-runtime') return 'primary'
+  if (leaf === '.iranti') return 'legacy'
+  return 'custom'
 }

@@ -145,6 +145,13 @@ function getSetupStateLabel(setupState: InstanceMetadata['setupState']): string 
   }
 }
 
+function runtimeRootBadgeLabel(runtimeRoot: string): string {
+  const normalized = runtimeRoot.replace(/\\/g, '/').toLowerCase()
+  if (normalized.endsWith('/.iranti-runtime')) return 'Primary root'
+  if (normalized.endsWith('/.iranti')) return 'Legacy root'
+  return 'Custom root'
+}
+
 function StatusBadge({ status, hasConnectionInfo }: {
   status: InstanceMetadata['runningStatus']
   hasConnectionInfo: boolean
@@ -1045,7 +1052,20 @@ function RuntimeSection({ instance, onRefresh, isRefreshing }: {
     <section className={styles.detailSection}>
       <SectionTitle>Runtime</SectionTitle>
       <FieldRow label="Root">
-        <span className={styles.monoValue}>{instance.runtimeRoot}</span>
+        <span className={styles.runtimeRootValue}>
+          <span className={styles.monoValue}>{instance.runtimeRoot}</span>
+          <span
+            className={`${styles.rootBadge} ${
+              runtimeRootBadgeLabel(instance.runtimeRoot) === 'Legacy root'
+                ? styles.rootBadgeLegacy
+                : runtimeRootBadgeLabel(instance.runtimeRoot) === 'Custom root'
+                  ? styles.rootBadgeCustom
+                  : styles.rootBadgePrimary
+            }`}
+          >
+            {runtimeRootBadgeLabel(instance.runtimeRoot)}
+          </span>
+        </span>
       </FieldRow>
       <FieldRow label="Port">
         <span className={styles.monoValue}>{instance.configuredPort}</span>

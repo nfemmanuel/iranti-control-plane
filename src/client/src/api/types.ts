@@ -546,6 +546,8 @@ export interface SetupStep {
 export interface SetupStatusResponse {
   instanceId: string
   scope?: InstanceScopeSummary
+  runtimeRoot?: string
+  runtimeRootKind?: 'primary' | 'legacy' | 'custom'
   steps: SetupStep[]
   isFullyConfigured: boolean
   firstRunDetected: boolean

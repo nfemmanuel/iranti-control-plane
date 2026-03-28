@@ -9,10 +9,13 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { access, writeFile, constants } from 'fs/promises'
 import { join } from 'path'
+import * as net from 'net'
 import pg from 'pg'
 import { ApiError, InstanceScopeSummary } from '../../types.js'
 import { inspectProjectIntegration } from '../../lib/project-integration.js'
 import { resolveInstanceAuthority, ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
+import { parseDatabaseTarget } from '../../lib/doctor-remediation.js'
+import { classifyRuntimeRoot } from '../../lib/runtime-roots.js'
 
 const { Pool } = pg
 
@@ -28,12 +31,19 @@ interface SetupStep {
   repairAction: string | null
 }
 
+type RuntimeRootKind = 'primary' | 'legacy' | 'custom'
+
 function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
   return {
     instanceId: scope.instanceId,
     instanceName: scope.instanceName,
     source: scope.source,
   }
+}
+
+function primaryRuntimeRootHint(scope: ResolvedInstanceAuthority): string {
+  if (classifyRuntimeRoot(scope.runtimeRoot) !== 'legacy') return ''
+  return ` This instance lives under the legacy runtime root ${scope.runtimeRoot}. Newer Iranti instances usually live under ~/.iranti-runtime, so Control Plane is intentionally showing both roots.`
 }
 
 async function resolveScopeOrThrow(instanceRef: string): Promise<ResolvedInstanceAuthority> {
@@ -84,6 +94,24 @@ function normalizeProviderId(value: string): string {
   return normalized === 'anthropic' ? 'claude' : normalized
 }
 
+async function isTcpPortReachable(host: string, port: number, timeoutMs = 1200): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = new net.Socket()
+    let settled = false
+    const finish = (reachable: boolean) => {
+      if (settled) return
+      settled = true
+      socket.destroy()
+      resolve(reachable)
+    }
+    socket.setTimeout(timeoutMs)
+    socket.once('connect', () => finish(true))
+    socket.once('timeout', () => finish(false))
+    socket.once('error', () => finish(false))
+    socket.connect(port, host)
+  })
+}
+
 function providerLabel(providerId: string): string {
   switch (normalizeProviderId(providerId)) {
     case 'claude': return 'Claude'
@@ -100,6 +128,8 @@ function providerLabel(providerId: string): string {
 
 async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | null): Promise<SetupStep> {
   const cliCommand = `iranti doctor --instance ${scope.instanceName} --debug`
+  const target = parseDatabaseTarget(scope.databaseUrl)
+  const legacyRootNote = primaryRuntimeRootHint(scope)
 
   if (!pool) {
     return {
@@ -107,7 +137,7 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       label: 'Database connection',
       status: 'incomplete',
       message: 'DATABASE_URL is not configured for this instance.',
-      actionRequired: `Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.`,
+      actionRequired: `Add DATABASE_URL to ${scope.instanceEnvPath}, then restart the instance.${legacyRootNote}`,
       cliCommand,
       repairAction: null,
     }
@@ -139,12 +169,28 @@ async function checkDatabase(scope: ResolvedInstanceAuthority, pool: pg.Pool | n
       repairAction: null,
     }
   } catch {
+    if (target?.isLocal && target.host && target.port) {
+      const reachable = await isTcpPortReachable(target.host, target.port)
+      if (!reachable) {
+        const dbLabel = target.name ? `${target.host}:${target.port}/${target.name}` : `${target.host}:${target.port}`
+        return {
+          id: 'database',
+          label: 'Database connection',
+          status: 'incomplete',
+          message: `Database not reachable for this instance. ${target.host}:${target.port} is not accepting connections.`,
+          actionRequired: `DATABASE_URL in ${scope.instanceEnvPath} currently points to ${dbLabel}, but nothing is listening there right now. Start the database on that port or update DATABASE_URL to the actual database target, then rerun doctor.${legacyRootNote}`,
+          cliCommand,
+          repairAction: null,
+        }
+      }
+    }
+
     return {
       id: 'database',
       label: 'Database connection',
       status: 'incomplete',
       message: 'Database not reachable for this instance.',
-      actionRequired: `Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.`,
+      actionRequired: `Verify DATABASE_URL in ${scope.instanceEnvPath}, then rerun doctor.${legacyRootNote}`,
       cliCommand,
       repairAction: null,
     }
@@ -310,6 +356,7 @@ function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: 
 
 async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
   const firstRunDetected = await readFirstRunDetected(scope)
+  const runtimeRootKind: RuntimeRootKind = classifyRuntimeRoot(scope.runtimeRoot)
 
   return withScopedPool(scope.databaseUrl, async (pool) => {
     const databaseStep = await checkDatabase(scope, pool)
@@ -323,6 +370,8 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
     return {
       instanceId: scope.instanceId,
       scope: scopeSummary(scope),
+      runtimeRoot: scope.runtimeRoot,
+      runtimeRootKind,
       steps,
       isFullyConfigured,
       firstRunDetected,

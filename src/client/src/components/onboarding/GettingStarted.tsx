@@ -124,6 +124,19 @@ function StepRow({ step, stepNumber, expanded, onToggle }: StepRowProps) {
   )
 }
 
+function runtimeRootKindLabel(kind: SetupStatusResponse['runtimeRootKind']): string | null {
+  switch (kind) {
+    case 'primary':
+      return 'Primary runtime root'
+    case 'legacy':
+      return 'Legacy runtime root'
+    case 'custom':
+      return 'Custom runtime root'
+    default:
+      return null
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Success state                                                       */
 /* ------------------------------------------------------------------ */
@@ -263,6 +276,33 @@ export function GettingStarted() {
           {refreshing ? '↺ Refreshing…' : '↺ Refresh all'}
         </button>
       </div>
+
+      {data?.runtimeRoot && (
+        <div className={styles.scopeNote}>
+          <div className={styles.scopeNoteHeader}>
+            <span className={styles.scopeNoteTitle}>Instance storage</span>
+            {runtimeRootKindLabel(data.runtimeRootKind) && (
+              <span
+                className={`${styles.scopeNoteBadge} ${
+                  data.runtimeRootKind === 'legacy'
+                    ? styles.scopeNoteBadgeLegacy
+                    : data.runtimeRootKind === 'custom'
+                      ? styles.scopeNoteBadgeCustom
+                      : styles.scopeNoteBadgePrimary
+                }`}
+              >
+                {runtimeRootKindLabel(data.runtimeRootKind)}
+              </span>
+            )}
+          </div>
+          <p className={styles.scopeNoteBody}>
+            This instance is currently stored under <code className={styles.inlineCode}>{data.runtimeRoot}</code>.
+            {data.runtimeRootKind === 'legacy' && (
+              <> Newer Iranti instances usually live under <code className={styles.inlineCode}>~/.iranti-runtime</code>, so Control Plane may show both locations until older instances are migrated.</>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* Step list */}
       <div className={styles.stepList} role="list" aria-label="Setup steps">

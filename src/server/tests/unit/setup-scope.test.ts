@@ -73,6 +73,8 @@ describe('setup status is selected-instance scoped', () => {
 
     expect(statusRes.status).toBe(200)
     expect(statusBody.scope).toMatchObject({ instanceId: alphaInstanceId, instanceName: 'alpha' })
+    expect(statusBody.runtimeRoot).toBe(runtimeRoot)
+    expect(statusBody.runtimeRootKind).toBe('primary')
     expect(statusBody.firstRunDetected).toBe(true)
 
     const steps = statusBody.steps as Array<Record<string, unknown>>
@@ -97,5 +99,35 @@ describe('setup status is selected-instance scoped', () => {
     const refreshedRes = await fetch(`${apiBase}/${alphaInstanceId}/setup-status/refresh`, { method: 'POST' })
     const refreshedBody = await refreshedRes.json() as Record<string, unknown>
     expect(refreshedBody.firstRunDetected).toBe(false)
+  })
+
+  it('explains when a local DATABASE_URL points at a dead port under a legacy runtime root', async () => {
+    const legacyRoot = join(tempRoot, '.iranti')
+    await mkdir(join(legacyRoot, 'instances', 'legacyalpha'), { recursive: true })
+    await writeFile(
+      join(legacyRoot, 'instances', 'legacyalpha', '.env'),
+      [
+        'IRANTI_INSTANCE_NAME=legacyalpha',
+        'IRANTI_PORT=4399',
+        'DATABASE_URL=postgresql://postgres:postgres@localhost:59999/legacyalpha',
+      ].join('\n') + '\n',
+      'utf8'
+    )
+
+    const legacyInstanceId = deriveInstanceId(join(legacyRoot, 'instances', 'legacyalpha'))
+    process.env['IRANTI_HOME'] = legacyRoot
+
+    const statusRes = await fetch(`${apiBase}/${legacyInstanceId}/setup-status`)
+    const statusBody = await statusRes.json() as Record<string, unknown>
+
+    expect(statusRes.status).toBe(200)
+    expect(statusBody.runtimeRoot).toBe(legacyRoot)
+    expect(statusBody.runtimeRootKind).toBe('legacy')
+
+    const steps = statusBody.steps as Array<Record<string, unknown>>
+    const databaseStep = steps.find((step) => step.id === 'database')
+    expect(String(databaseStep?.message)).toContain('localhost:59999')
+    expect(String(databaseStep?.actionRequired)).toContain('legacy runtime root')
+    expect(String(databaseStep?.actionRequired)).toContain(legacyRoot)
   })
 })
