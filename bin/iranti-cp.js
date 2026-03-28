@@ -7,6 +7,7 @@ const { spawn, spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const BUNDLE = path.join(ROOT, 'dist', 'server', 'bundle.cjs');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
+const PACKAGE_NAME = 'iranti-control-plane';
 
 function readPackageVersion() {
   try {
@@ -23,7 +24,9 @@ Usage:
   iranti-cp
   iranti-cp open [--port <n>]
   iranti-cp start [--port <n>]
+  iranti-cp stop [--port <n>]
   iranti-cp status [--port <n>] [--json]
+  iranti-cp uninstall
   iranti-cp version
   iranti-cp doctor [iranti doctor args...]
   iranti-cp upgrade [self]
@@ -32,7 +35,9 @@ Usage:
 Commands:
   open      Open an existing Control Plane if one is running, otherwise start it in the background.
   start     Start the Control Plane in the foreground without auto-opening the browser.
+  stop      Stop one or more running local Control Plane servers.
   status    Show the installed Control Plane version and any running local Control Plane servers.
+  uninstall Stop running Control Plane servers, then remove the global npm package.
   version   Print the installed iranti-control-plane version.
   doctor    Proxy to "iranti doctor".
   upgrade   Upgrade iranti-control-plane itself, or proxy to "iranti upgrade" for core Iranti.
@@ -117,10 +122,10 @@ async function fetchJson(url, timeoutMs = 1500) {
 async function findRunningControlPlanes(explicitPort) {
   const checks = preferredPorts(explicitPort).map(async (port) => {
     try {
-      const health = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/health`, 500);
+      const health = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/health`, 2500);
       let instances = null;
       try {
-        const body = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/instances`, 500);
+        const body = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/instances`, 1500);
         instances = Array.isArray(body) ? body.length : null;
       } catch {
         instances = null;
@@ -138,6 +143,51 @@ async function findRunningControlPlanes(explicitPort) {
 
   const resolved = await Promise.all(checks);
   return resolved.filter(Boolean);
+}
+
+function readLines(command, args) {
+  const result = spawnSync(command, args, { encoding: 'utf8', windowsHide: true });
+  if (result.status !== 0) return [];
+  return String(result.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function findPidsForPort(port) {
+  const portText = String(port);
+
+  if (process.platform === 'win32') {
+    const lines = readLines('netstat', ['-ano', '-p', 'tcp']);
+    const pids = new Set();
+    for (const line of lines) {
+      if (!/\bLISTENING\b/i.test(line)) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length < 5) continue;
+      const localAddress = parts[1];
+      const state = parts[3];
+      const pid = Number.parseInt(parts[4], 10);
+      if (!Number.isFinite(pid) || !/\bLISTENING\b/i.test(state)) continue;
+      if (localAddress.endsWith(`:${portText}`)) pids.add(pid);
+    }
+    return [...pids];
+  }
+
+  const lsofPids = readLines('lsof', ['-ti', `tcp:${portText}`])
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isFinite(value));
+  if (lsofPids.length > 0) return [...new Set(lsofPids)];
+
+  const ssLines = readLines('ss', ['-ltnp']);
+  const pids = new Set();
+  for (const line of ssLines) {
+    if (!line.includes(`:${portText}`)) continue;
+    const pidMatch = line.match(/pid=(\d+)/);
+    if (!pidMatch) continue;
+    const pid = Number.parseInt(pidMatch[1], 10);
+    if (Number.isFinite(pid)) pids.add(pid);
+  }
+  return [...pids];
 }
 
 function openUrl(url) {
@@ -164,6 +214,45 @@ function spawnControlPlane({ port, openBrowser, detached }) {
 
   if (detached) child.unref();
   return child;
+}
+
+async function terminatePid(pid) {
+  if (!Number.isFinite(pid) || pid <= 0) {
+    throw new Error(`invalid pid "${pid}"`);
+  }
+
+  if (process.platform === 'win32') {
+    const code = await runChild('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+    if (code !== 0) {
+      throw new Error(`taskkill exited with status ${code}`);
+    }
+    return;
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch (error) {
+    if (error && error.code === 'ESRCH') return;
+    throw error;
+  }
+
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      if (error && error.code === 'ESRCH') return;
+      throw error;
+    }
+  }
+
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch (error) {
+    if (error && error.code === 'ESRCH') return;
+    throw error;
+  }
 }
 
 function resolveIrantiCommand() {
@@ -293,10 +382,75 @@ async function handleStart(port) {
   });
 }
 
+async function handleStop(port) {
+  const running = await findRunningControlPlanes(port);
+  if (running.length === 0) {
+    console.log(port
+      ? `No local Control Plane server detected on port ${port}.`
+      : 'No local Control Plane server is running.');
+    return 0;
+  }
+
+  let failures = 0;
+  for (const server of running) {
+    const pids = findPidsForPort(server.port);
+    if (pids.length === 0) {
+      console.error(`Could not resolve a process ID for Control Plane on port ${server.port}.`);
+      failures += 1;
+      continue;
+    }
+
+    let stopped = false;
+    for (const pid of pids) {
+      try {
+        await terminatePid(pid);
+        console.log(`Stopped Control Plane on port ${server.port} (PID ${pid}).`);
+        stopped = true;
+      } catch (error) {
+        console.error(`Failed to stop Control Plane on port ${server.port} (PID ${pid}): ${error.message}`);
+      }
+    }
+
+    if (!stopped) failures += 1;
+  }
+
+  return failures === 0 ? 0 : 1;
+}
+
+function launchDetachedUninstall() {
+  if (process.platform === 'win32') {
+    const child = spawn('cmd', ['/d', '/s', '/c', `ping 127.0.0.1 -n 2 >nul && npm.cmd uninstall -g ${PACKAGE_NAME}`], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+    return;
+  }
+
+  const child = spawn('sh', ['-lc', `sleep 1 && npm uninstall -g ${PACKAGE_NAME}`], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+}
+
+async function handleUninstall() {
+  const stopCode = await handleStop(null);
+  if (stopCode !== 0) {
+    console.error('Continuing with uninstall even though one or more Control Plane processes could not be stopped cleanly.');
+  }
+
+  launchDetachedUninstall();
+  console.log(`Started global uninstall for ${PACKAGE_NAME}.`);
+  console.log('If your shell still sees the old command for a moment, open a new terminal after uninstall finishes.');
+  return 0;
+}
+
 async function handleUpgrade(target, trailingArgs) {
   if (!target || target === 'self') {
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    return runChild(npmCommand, ['install', '-g', 'iranti-control-plane@latest']);
+    return runChild(npmCommand, ['install', '-g', `${PACKAGE_NAME}@latest`]);
   }
 
   if (target === 'iranti') {
@@ -339,8 +493,12 @@ async function main() {
     exitCode = await handleOpen(parsed.port);
   } else if (command === 'start') {
     exitCode = await handleStart(parsed.port);
+  } else if (command === 'stop') {
+    exitCode = await handleStop(parsed.port);
   } else if (command === 'status') {
     exitCode = await handleStatus(parsed.port, parsed.json);
+  } else if (command === 'uninstall') {
+    exitCode = await handleUninstall();
   } else if (command === 'doctor') {
     exitCode = await runIrantiProxy(['doctor', ...rest]);
   } else if (command === 'upgrade') {

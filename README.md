@@ -23,7 +23,9 @@ Useful packaged CLI commands:
 ```bash
 iranti-cp open
 iranti-cp start --port 3010
+iranti-cp stop --port 3010
 iranti-cp status
+iranti-cp uninstall
 iranti-cp doctor --instance my_instance
 iranti-cp upgrade self
 iranti-cp upgrade iranti --all --dry-run
