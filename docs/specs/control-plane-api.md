@@ -422,6 +422,46 @@ interface InstanceProjectsResponse {
 
 ---
 
+### DELETE /api/control-plane/instances/:instanceName/projects?projectPath=<absolute-path>
+
+Removes a project binding from an instance. The server deletes `.env.iranti`, removes the project from `{runtimeRoot}/instances/{instanceName}/projects.json`, and by default strips Iranti-owned MCP / Claude hook entries from the repo.
+
+#### Query Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `projectPath` | string | Absolute project root path. Required. |
+| `keepIntegrations` | boolean | Optional. When `true`, leaves `.mcp.json`, `.vscode/mcp.json`, and `.claude/settings.local.json` untouched. |
+
+#### Response: 200 OK
+
+```typescript
+interface UnbindProjectResponse {
+  ok: true;
+  instanceName: string;
+  projectPath: string;
+  envIrantiPath: string;
+  removedBinding: true;
+  registryRemoved: boolean;
+  keepIntegrations: boolean;
+  integrationCleanup: {
+    removed: string[];
+    updated: string[];
+    warnings: string[];
+  };
+}
+```
+
+#### Error States
+
+| HTTP Status | Code | Condition |
+|---|---|---|
+| 400 | `BAD_REQUEST` | Invalid instance name or non-absolute project path. |
+| 404 | `NOT_FOUND` | Instance or binding not found. |
+| 500 | `INTERNAL_ERROR` | Failed to remove `.env.iranti`. |
+
+---
+
 ## Endpoint Group 6: Diagnostics and Health Summary
 
 **PRD Requirements**: FR4 (Instance Awareness, implicitly), ER2 (Fast Time to Root Cause)

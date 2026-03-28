@@ -1065,6 +1065,21 @@ export interface RebindProjectResult {
   changed: string[]
 }
 
+export interface UnbindProjectResult {
+  ok: boolean
+  instanceName: string
+  projectPath: string
+  envIrantiPath: string
+  removedBinding: boolean
+  registryRemoved: boolean
+  keepIntegrations: boolean
+  integrationCleanup: {
+    removed: string[]
+    updated: string[]
+    warnings: string[]
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Claude Code Integration (CP-T092, CP-T093)                        */
 /* ------------------------------------------------------------------ */

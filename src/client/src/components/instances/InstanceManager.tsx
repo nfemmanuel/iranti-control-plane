@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance, migrateInstanceRoot } from '../../api/client'
+import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance, migrateInstanceRoot, unbindProject } from '../../api/client'
 import type { InstanceMetadata, InstanceListResponse, DoctorResponse, IrantiRuntimeMetadata, RuntimeStatus, InstallStateResult, VersionSyncResult, UpgradeJobStarted, UpgradeJobStatus, BoundProject, ProjectBinding } from '../../api/types'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
 import { useSettings } from '../../hooks/useSettings'
@@ -931,6 +931,69 @@ function DeleteInstanceModal({
   )
 }
 
+function UnbindProjectModal({
+  instanceName,
+  projectPath,
+  onUnbound,
+  onCancel,
+}: {
+  instanceName: string
+  projectPath: string
+  onUnbound: () => void
+  onCancel: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleUnbind = useCallback(async () => {
+    if (submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await unbindProject(instanceName, projectPath)
+      await queryClient.invalidateQueries({ queryKey: ['instance-projects', instanceName] })
+      onUnbound()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [instanceName, onUnbound, projectPath, queryClient, submitting])
+
+  return (
+    <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="unbind-project-title">
+      <div className={styles.deleteModalBox}>
+        <p className={styles.modalTitle} id="unbind-project-title">Unbind project?</p>
+        <div className={styles.modalBody}>
+          <p className={styles.deleteModalLead}>
+            This removes the local Iranti binding for <code className={styles.inlineCode}>{projectPath}</code>.
+          </p>
+          <p className={styles.deleteModalWarning}>
+            Control Plane will remove <code className={styles.inlineCode}>.env.iranti</code> and strip Iranti MCP and Claude hook entries from this repo.
+          </p>
+          <p className={styles.fieldHint} style={{ marginTop: 'var(--space-2)' }}>
+            Instance registry: <code className={styles.inlineCode}>{instanceName}</code>
+          </p>
+          {error && (
+            <div className={styles.deleteError} role="alert">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className={styles.modalActions}>
+          <button className={styles.modalCancelBtn} type="button" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </button>
+          <button className={styles.modalDeleteBtn} type="button" onClick={() => void handleUnbind()} disabled={submitting}>
+            {submitting ? 'Unbinding...' : 'Unbind project'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  CP-T080: Lifecycle controls (Start / Stop buttons)                  */
 /* ------------------------------------------------------------------ */
@@ -1349,6 +1412,7 @@ function ProjectsSection({
 }) {
   const [showBindForm, setShowBindForm] = useState(false)
   const [rebindTarget, setRebindTarget] = useState<string | null>(null)
+  const [unbindTarget, setUnbindTarget] = useState<string | null>(null)
   // CP-T092: which project path has the integration panel open (null = none)
   const [integrationOpen, setIntegrationOpen] = useState<string | null>(null)
 
@@ -1376,6 +1440,7 @@ function ProjectsSection({
   const handleBindSuccess = () => {
     setShowBindForm(false)
     setRebindTarget(null)
+    setUnbindTarget(null)
     onBindSuccess()
   }
 
@@ -1493,6 +1558,14 @@ function ProjectsSection({
                   Rebind project
                 </button>
                 <button
+                  className={`${styles.rebindBtn} ${styles.projectUnbindBtn}`}
+                  type="button"
+                  onClick={() => setUnbindTarget(p.projectPath)}
+                  title="Remove this project binding"
+                >
+                  Unbind project
+                </button>
+                <button
                   className={styles.rebindBtn}
                   type="button"
                   onClick={() => setIntegrationOpen(prev => prev === p.projectPath ? null : p.projectPath)}
@@ -1515,6 +1588,21 @@ function ProjectsSection({
             </div>
           )})}
         </div>
+      )}
+
+      {unbindTarget && (
+        <UnbindProjectModal
+          instanceName={instance.name}
+          projectPath={unbindTarget}
+          onUnbound={() => {
+            if (integrationOpen === unbindTarget) {
+              setIntegrationOpen(null)
+            }
+            setUnbindTarget(null)
+            onBindSuccess()
+          }}
+          onCancel={() => setUnbindTarget(null)}
+        />
       )}
     </section>
   )

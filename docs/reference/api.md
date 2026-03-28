@@ -515,6 +515,50 @@ Returns project bindings for a specific instance.
 
 ---
 
+### DELETE /instances/:instanceName/projects?projectPath=<absolute-path>
+
+Unbinds a project from an instance. This removes the local `.env.iranti` binding, removes the project from the instance registry, and by default strips Iranti-owned MCP / Claude hook entries from the repo.
+
+#### Query Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| `projectPath` | string | Absolute path to the bound project root. Required. |
+| `keepIntegrations` | boolean | Optional. When `true`, leaves `.mcp.json`, `.vscode/mcp.json`, and `.claude/settings.local.json` untouched. |
+
+#### Response: 200 OK
+
+```json
+{
+  "ok": true,
+  "instanceName": "local",
+  "projectPath": "/Users/nf/projects/myapp",
+  "envIrantiPath": "/Users/nf/projects/myapp/.env.iranti",
+  "removedBinding": true,
+  "registryRemoved": true,
+  "keepIntegrations": false,
+  "integrationCleanup": {
+    "removed": [
+      "/Users/nf/projects/myapp/.mcp.json"
+    ],
+    "updated": [
+      "/Users/nf/projects/myapp/.vscode/mcp.json"
+    ],
+    "warnings": []
+  }
+}
+```
+
+#### Error Responses
+
+| HTTP Status | Condition |
+|---|---|
+| 400 | Invalid `instanceName` or non-absolute `projectPath`. |
+| 404 | Instance or `.env.iranti` binding not found. |
+| 500 | Failed to remove the binding file. |
+
+---
+
 ## Endpoint Group 6: Diagnostics and Health Summary
 
 ### GET /health

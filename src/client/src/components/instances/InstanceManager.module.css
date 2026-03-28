@@ -1078,6 +1078,11 @@
   margin: 0 0 var(--space-2) 0;
 }
 
+.deleteModalWarning {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
 .deleteModalList {
   margin: 0 0 var(--space-3) 0;
   padding-left: 18px;
@@ -1575,6 +1580,11 @@
 .rebindBtn:hover {
   border-color: var(--color-accent-primary);
   color: var(--color-accent-primary);
+}
+
+.projectUnbindBtn:hover {
+  border-color: var(--color-status-error);
+  color: var(--color-status-error);
 }
 
 .boundProjectMeta {

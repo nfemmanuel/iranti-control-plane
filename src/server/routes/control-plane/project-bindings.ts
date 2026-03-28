@@ -21,6 +21,7 @@
 import { Router, Request, Response } from 'express'
 import {
   mkdirSync,
+  rmSync,
   writeFileSync,
   existsSync,
   readFileSync,
@@ -112,6 +113,142 @@ function writeRegistry(registryPath: string, registry: ProjectRegistry): void {
   const dir = registryPath.replace(/[/\\][^/\\]+$/, '')
   mkdirSync(dir, { recursive: true })
   writeFileSync(registryPath, JSON.stringify(registry, null, 2) + '\n', 'utf8')
+}
+
+function removeProjectFromRegistry(registryPath: string, projectPath: string): boolean {
+  const registry = readRegistry(registryPath)
+  const nextProjects = registry.projects.filter((entry) => entry.projectPath !== projectPath)
+  if (nextProjects.length === registry.projects.length) return false
+  writeRegistry(registryPath, { projects: nextProjects })
+  return true
+}
+
+function removeIrantiMcpServerFromValue(value: Record<string, unknown>): Record<string, unknown> | null {
+  let next: Record<string, unknown> = { ...value }
+  let changed = false
+
+  const stripServerMap = (field: 'mcpServers' | 'servers'): void => {
+    const current = next[field]
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return
+    const nextServers = { ...(current as Record<string, unknown>) }
+    if (!Object.prototype.hasOwnProperty.call(nextServers, 'iranti')) return
+    delete nextServers.iranti
+    changed = true
+    if (Object.keys(nextServers).length === 0) {
+      delete next[field]
+    } else {
+      next[field] = nextServers
+    }
+  }
+
+  stripServerMap('mcpServers')
+  stripServerMap('servers')
+
+  if (!changed) return value
+  return Object.keys(next).length === 0 ? null : next
+}
+
+function removeIrantiClaudeHooksFromValue(value: Record<string, unknown>): Record<string, unknown> | null {
+  const hooks = value['hooks']
+  if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks)) return value
+
+  const nextHooks: Record<string, unknown> = { ...(hooks as Record<string, unknown>) }
+
+  for (const event of ['SessionStart', 'UserPromptSubmit', 'Stop'] as const) {
+    const entries = nextHooks[event]
+    if (!Array.isArray(entries)) continue
+
+    const filtered = entries.filter((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return true
+      const record = entry as Record<string, unknown>
+      const command = typeof record['command'] === 'string' ? record['command'] : ''
+      if (command.includes('iranti claude-hook')) return false
+
+      const nestedHooks = Array.isArray(record['hooks']) ? record['hooks'] : []
+      if (nestedHooks.length === 0) return true
+
+      const remainingNested = nestedHooks.filter((hook) => {
+        if (!hook || typeof hook !== 'object' || Array.isArray(hook)) return true
+        const hookCommand = typeof (hook as Record<string, unknown>)['command'] === 'string'
+          ? String((hook as Record<string, unknown>)['command'])
+          : ''
+        return !hookCommand.includes('iranti claude-hook')
+      })
+
+      if (remainingNested.length === 0) return false
+      if (remainingNested.length !== nestedHooks.length) {
+        record['hooks'] = remainingNested
+      }
+      return true
+    })
+
+    if (filtered.length === 0) {
+      delete nextHooks[event]
+    } else {
+      nextHooks[event] = filtered
+    }
+  }
+
+  const next = { ...value }
+  if (Object.keys(nextHooks).length === 0) {
+    delete next.hooks
+  } else {
+    next.hooks = nextHooks
+  }
+  return Object.keys(next).length === 0 ? null : next
+}
+
+type IntegrationCleanupResult = {
+  removed: string[]
+  updated: string[]
+  warnings: string[]
+}
+
+function cleanupProjectIntegrations(projectPath: string): IntegrationCleanupResult {
+  const result: IntegrationCleanupResult = { removed: [], updated: [], warnings: [] }
+  const candidates = [
+    join(projectPath, '.mcp.json'),
+    join(projectPath, '.vscode', 'mcp.json'),
+  ]
+
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue
+    try {
+      const parsed = JSON.parse(readFileSync(candidate, 'utf8')) as Record<string, unknown>
+      const next = removeIrantiMcpServerFromValue(parsed)
+      if (next === parsed) continue
+      if (!next) {
+        rmSync(candidate, { force: true })
+        result.removed.push(candidate)
+      } else {
+        writeFileSync(candidate, JSON.stringify(next, null, 2) + '\n', 'utf8')
+        result.updated.push(candidate)
+      }
+    } catch {
+      result.warnings.push(`Skipped unreadable MCP file ${candidate}`)
+    }
+  }
+
+  const claudeSettingsFile = join(projectPath, '.claude', 'settings.local.json')
+  if (existsSync(claudeSettingsFile)) {
+    try {
+      const parsed = JSON.parse(readFileSync(claudeSettingsFile, 'utf8')) as Record<string, unknown>
+      const next = removeIrantiClaudeHooksFromValue(parsed)
+      if (next !== parsed) {
+        if (!next) {
+          rmSync(claudeSettingsFile, { force: true })
+          result.removed.push(claudeSettingsFile)
+        } else {
+          writeFileSync(claudeSettingsFile, JSON.stringify(next, null, 2) + '\n', 'utf8')
+          result.updated.push(claudeSettingsFile)
+        }
+      }
+    } catch {
+      result.warnings.push(`Skipped unreadable Claude settings file ${claudeSettingsFile}`)
+    }
+  }
+
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +635,74 @@ projectBindingsRouter.patch(
 
     res.json({ ok: true, projectPath, changed })
     return
+  }
+)
+
+// ---------------------------------------------------------------------------
+// DELETE /instances/:instanceName/projects?projectPath=<encoded> — Unbind
+// ---------------------------------------------------------------------------
+
+projectBindingsRouter.delete(
+  '/:instanceName/projects',
+  (req: Request, res: Response) => {
+    const { instanceName } = req.params
+
+    if (!INSTANCE_NAME_RE.test(instanceName)) {
+      res.status(400).json({ error: 'instanceName must match /^[a-zA-Z0-9_-]{1,64}$/' })
+      return
+    }
+
+    const projectPath = req.query['projectPath'] as string | undefined
+    if (!projectPath || typeof projectPath !== 'string') {
+      res.status(400).json({ error: 'projectPath query param is required' })
+      return
+    }
+    if (!isAbsolute(projectPath)) {
+      res.status(400).json({ error: 'projectPath must be an absolute path' })
+      return
+    }
+
+    const runtimeRoot = getRuntimeRoot()
+    const instanceEnvPath = getInstanceEnvPath(runtimeRoot, instanceName)
+    if (!existsSync(instanceEnvPath)) {
+      res.status(404).json({ error: `Instance '${instanceName}' not found` })
+      return
+    }
+
+    const envIrantiPath = join(projectPath, '.env.iranti')
+    if (!existsSync(envIrantiPath)) {
+      res.status(404).json({
+        error: '.env.iranti not found at projectPath — bind the project first',
+        envIrantiPath,
+      })
+      return
+    }
+
+    const keepIntegrations = String(req.query['keepIntegrations'] ?? '').toLowerCase() === 'true'
+    const registryPath = getRegistryPath(runtimeRoot, instanceName)
+    const registryRemoved = removeProjectFromRegistry(registryPath, projectPath)
+
+    try {
+      rmSync(envIrantiPath, { force: true })
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to remove .env.iranti', detail: String(err) })
+      return
+    }
+
+    const integrationCleanup = keepIntegrations
+      ? { removed: [] as string[], updated: [] as string[], warnings: [] as string[] }
+      : cleanupProjectIntegrations(projectPath)
+
+    res.json({
+      ok: true,
+      instanceName,
+      projectPath,
+      envIrantiPath,
+      removedBinding: true,
+      registryRemoved,
+      keepIntegrations,
+      integrationCleanup,
+    })
   }
 )
 

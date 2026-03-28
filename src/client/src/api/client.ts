@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Shared API client */
 /* All control-plane API calls go through this module. */
 
-import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ControlPlaneSelfActionResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
+import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ControlPlaneSelfActionResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, UnbindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
 
 const BASE = '/api/control-plane'
 
@@ -587,6 +587,27 @@ export async function rebindProject(
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as RebindProjectResult
+}
+
+export async function unbindProject(
+  instanceName: string,
+  projectPath: string,
+  params?: {
+    keepIntegrations?: boolean
+  }
+): Promise<UnbindProjectResult> {
+  const url = new URL(
+    `${BASE}/instances/${encodeURIComponent(instanceName)}/projects`,
+    window.location.origin
+  )
+  url.searchParams.set('projectPath', projectPath)
+  if (params?.keepIntegrations) {
+    url.searchParams.set('keepIntegrations', 'true')
+  }
+  const res = await fetch(url.toString(), { method: 'DELETE' })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as UnbindProjectResult
 }
 
 // ---------------------------------------------------------------------------
