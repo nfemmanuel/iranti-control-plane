@@ -3,7 +3,7 @@
 /* CP-T015 — Two-column instance list + detail panel */
 /* CP-T029 — Last-checked timestamp, staleness indicator, precise status labels */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, deleteInstance, fetchInstallState, fetchVersionSync, startInstance, stopInstance, fetchInstanceProjects, restartInstance, migrateInstanceRoot } from '../../api/client'
@@ -74,6 +74,33 @@ function suggestNextAvailablePort(instances: InstanceMetadata[], startPort = 300
     candidate += 1
   }
   return candidate
+}
+
+function normalizedInstanceCollisionKey(name: string): string {
+  return name.trim().toLowerCase().replace(/[-_]+/g, '_')
+}
+
+function buildSiblingInstanceConflicts(instances: InstanceMetadata[]): Map<string, string[]> {
+  const grouped = new Map<string, InstanceMetadata[]>()
+  for (const instance of instances) {
+    const key = normalizedInstanceCollisionKey(instance.name)
+    const current = grouped.get(key) ?? []
+    current.push(instance)
+    grouped.set(key, current)
+  }
+
+  const conflicts = new Map<string, string[]>()
+  for (const group of grouped.values()) {
+    if (group.length < 2) continue
+    for (const instance of group) {
+      conflicts.set(
+        instance.instanceId,
+        group.filter((candidate) => candidate.instanceId !== instance.instanceId).map((candidate) => candidate.name)
+      )
+    }
+  }
+
+  return conflicts
 }
 
 /**
@@ -205,10 +232,12 @@ function InstanceListItem({
   instance,
   selected,
   onClick,
+  siblingConflictNames,
 }: {
   instance: InstanceMetadata
   selected: boolean
   onClick: () => void
+  siblingConflictNames?: string[]
   _tick: number  // time tick — causes re-render so staleness stays current; not read directly
 }) {
   const hasConnectionInfo = Boolean(instance.database)
@@ -236,6 +265,11 @@ function InstanceListItem({
       <div className={styles.instanceItemMeta}>
         <span className={styles.instanceDbSummary}>{dbSummary}</span>
         {setupStateLabel && <span className={styles.badgeNotConfigured}>{setupStateLabel}</span>}
+        {siblingConflictNames && siblingConflictNames.length > 0 && (
+          <div className={styles.instanceCollisionNote}>
+            Name collides with {siblingConflictNames.join(', ')}
+          </div>
+        )}
       </div>
     </button>
   )
@@ -1978,9 +2012,13 @@ export function InstanceManager() {
   })
 
   const instances = data?.instances ?? []
+  const siblingInstanceConflicts = useMemo(() => buildSiblingInstanceConflicts(instances), [instances])
 
   const selectedId = routeInstanceId ?? localSelectedId ?? instances[0]?.instanceId ?? null
   const selectedInstance = instances.find(i => i.instanceId === selectedId) ?? null
+  const selectedSiblingConflicts = selectedInstance
+    ? siblingInstanceConflicts.get(selectedInstance.instanceId) ?? []
+    : []
   const shouldAutoOpenConfigure = new URLSearchParams(location.search).get('configure') === '1'
   const shouldAutoOpenBind = new URLSearchParams(location.search).get('bindProject') === '1'
 
@@ -2149,6 +2187,7 @@ export function InstanceManager() {
             key={inst.instanceId}
             instance={inst}
             selected={inst.instanceId === selectedId}
+            siblingConflictNames={siblingInstanceConflicts.get(inst.instanceId)}
             onClick={() => {
               setLocalSelectedId(inst.instanceId)
               void navigate(`/instances/${encodeURIComponent(inst.instanceId)}`)
@@ -2165,6 +2204,12 @@ export function InstanceManager() {
 
       {/* Right: detail panel */}
       <div className={styles.detailColumn}>
+        {selectedSiblingConflicts.length > 0 && (
+          <div className={styles.instanceCollisionBanner}>
+            <strong>Instance name collision:</strong> {selectedInstance?.name} is too close to {selectedSiblingConflicts.join(', ')}.
+            {' '}These sibling instances can look interchangeable in the UI and may share the same default database slug. Prefer one canonical instance and retire the duplicate when you are ready.
+          </div>
+        )}
         {selectedInstance ? (
           <DetailPanel
             instance={selectedInstance}

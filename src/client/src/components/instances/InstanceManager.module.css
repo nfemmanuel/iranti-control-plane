@@ -127,6 +127,12 @@
   display: block;
 }
 
+.instanceCollisionNote {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--color-status-warning);
+}
+
 .runtimeRootValue {
   display: inline-flex;
   flex-wrap: wrap;
@@ -185,6 +191,17 @@
   color: var(--color-text-tertiary);
   border-top: 1px solid var(--color-border-subtle);
   margin-top: auto;
+}
+
+.instanceCollisionBanner {
+  margin: var(--space-3) var(--section-padding) 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 35%, transparent);
+  background: color-mix(in srgb, var(--color-status-warning-bg) 65%, transparent);
+  color: var(--color-text-primary);
+  border-radius: var(--border-radius-md);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* ──────────────────────────────────────────────────────────────────
