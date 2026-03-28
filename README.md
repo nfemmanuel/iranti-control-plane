@@ -4,7 +4,7 @@ Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti
 
 ## Status
 
-Current package version: `0.4.0`.
+Current package version: `0.4.1`.
 The operator surface is live and under active UX hardening.
 
 ## Install
@@ -17,6 +17,19 @@ iranti-cp
 ```
 
 That path uses the bundled server and picks the first free port in `3000-3010` unless `CONTROL_PLANE_PORT` is set.
+
+Useful packaged CLI commands:
+
+```bash
+iranti-cp open
+iranti-cp start --port 3010
+iranti-cp status
+iranti-cp doctor --instance my_instance
+iranti-cp upgrade self
+iranti-cp upgrade iranti --all --dry-run
+```
+
+Use `iranti-cp --help` to see the full command list.
 
 ## Quick Start
 
