@@ -184,6 +184,45 @@ async function rewriteProjectBindingInstanceEnv(projectPath: string, oldEnvPath:
   await writeFile(bindingPath, buildSimpleEnvFile(parsed), 'utf8')
 }
 
+async function rewriteMovedInstanceEnv(instanceDir: string, previousInstanceDir: string): Promise<void> {
+  const envPath = join(instanceDir, '.env')
+  if (!existsSync(envPath)) return
+
+  const parsed = parseSimpleEnv(await readFile(envPath, 'utf8'))
+  const oldBase = resolve(previousInstanceDir)
+  const nextEscalation = join(instanceDir, 'escalation')
+  const nextRequestLog = join(instanceDir, 'logs', 'api-requests.log')
+
+  const currentEscalation = parsed['IRANTI_ESCALATION_DIR']?.trim() ?? ''
+  const currentRequestLog = parsed['IRANTI_REQUEST_LOG_FILE']?.trim() ?? ''
+  if (!currentEscalation || resolve(currentEscalation).startsWith(oldBase)) {
+    parsed['IRANTI_ESCALATION_DIR'] = nextEscalation
+  }
+  if (!currentRequestLog || resolve(dirname(currentRequestLog)).startsWith(resolve(join(previousInstanceDir, 'logs')))) {
+    parsed['IRANTI_REQUEST_LOG_FILE'] = nextRequestLog
+  }
+
+  await writeFile(envPath, buildSimpleEnvFile(parsed), 'utf8')
+}
+
+async function rewriteMovedInstanceMeta(instanceDir: string, name: string): Promise<void> {
+  const metaPath = join(instanceDir, 'instance.json')
+  if (!existsSync(metaPath)) return
+
+  const parsed = JSON.parse(await readFile(metaPath, 'utf8')) as Record<string, unknown>
+  parsed['name'] = name
+  parsed['instanceDir'] = instanceDir
+  parsed['envFile'] = join(instanceDir, '.env')
+
+  await writeFile(metaPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8')
+}
+
+async function clearMovedRuntimeMetadata(instanceDir: string): Promise<void> {
+  const runtimePath = join(instanceDir, 'runtime.json')
+  if (!existsSync(runtimePath)) return
+  await rm(runtimePath, { force: true })
+}
+
 function escapePgIdentifier(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
@@ -599,6 +638,9 @@ instanceLifecycleRouter.post('/instances/:name/migrate-root', async (req: Reques
   try {
     await mkdir(join(targetRoot, 'instances'), { recursive: true })
     await moveDirectory(resolvedAuthority.instanceDir, targetInstanceDir)
+    await rewriteMovedInstanceEnv(targetInstanceDir, resolvedAuthority.instanceDir)
+    await rewriteMovedInstanceMeta(targetInstanceDir, name)
+    await clearMovedRuntimeMetadata(targetInstanceDir)
 
     let updatedBindings = 0
     for (const project of resolvedAuthority.boundProjects) {

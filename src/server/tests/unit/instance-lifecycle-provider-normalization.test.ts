@@ -37,6 +37,7 @@ vi.mock('pg', () => {
 
 import { runtimeRootCandidates } from '../../lib/runtime-roots.js'
 import { runIrantiCommand, runIrantiJson } from '../../lib/iranti-cli.js'
+import { parseSimpleEnv } from '../../lib/instance-authority.js'
 import { instanceLifecycleRouter } from '../../routes/control-plane/instance-lifecycle.js'
 import pg from 'pg'
 
@@ -413,6 +414,11 @@ describe('instance lifecycle routes', () => {
       'utf8',
     )
     await writeFile(
+      join(legacyRoot, 'instances', 'legacyalpha', 'runtime.json'),
+      `${'\0'.repeat(64)}`,
+      'utf8',
+    )
+    await writeFile(
       join(projectPath, '.env.iranti'),
       [
         'IRANTI_INSTANCE=legacyalpha',
@@ -443,8 +449,17 @@ describe('instance lifecycle routes', () => {
     const newEnvPath = join(primaryRoot, 'instances', 'legacyalpha', '.env')
     expect(existsSync(newEnvPath)).toBe(true)
     expect(existsSync(join(legacyRoot, 'instances', 'legacyalpha'))).toBe(false)
+    expect(existsSync(join(primaryRoot, 'instances', 'legacyalpha', 'runtime.json'))).toBe(false)
 
     const bindingRaw = await readFile(join(projectPath, '.env.iranti'), 'utf8')
     expect(bindingRaw).toContain(`IRANTI_INSTANCE_ENV=${newEnvPath}`)
+
+    const movedEnv = parseSimpleEnv(await readFile(newEnvPath, 'utf8'))
+    expect(movedEnv['IRANTI_ESCALATION_DIR']).toBe(join(primaryRoot, 'instances', 'legacyalpha', 'escalation'))
+    expect(movedEnv['IRANTI_REQUEST_LOG_FILE']).toBe(join(primaryRoot, 'instances', 'legacyalpha', 'logs', 'api-requests.log'))
+
+    const movedMeta = JSON.parse(await readFile(join(primaryRoot, 'instances', 'legacyalpha', 'instance.json'), 'utf8')) as Record<string, unknown>
+    expect(movedMeta['instanceDir']).toBe(join(primaryRoot, 'instances', 'legacyalpha'))
+    expect(movedMeta['envFile']).toBe(newEnvPath)
   })
 })
