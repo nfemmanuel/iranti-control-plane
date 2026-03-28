@@ -67,8 +67,58 @@ function buildRunCommand(scope: ResolvedInstanceAuthority): string {
   return `iranti run --instance ${scope.instanceName} --root ${quotedRoot}`
 }
 
+function buildRestartCommand(scope: ResolvedInstanceAuthority): string {
+  const quotedRoot = /\s/.test(scope.runtimeRoot) ? `"${scope.runtimeRoot}"` : scope.runtimeRoot
+  return `iranti instance restart ${scope.instanceName} --root ${quotedRoot}`
+}
+
 function buildKbQueryUrl(scope: ResolvedInstanceAuthority, key: string): string {
   return `${scope.apiBaseUrl}/kb/query/${encodeURIComponent(DIAGNOSTIC_ENTITY_TYPE)}/${encodeURIComponent(DIAGNOSTIC_ENTITY_ID)}/${encodeURIComponent(key)}`
+}
+
+function looksLikeBackendDbFailure(body: string): boolean {
+  const text = body.toLowerCase()
+  return text.includes('server has closed the connection')
+    || text.includes('invalid `db.')
+    || text.includes('prisma')
+}
+
+async function readResponseBodySafe(res: globalThis.Response): Promise<string> {
+  try {
+    return await res.text()
+  } catch {
+    return ''
+  }
+}
+
+function buildKbRouteFailure(
+  scope: ResolvedInstanceAuthority,
+  routeLabel: string,
+  statusCode: number,
+  responseBody: string,
+  authFixHint: string
+): Pick<CheckResult, 'status' | 'message' | 'fixHint'> {
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      status: 'fail',
+      message: `${routeLabel} was rejected by Iranti auth (HTTP ${statusCode})`,
+      fixHint: authFixHint,
+    }
+  }
+
+  if (looksLikeBackendDbFailure(responseBody)) {
+    return {
+      status: 'fail',
+      message: `${routeLabel} hit a backend database error even though the instance is reachable`,
+      fixHint: `Restart the instance with: ${buildRestartCommand(scope)}`,
+    }
+  }
+
+  return {
+    status: 'warn',
+    message: `${routeLabel} returned HTTP ${statusCode}`,
+    fixHint: `Restart the instance with: ${buildRestartCommand(scope)}`,
+  }
 }
 
 async function withScopedPool<T>(
@@ -168,27 +218,26 @@ async function checkIrantiAuth(scope: ResolvedInstanceAuthority): Promise<CheckR
       return {
         check: 'iranti_auth',
         status: 'pass',
-        message: 'Iranti API key accepted — kb:read scope confirmed',
+        message: 'Iranti API key accepted - kb:read scope confirmed',
         fixHint: null,
         durationMs: Date.now() - start,
       }
     }
 
-    if (res.status === 401 || res.status === 403) {
-      return {
-        check: 'iranti_auth',
-        status: 'fail',
-        message: `Iranti auth rejected (HTTP ${res.status})`,
-        fixHint: `Check IRANTI_API_KEY for instance ${scope.instanceName}.`,
-        durationMs: Date.now() - start,
-      }
-    }
+    const body = await readResponseBodySafe(res)
+    const failure = buildKbRouteFailure(
+      scope,
+      'GET /kb/search',
+      res.status,
+      body,
+      `Check IRANTI_API_KEY for instance ${scope.instanceName}.`
+    )
 
     return {
       check: 'iranti_auth',
-      status: 'warn',
-      message: `Iranti /kb/search returned HTTP ${res.status}`,
-      fixHint: `Start the instance with: ${buildRunCommand(scope)}`,
+      status: failure.status,
+      message: failure.message,
+      fixHint: failure.fixHint,
       durationMs: Date.now() - start,
     }
   }
@@ -336,11 +385,19 @@ async function checkIngestRoundtrip(scope: ResolvedInstanceAuthority): Promise<C
     const writeRes = await writeDiagnosticFact(scope, ROUNDTRIP_KEY, ROUNDTRIP_VALUE, ROUNDTRIP_SUMMARY)
 
     if (!writeRes.ok) {
+      const body = await readResponseBodySafe(writeRes)
+      const failure = buildKbRouteFailure(
+        scope,
+        'POST /kb/write',
+        writeRes.status,
+        body,
+        `Check API key scopes for ${scope.instanceName}.`
+      )
       return {
         check: 'ingest_roundtrip',
-        status: 'fail',
-        message: `Write probe failed: POST /kb/write returned HTTP ${writeRes.status}`,
-        fixHint: `Check API key scopes for ${scope.instanceName}.`,
+        status: failure.status,
+        message: `Write probe failed: ${failure.message}`,
+        fixHint: failure.fixHint,
         durationMs: Date.now() - start,
       }
     }
@@ -442,11 +499,19 @@ async function checkVectorSearch(scope: ResolvedInstanceAuthority): Promise<Chec
   const work = async (): Promise<CheckResult> => {
     const writeRes = await writeDiagnosticFact(scope, VECTOR_PROBE_KEY, VECTOR_PROBE_VALUE, VECTOR_PROBE_SUMMARY)
     if (!writeRes.ok) {
+      const body = await readResponseBodySafe(writeRes)
+      const failure = buildKbRouteFailure(
+        scope,
+        'POST /kb/write',
+        writeRes.status,
+        body,
+        `Check API key scopes for ${scope.instanceName}.`
+      )
       return {
         check: 'vector_search_check',
-        status: 'fail',
-        message: `Write probe failed: POST /kb/write returned HTTP ${writeRes.status}`,
-        fixHint: `Check API key scopes for ${scope.instanceName}.`,
+        status: failure.status,
+        message: `Write probe failed: ${failure.message}`,
+        fixHint: failure.fixHint,
         durationMs: Date.now() - start,
       }
     }
@@ -457,11 +522,19 @@ async function checkVectorSearch(scope: ResolvedInstanceAuthority): Promise<Chec
     })
 
     if (!res.ok) {
+      const body = await readResponseBodySafe(res)
+      const failure = buildKbRouteFailure(
+        scope,
+        'GET /kb/search',
+        res.status,
+        body,
+        `Check IRANTI_API_KEY for instance ${scope.instanceName}.`
+      )
       return {
         check: 'vector_search_check',
-        status: 'fail',
-        message: `GET /kb/search returned HTTP ${res.status}`,
-        fixHint: null,
+        status: failure.status,
+        message: failure.message,
+        fixHint: failure.fixHint,
         durationMs: Date.now() - start,
       }
     }

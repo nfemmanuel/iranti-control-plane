@@ -19,6 +19,10 @@ describe('health and diagnostics instance scoping', () => {
   const attendBodies: Array<Record<string, unknown>> = []
   let attendResponse: Record<string, unknown>
   let searchResults: Array<Record<string, unknown>>
+  let searchStatus: number
+  let searchBodyOverride: string | null
+  let writeStatus: number
+  let writeBodyOverride: string | null
   const queryValues = new Map<string, unknown>()
 
   beforeEach(async () => {
@@ -28,6 +32,10 @@ describe('health and diagnostics instance scoping', () => {
     await mkdir(join(runtimeRoot, 'instances', 'beta'), { recursive: true })
     attendResponse = { ok: true }
     searchResults = [{ entity: '__diagnostics__/__probe__', key: 'semantic_probe', value: 'ok', vectorScore: 1 }]
+    searchStatus = 200
+    searchBodyOverride = null
+    writeStatus = 200
+    writeBodyOverride = null
     queryValues.clear()
 
     irantiServer = http.createServer(async (req, res) => {
@@ -52,7 +60,11 @@ describe('health and diagnostics instance scoping', () => {
       }
 
       if (req.url?.startsWith('/kb/search')) {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.writeHead(searchStatus, { 'Content-Type': 'application/json' })
+        if (searchBodyOverride !== null) {
+          res.end(searchBodyOverride)
+          return
+        }
         res.end(JSON.stringify({
           results: searchResults,
         }))
@@ -81,6 +93,11 @@ describe('health and diagnostics instance scoping', () => {
           let bodyRaw = ''
           for await (const chunk of req) {
             bodyRaw += chunk
+          }
+          if (writeStatus !== 200) {
+            res.writeHead(writeStatus, { 'Content-Type': 'application/json' })
+            res.end(writeBodyOverride ?? JSON.stringify({ error: 'forced write failure' }))
+            return
           }
           const body = JSON.parse(bodyRaw) as Record<string, unknown>
           queryValues.set(String(body.key), body.value)
@@ -229,5 +246,43 @@ describe('health and diagnostics instance scoping', () => {
       message: 'Semantic probe surfaced, but only through lexical matching (vectorScore=0)',
       fixHint: 'Vector backend is reachable, so this usually means embeddings are stale or the semantic probe is underweighted. Re-run doctor and inspect vector index consistency if real search feels weak.',
     })
+  })
+
+  it('reports kb backend failures as runtime restart issues instead of auth warnings', async () => {
+    searchStatus = 400
+    searchBodyOverride = JSON.stringify({
+      error: 'Invalid `db.knowledgeEntry.findMany()` invocation. Server has closed the connection.',
+    })
+
+    const diagRes = await fetch(`${apiBase}/diagnostics/run?instanceId=${betaInstanceId}`, { method: 'POST' })
+    const diagBody = await diagRes.json() as Record<string, unknown>
+    expect(diagRes.status).toBe(200)
+
+    const checks = diagBody.checks as Array<Record<string, unknown>>
+    const authCheck = checks.find((check) => check.check === 'iranti_auth')
+    expect(authCheck).toMatchObject({
+      status: 'fail',
+      message: 'GET /kb/search hit a backend database error even though the instance is reachable',
+    })
+    expect(String(authCheck?.fixHint)).toContain('iranti instance restart beta')
+  })
+
+  it('reports write-probe backend failures as runtime restart issues instead of scope advice', async () => {
+    writeStatus = 400
+    writeBodyOverride = JSON.stringify({
+      error: 'Invalid `db.entityAlias.findFirst()` invocation. Server has closed the connection.',
+    })
+
+    const diagRes = await fetch(`${apiBase}/diagnostics/run?instanceId=${betaInstanceId}`, { method: 'POST' })
+    const diagBody = await diagRes.json() as Record<string, unknown>
+    expect(diagRes.status).toBe(200)
+
+    const checks = diagBody.checks as Array<Record<string, unknown>>
+    const roundtripCheck = checks.find((check) => check.check === 'ingest_roundtrip')
+    expect(roundtripCheck).toMatchObject({
+      status: 'fail',
+      message: 'Write probe failed: POST /kb/write hit a backend database error even though the instance is reachable',
+    })
+    expect(String(roundtripCheck?.fixHint)).toContain('iranti instance restart beta')
   })
 })
