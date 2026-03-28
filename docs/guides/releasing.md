@@ -146,4 +146,14 @@ When the checks above are green:
 npm publish --access public
 ```
 
+### CI npm token requirement
+
+If you publish from GitHub Actions, `NPM_TOKEN` must be an **npm Automation token**.
+
+- A standard npm token that still requires interactive 2FA will fail in CI with:
+  - `npm error code EOTP`
+  - `This operation requires a one-time password from your authenticator.`
+- That failure means the token exists, but it is the wrong type for unattended publish.
+- Fix by replacing the repository `NPM_TOKEN` secret with an npm Automation token, then rerun the workflow.
+
 If this repo later adds CI-driven publish automation, keep this guide as the human fallback and operator checklist.

@@ -144,3 +144,5 @@ See `docs/specs/control-plane-api.md` for the full API spec and `docs/prd/contro
 
 For release and manual publish checks, see [`docs/guides/releasing.md`](docs/guides/releasing.md).
 
+If npm publish is run from GitHub Actions, the repo `NPM_TOKEN` secret must be an npm **Automation token**. A standard token that still requires OTP will fail with `EOTP`.
+

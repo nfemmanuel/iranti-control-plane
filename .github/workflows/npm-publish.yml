@@ -44,6 +44,17 @@ jobs:
         run: npm run package:bundle
 
       - name: Publish
-        run: npm publish --access public
+        run: |
+          set +e
+          publish_output="$(npm publish --access public 2>&1)"
+          publish_status=$?
+          set -e
+          printf '%s\n' "$publish_output"
+          if [ $publish_status -ne 0 ]; then
+            if printf '%s' "$publish_output" | grep -q "npm error code EOTP"; then
+              echo "::error::npm publish failed with EOTP. The NPM_TOKEN secret is present, but it is not an npm automation token. Replace NPM_TOKEN with an npm Automation token in GitHub Actions secrets and rerun this workflow."
+            fi
+            exit $publish_status
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
