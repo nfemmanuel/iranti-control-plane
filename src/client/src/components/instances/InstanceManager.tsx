@@ -2072,7 +2072,7 @@ export function InstanceManager() {
               <p className={styles.emptyBody}>
                 Install Iranti to create and manage instances.
               </p>
-              <CommandAction command="npm install -g iranti" allowRun={false} compact />
+              <CommandAction command="npm install -g iranti" allowRun compact />
             </div>
           )}
           {!notInstalled && (

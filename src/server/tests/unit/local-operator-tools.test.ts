@@ -24,8 +24,15 @@ describe('local operator tools', () => {
     })
   })
 
+  it('accepts npm install -g iranti for in-app execution', () => {
+    expect(parseRunnableCommand('npm install -g iranti')).toEqual({
+      executable: 'npm',
+      args: ['install', '-g', 'iranti'],
+    })
+  })
+
   it('rejects non-whitelisted commands', () => {
-    expect(() => parseRunnableCommand('npm install -g iranti')).toThrow(/not approved for in-app execution/i)
+    expect(() => parseRunnableCommand('npm install -g something-else')).toThrow(/not approved for in-app execution/i)
   })
 
   it('keeps Windows .cmd launch targets in the executable slot', () => {

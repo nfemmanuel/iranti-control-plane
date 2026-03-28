@@ -38,6 +38,7 @@ export interface ParsedCommand {
 }
 
 const RUNNABLE_NPM_SCRIPTS = new Set(['migrate'])
+const RUNNABLE_GLOBAL_NPM_PACKAGES = [/^iranti(?:@[\w.-]+)?$/i]
 
 function spawnAndCollect(
   command: string,
@@ -193,6 +194,16 @@ export function parseRunnableCommand(command: string): ParsedCommand {
     return { executable, args }
   }
 
+  if (
+    executable === 'npm' &&
+    args[0] === 'install' &&
+    args[1] === '-g' &&
+    args.length === 3 &&
+    RUNNABLE_GLOBAL_NPM_PACKAGES.some((pattern) => pattern.test(args[2]!))
+  ) {
+    return { executable, args }
+  }
+
   throw new Error('This command can be copied from the control plane, but it is not approved for in-app execution.')
 }
 
@@ -212,7 +223,14 @@ export async function runLocalCommand(options: RunLocalCommandOptions): Promise<
   const cwd = await validateCwd(options.cwd)
   const start = Date.now()
   const executable = resolveWindowsCommand(parsed.executable)
-  const result = await spawnAndCollect(executable, parsed.args, { cwd, timeoutMs: 30_000 })
+  const isGlobalNpmInstall =
+    parsed.executable === 'npm' &&
+    parsed.args[0] === 'install' &&
+    parsed.args[1] === '-g'
+  const result = await spawnAndCollect(executable, parsed.args, {
+    cwd,
+    timeoutMs: isGlobalNpmInstall ? 300_000 : 30_000,
+  })
   return {
     ok: result.code === 0,
     command: options.command,

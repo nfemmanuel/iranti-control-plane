@@ -5,9 +5,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchInstallState, startInstance } from '../../api/client'
-import type { InstallStateResult, HealthResponse } from '../../api/types'
+import { apiFetch, fetchInstallState, startInstance } from '../../api/client'
+import type { InstallStateResult, HealthResponse, InstanceListResponse } from '../../api/types'
 import { IrantiMark } from '../shell/IrantiMark'
+import { CreateInstanceForm } from '../instances/CreateInstanceForm'
+import { CommandAction } from '../ui/CommandAction'
 import styles from './SetupWizard.module.css'
 
 /* ------------------------------------------------------------------ */
@@ -16,7 +18,6 @@ import styles from './SetupWizard.module.css'
 
 const LS_DISMISSED_KEY = 'iranti_cp_setup_dismissed'
 const LS_COMPLETE_KEY = 'iranti_setup_complete'
-const INSTANCE_NAME_RE = /^[a-zA-Z0-9_-]*$/
 
 /* ------------------------------------------------------------------ */
 /*  localStorage helpers                                                */
@@ -91,7 +92,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={handleCopy}
       aria-label={copied ? 'Copied' : 'Copy to clipboard'}
     >
-      {copied ? '✓ Copied' : 'Copy'}
+      {copied ? 'Copied' : 'Copy'}
     </button>
   )
 }
@@ -180,16 +181,22 @@ function Step1Install({ installState, onAdvance, onSkip }: Step1Props) {
     <div className={styles.stepContent}>
       <h2 className={styles.stepTitle}>Install Iranti</h2>
       <p className={styles.stepBody}>
-        Iranti is not detected on your system. Install it with npm:
+        Iranti is not detected on your system. If you installed Control Plane from npm, you can install Iranti here too.
       </p>
-      <CommandBlock command="npm install -g iranti" />
+      <CommandAction
+        command="npm install -g iranti"
+        allowRun
+        onAfterRun={() => {
+          void queryClient.invalidateQueries({ queryKey: ['install-state'] })
+        }}
+      />
       <p className={styles.stepHint}>
-        Then press the button below to check detection, or wait — we&apos;ll check automatically.
+        After install finishes, press the button below to check detection, or wait - we'll check automatically.
       </p>
       {detected && (
         <div className={styles.successBanner} role="status">
-          <span className={styles.successIcon} aria-hidden="true">✓</span>
-          Iranti detected{installState?.version ? ` — v${installState.version}` : ''} — advancing…
+          <span className={styles.successIcon} aria-hidden="true">OK</span>
+          Iranti detected{installState?.version ? ` - v${installState.version}` : ''} - advancing...
         </div>
       )}
       <div className={styles.stepActions}>
@@ -199,11 +206,11 @@ function Step1Install({ installState, onAdvance, onSkip }: Step1Props) {
           onClick={handleCheckAgain}
           disabled={checking || detected}
         >
-          {checking ? 'Checking…' : 'Check again'}
+          {checking ? 'Checking...' : 'Check again'}
         </button>
       </div>
       <button type="button" className={styles.skipLink} onClick={onSkip}>
-        Already installed? Skip →
+        Already installed? Skip for now
       </button>
     </div>
   )
@@ -214,84 +221,29 @@ function Step1Install({ installState, onAdvance, onSkip }: Step1Props) {
 /* ------------------------------------------------------------------ */
 
 interface Step2Props {
+  instances: InstanceListResponse['instances']
   onAdvance: (name: string) => void
   onSkip: () => void
 }
 
-function Step2Create({ onAdvance, onSkip }: Step2Props) {
-  const [name, setName] = useState('default')
-  const [nameError, setNameError] = useState<string | null>(null)
-
-  const command = `iranti init --instance ${name || '<name>'}`
-
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value
-    if (!INSTANCE_NAME_RE.test(v)) return  // block invalid chars as they type
-    if (v.length > 32) return
-    setName(v)
-    setNameError(null)
-  }, [])
-
-  const handleNext = useCallback(() => {
-    if (!name) {
-      setNameError('Instance name is required')
-      return
-    }
-    if (!INSTANCE_NAME_RE.test(name) || name.length > 32) {
-      setNameError('Name must be alphanumeric, hyphens, or underscores — max 32 chars')
-      return
-    }
-    onAdvance(name)
-  }, [name, onAdvance])
-
+function Step2Create({ instances, onAdvance, onSkip }: Step2Props) {
   return (
     <div className={styles.stepContent}>
       <h2 className={styles.stepTitle}>Create an instance</h2>
       <p className={styles.stepBody}>
-        An instance is a named Iranti process. Create one:
+        An instance is a named Iranti runtime. Create it here so Control Plane can keep the setup flow inside the product.
       </p>
-
-      <div className={styles.fieldGroup}>
-        <label className={styles.fieldLabel} htmlFor="instance-name">
-          Instance name
-        </label>
-        <input
-          id="instance-name"
-          type="text"
-          className={styles.textInput}
-          value={name}
-          onChange={handleNameChange}
-          placeholder="my-instance"
-          maxLength={32}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {nameError && <span className={styles.fieldError} role="alert">{nameError}</span>}
-      </div>
-
-      <div className={styles.commandLabel}>Command to run in your terminal:</div>
-      <CommandBlock command={command} />
-
-      <div className={styles.stepActions}>
-        <button
-          type="button"
-          className={styles.primaryButton}
-          onClick={handleNext}
-        >
-          Next →
-        </button>
-      </div>
+      <CreateInstanceForm
+        instances={instances}
+        onSuccess={onAdvance}
+        onCancel={onSkip}
+      />
       <button type="button" className={styles.skipLink} onClick={onSkip}>
-        Already have an instance? Skip →
+        Already have an instance? Skip for now
       </button>
     </div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Step 3 — Start Iranti                                               */
-/* ------------------------------------------------------------------ */
-
 interface Step3Props {
   instanceName: string
   onAdvance: () => void
@@ -362,7 +314,7 @@ function Step3Start({ instanceName, onAdvance, onSkip }: Step3Props) {
     <div className={styles.stepContent}>
       <h2 className={styles.stepTitle}>Start Iranti</h2>
       <p className={styles.stepBody}>
-        Start your instance to connect:
+        Start your instance from Control Plane. If you prefer the CLI, the equivalent command is shown below.
       </p>
 
       <div className={styles.instanceBadge}>
@@ -370,12 +322,13 @@ function Step3Start({ instanceName, onAdvance, onSkip }: Step3Props) {
         <span className={styles.instanceBadgeName}>{instanceName}</span>
       </div>
 
+      <div className={styles.commandLabel}>CLI alternative</div>
       <CommandBlock command={command} />
 
       {running && (
         <div className={styles.successBanner} role="status">
-          <span className={styles.successIcon} aria-hidden="true">✓</span>
-          Iranti is running — advancing…
+          <span className={styles.successIcon} aria-hidden="true">OK</span>
+          Iranti is running - advancing...
         </div>
       )}
       {startError && (
@@ -385,7 +338,7 @@ function Step3Start({ instanceName, onAdvance, onSkip }: Step3Props) {
       )}
       {timedOut && !running && (
         <div className={styles.warnBanner} role="status">
-          Still starting — this can take a few seconds. If it doesn&apos;t connect, check the terminal for errors.
+          Still starting - this can take a few seconds. If it doesn&apos;t connect, check the terminal for errors.
         </div>
       )}
 
@@ -396,11 +349,11 @@ function Step3Start({ instanceName, onAdvance, onSkip }: Step3Props) {
           onClick={handleStart}
           disabled={starting || running}
         >
-          {starting ? 'Starting…' : 'Start from here'}
+          {starting ? 'Starting...' : 'Start from here'}
         </button>
       </div>
       <button type="button" className={styles.skipLink} onClick={onSkip}>
-        Already running? Skip →
+        Already running? Skip for now
       </button>
     </div>
   )
@@ -443,14 +396,15 @@ function Step4ApiKey({ instanceName, onDone, onGoToProviders }: Step4Props) {
       <h2 className={styles.stepTitle}>Configure your API key</h2>
       <p className={styles.stepBody}>
         Iranti needs a provider credential in the instance env.
-        Add it from the Provider Manager, or run the equivalent CLI command for <code className={styles.inlineCode}>{instanceName}</code>:
+        The preferred path is Provider Manager. If you want the CLI equivalent for <code className={styles.inlineCode}>{instanceName}</code>, it is shown below:
       </p>
 
+      <div className={styles.commandLabel}>CLI alternative</div>
       <CommandBlock command={cliCommand} />
 
       {authPassing && (
         <div className={styles.successBanner} role="status">
-          <span className={styles.successIcon} aria-hidden="true">✓</span>
+          <span className={styles.successIcon} aria-hidden="true">OK</span>
           API key configured
         </div>
       )}
@@ -461,11 +415,11 @@ function Step4ApiKey({ instanceName, onDone, onGoToProviders }: Step4Props) {
           className={styles.primaryButton}
           onClick={onGoToProviders}
         >
-          Go to Provider Manager →
+          Go to Provider Manager
         </button>
       </div>
       <button type="button" className={styles.skipLink} onClick={onDone}>
-        Done — Enter Control Plane →
+        Done - Enter Control Plane
       </button>
     </div>
   )
@@ -521,6 +475,11 @@ export function SetupWizard({ onDismiss }: SetupWizardProps) {
     queryFn: fetchInstallState,
     staleTime: 5_000,
     refetchInterval: 5_000,
+  })
+  const { data: instancesData } = useQuery<InstanceListResponse>({
+    queryKey: ['instances'],
+    queryFn: () => apiFetch<InstanceListResponse>('/instances'),
+    staleTime: 30_000,
   })
 
   // Skip step 1 on first render if already installed
@@ -622,7 +581,7 @@ export function SetupWizard({ onDismiss }: SetupWizardProps) {
         {/* All done screen */}
         {allDoneVisible ? (
           <div className={styles.allDone} role="status">
-            <span className={styles.allDoneIcon} aria-hidden="true">✓</span>
+            <span className={styles.allDoneIcon} aria-hidden="true">OK</span>
             <p className={styles.allDoneText}>You&apos;re all set!</p>
           </div>
         ) : (
@@ -636,6 +595,7 @@ export function SetupWizard({ onDismiss }: SetupWizardProps) {
             )}
             {step === 1 && (
               <Step2Create
+                instances={instancesData?.instances ?? []}
                 onAdvance={handleStep2Advance}
                 onSkip={handleStep2Skip}
               />
@@ -698,3 +658,4 @@ export function shouldShowWizard(installState: InstallStateResult | undefined): 
   // (install state is the primary trigger — no instance check without backend support)
   return false
 }
+
