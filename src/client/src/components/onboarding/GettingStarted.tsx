@@ -56,7 +56,7 @@ async function refreshSetupStatus(instanceId: string): Promise<SetupStatusRespon
 
 function StepStatusBadge({ status }: { status: SetupStep['status'] }) {
   const map: Record<SetupStep['status'], { label: string; className: string }> = {
-    complete:       { label: 'Complete ✓',    className: styles.badgeComplete },
+    complete:       { label: 'Complete',       className: styles.badgeComplete },
     incomplete:     { label: 'Incomplete',    className: styles.badgeIncomplete },
     warning:        { label: 'Warning',       className: styles.badgeWarning },
     not_applicable: { label: 'Not applicable', className: styles.badgeNA },
@@ -81,6 +81,8 @@ interface StepRowProps {
 function repairActionLabel(repairAction: string): string {
   if (repairAction === 'control-plane:migrate-root') return 'Migrate to primary root'
   if (repairAction === 'control-plane:open-configure-db') return 'Repair database target'
+  if (repairAction === 'control-plane:open-provider-manager') return 'Open Provider Manager'
+  if (repairAction === 'control-plane:open-project-binding') return 'Open project binding'
   return 'Run repair'
 }
 
@@ -100,11 +102,11 @@ function StepRow({ step, stepNumber, expanded, onToggle, onRepair, repairLoading
         aria-expanded={expanded}
       >
         <span className={`${styles.stepNumber} ${isDone ? styles.stepNumberDone : isActionable ? styles.stepNumberActive : styles.stepNumberNA}`}>
-          {isDone ? '✓' : stepNumber}
+          {isDone ? 'OK' : stepNumber}
         </span>
         <span className={styles.stepLabel}>{step.label}</span>
         <StepStatusBadge status={step.status} />
-        <span className={styles.stepCaret} aria-hidden="true">{expanded ? '▲' : '▼'}</span>
+        <span className={styles.stepCaret} aria-hidden="true">{expanded ? '^' : 'v'}</span>
       </button>
 
       {expanded && (
@@ -128,7 +130,7 @@ function StepRow({ step, stepNumber, expanded, onToggle, onRepair, repairLoading
                   disabled={repairLoading}
                   onClick={() => onRepair(step.repairAction!)}
                 >
-                  {repairLoading ? 'Working…' : repairActionLabel(step.repairAction)}
+                  {repairLoading ? 'Working...' : repairActionLabel(step.repairAction)}
                 </button>
               )}
             </div>
@@ -180,7 +182,7 @@ function databaseIntentLabel(intent: SetupStatusResponse['databaseIntent']): str
 function SuccessState({ onGoToMemory }: { onGoToMemory: () => void }) {
   return (
     <div className={styles.successState}>
-      <span className={styles.successIcon} aria-hidden="true">✓</span>
+      <span className={styles.successIcon} aria-hidden="true">OK</span>
       <h2 className={styles.successTitle}>Iranti is ready</h2>
       <p className={styles.successBody}>All setup steps are complete. Your Iranti instance is fully configured.</p>
       <button
@@ -188,7 +190,7 @@ function SuccessState({ onGoToMemory }: { onGoToMemory: () => void }) {
         onClick={onGoToMemory}
         type="button"
       >
-        Go to Memory Explorer →
+        Go to Memory Explorer
       </button>
     </div>
   )
@@ -249,6 +251,17 @@ export function GettingStarted() {
         return
       }
 
+      if (repairAction === 'control-plane:open-provider-manager') {
+        navigate('/providers')
+        return
+      }
+
+      if (repairAction === 'control-plane:open-project-binding') {
+        const targetId = data?.scope?.instanceId ?? instanceId
+        navigate(`/instances/${encodeURIComponent(targetId)}`)
+        return
+      }
+
       if (repairAction === 'control-plane:migrate-root') {
         const instanceName = data?.scope?.instanceName ?? activeInstance?.name ?? null
         if (!instanceName) throw new Error('Instance name unavailable for migration.')
@@ -291,7 +304,7 @@ export function GettingStarted() {
       <div className={styles.page}>
         <div className={styles.loadingCenter}>
           <Spinner size="md" label="Checking setup status" />
-          <span className={styles.loadingLabel}>Checking setup status…</span>
+          <span className={styles.loadingLabel}>Checking setup status...</span>
         </div>
       </div>
     )

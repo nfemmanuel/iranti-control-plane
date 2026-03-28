@@ -284,7 +284,7 @@ function checkProvider(scope: ResolvedInstanceAuthority): SetupStep {
       message: `Provider ${providerLabel(normalizedProvider)} is selected but its credential is missing from the instance env.`,
       actionRequired: `Store the ${providerLabel(normalizedProvider)} credential in ${scope.instanceEnvPath}, then restart the instance.`,
       cliCommand: `iranti add api-key ${normalizedProvider} --instance ${scope.instanceName} --set-default`,
-      repairAction: null,
+      repairAction: 'control-plane:open-provider-manager',
     }
   }
 
@@ -297,7 +297,7 @@ function checkProvider(scope: ResolvedInstanceAuthority): SetupStep {
       message: 'Provider credentials exist, but LLM_PROVIDER is not set in the instance env.',
       actionRequired: 'Choose a default provider for this instance and restart it so runtime routing is deterministic.',
       cliCommand,
-      repairAction: null,
+      repairAction: 'control-plane:open-provider-manager',
     }
   }
 
@@ -308,7 +308,7 @@ function checkProvider(scope: ResolvedInstanceAuthority): SetupStep {
     message: 'No LLM provider configured for this instance.',
     actionRequired: 'Store a provider key in the instance env and set the default provider before expecting writes or task routing to work.',
     cliCommand,
-    repairAction: null,
+    repairAction: 'control-plane:open-provider-manager',
   }
 }
 
@@ -332,7 +332,7 @@ function checkProjectBinding(scope: ResolvedInstanceAuthority): SetupStep {
     message: `No projects are bound to ${scope.instanceName}.`,
     actionRequired: 'Bind a project before expecting MCP or Claude integration files to be discoverable.',
     cliCommand: `iranti project init . --instance ${scope.instanceName}`,
-    repairAction: null,
+    repairAction: 'control-plane:open-project-binding',
   }
 }
 
