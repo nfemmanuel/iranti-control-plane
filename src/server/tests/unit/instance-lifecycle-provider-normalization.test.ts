@@ -146,7 +146,7 @@ describe('instance lifecycle routes', () => {
     expect(res.status).toBe(201)
     const body = await res.json() as Record<string, unknown>
     expect(body.provider).toBe('claude')
-    expect(String(body.note)).toContain('iranti run --instance alpha')
+    expect(String(body.note)).toContain('Open it in Control Plane')
     const envRaw = await readFile(join(runtimeRoot, 'instances', 'alpha', '.env'), 'utf8')
     expect(envRaw).toContain('LLM_PROVIDER=claude')
     expect(envRaw).toContain('ANTHROPIC_API_KEY=sk-ant-real')
@@ -169,6 +169,33 @@ describe('instance lifecycle routes', () => {
     const body = await res.json() as Record<string, unknown>
     expect(body.code).toBe('INVALID_PARAM')
     expect(String(body.error)).toContain("does not accept providerKey")
+    expect(runIrantiCommandMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects sibling instance names that only differ by hyphen or underscore', async () => {
+    await writeInstanceFiles(runtimeRoot, 'mini_app_olis', {
+      IRANTI_INSTANCE_NAME: 'mini_app_olis',
+      IRANTI_PORT: '4309',
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/mini_app_olis',
+      LLM_PROVIDER: 'claude',
+      IRANTI_API_KEY: 'replace_me_with_api_key',
+    }, 4309)
+
+    const res = await fetch(`${apiBase}/instances`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'mini-app-olis',
+        port: 4310,
+        dbUrl: 'postgresql://postgres:postgres@localhost:5432/mini_app_olis',
+        provider: 'claude',
+      }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = await res.json() as Record<string, unknown>
+    expect(body.code).toBe('INSTANCE_NAME_COLLISION')
+    expect(String(body.error)).toContain('mini_app_olis')
     expect(runIrantiCommandMock).not.toHaveBeenCalled()
   })
 

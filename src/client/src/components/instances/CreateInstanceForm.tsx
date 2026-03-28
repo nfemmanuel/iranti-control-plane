@@ -46,6 +46,10 @@ function sanitizeDatabaseSlug(value: string): string {
   return normalized || 'instance'
 }
 
+function normalizedInstanceCollisionKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[-_]+/g, '_')
+}
+
 function suggestedDatabaseName(instanceName: string, prefix = 'iranti_'): string {
   return `${prefix}${sanitizeDatabaseSlug(instanceName || 'instance')}`
 }
@@ -133,6 +137,16 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
   }, [dbHost, dbPort, databaseName, dbUser, dbPassword])
 
   const effectiveDbUrl = databaseMode === 'compose' ? composePreview : dbUrl.trim()
+  const siblingNameCollision = useMemo(() => {
+    const desired = name.trim()
+    if (!desired) return null
+    const desiredKey = normalizedInstanceCollisionKey(desired)
+    return instances.find((instance) => {
+      const existingName = instance.name.trim()
+      if (!existingName || existingName === desired) return false
+      return normalizedInstanceCollisionKey(existingName) === desiredKey
+    }) ?? null
+  }, [instances, name])
 
   const handleTemplateSourceChange = (instanceName: string) => {
     setDbTemplateSource(instanceName)
@@ -148,6 +162,9 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
     if (!NAME_PATTERN.test(name)) {
       setNameError('Name must be 1-64 chars, letters, digits, hyphens, or underscores only.')
       valid = false
+    } else if (siblingNameCollision) {
+      setNameError(`This name is too close to existing instance "${siblingNameCollision.name}". Use a more distinct name so bindings, runtime folders, and database defaults do not collide.`)
+      valid = false
     } else {
       setNameError(null)
     }
@@ -159,7 +176,7 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
       setPortError(null)
     }
     return valid
-  }, [name, port])
+  }, [name, port, siblingNameCollision])
 
   const validateStep2 = useCallback((): boolean => {
     if (databaseMode === 'url') {

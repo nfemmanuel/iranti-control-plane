@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, readdirSync } from 'fs'
 import { rm, rename, mkdir, readFile, writeFile, cp } from 'fs/promises'
 import { join, resolve, dirname } from 'path'
 import { homedir } from 'os'
@@ -29,6 +29,28 @@ type StatusResponse = {
 
 function isValidInstanceName(name: string): boolean {
   return INSTANCE_NAME_RE.test(name)
+}
+
+function normalizedInstanceCollisionKey(name: string): string {
+  return name.trim().toLowerCase().replace(/[-_]+/g, '_')
+}
+
+function findSiblingInstanceCollision(runtimeRoot: string, desiredName: string): { name: string; dir: string } | null {
+  const instancesDir = join(runtimeRoot, 'instances')
+  if (!existsSync(instancesDir)) return null
+
+  const desiredKey = normalizedInstanceCollisionKey(desiredName)
+  for (const entry of readdirSync(instancesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    if (entry.name === desiredName) continue
+    if (normalizedInstanceCollisionKey(entry.name) !== desiredKey) continue
+    return {
+      name: entry.name,
+      dir: join(instancesDir, entry.name),
+    }
+  }
+
+  return null
 }
 
 function normalizeProviderInput(value: string): Provider | null {
@@ -127,6 +149,9 @@ function commandFailureMessage(error: unknown): string {
 function classifyCommandFailure(message: string): { status: number; code: string } {
   const lowered = message.toLowerCase()
 
+  if (lowered.includes('too close to existing instance')) {
+    return { status: 409, code: 'INSTANCE_NAME_COLLISION' }
+  }
   if (lowered.includes('already exists')) {
     return { status: 409, code: 'INSTANCE_EXISTS' }
   }
@@ -341,6 +366,14 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     res.status(409).json({
       error: 'Instance already exists.',
       code: 'INSTANCE_EXISTS',
+    })
+    return
+  }
+  const siblingCollision = findSiblingInstanceCollision(runtimeRoot, name)
+  if (siblingCollision) {
+    res.status(409).json({
+      error: `Instance "${name}" is too close to existing instance "${siblingCollision.name}". For safety, Control Plane treats hyphens and underscores as the same identity when creating instances. Choose a more distinct name.`,
+      code: 'INSTANCE_NAME_COLLISION',
     })
     return
   }
