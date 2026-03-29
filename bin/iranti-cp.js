@@ -119,26 +119,50 @@ async function fetchJson(url, timeoutMs = 1500) {
   }
 }
 
-async function findRunningControlPlanes(explicitPort) {
-  const checks = preferredPorts(explicitPort).map(async (port) => {
-    try {
-      const health = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/health`, 2500);
-      let instances = null;
-      try {
-        const body = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/instances`, 1500);
-        instances = Array.isArray(body) ? body.length : null;
-      } catch {
-        instances = null;
-      }
-      return {
-        port,
-        url: `http://localhost:${port}/control-plane`,
-        version: typeof health.version === 'string' ? health.version : null,
-        instances,
-      };
-    } catch {
+async function probeControlPlane(port) {
+  try {
+    const ping = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/ping`, 1000);
+    const packageName = typeof ping.package === 'string' ? ping.package : null;
+    if (packageName && packageName !== PACKAGE_NAME) {
       return null;
     }
+    return {
+      port,
+      url: `http://localhost:${port}/control-plane`,
+      version: typeof ping.version === 'string' ? ping.version : null,
+      instances: null,
+    };
+  } catch {
+    // Fall back to the heavier health probe so older control-plane builds
+    // without /ping still remain discoverable.
+  }
+
+  try {
+    const health = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/health`, 5000);
+    return {
+      port,
+      url: `http://localhost:${port}/control-plane`,
+      version: typeof health.version === 'string' ? health.version : null,
+      instances: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function findRunningControlPlanes(explicitPort) {
+  const checks = preferredPorts(explicitPort).map(async (port) => {
+    const running = await probeControlPlane(port);
+    if (!running) return null;
+
+    try {
+      const body = await fetchJson(`http://127.0.0.1:${port}/api/control-plane/instances`, 2000);
+      running.instances = Array.isArray(body) ? body.length : null;
+    } catch {
+      running.instances = null;
+    }
+
+    return running;
   });
 
   const resolved = await Promise.all(checks);
