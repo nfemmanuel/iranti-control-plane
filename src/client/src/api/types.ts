@@ -1095,6 +1095,15 @@ export interface ClaudeIntegrationStatus {
   irantiMcpEntry: { command: string; args: string[]; env?: Record<string, string> } | null
   irantiWorkspaceMcpEntry: { command: string; args: string[]; env?: Record<string, string> } | null
   irantiHooks: { sessionStart: string | null; userPromptSubmit: string | null; stop: string | null }
+  mcpInitialize: {
+    ok: boolean
+    initialized: boolean
+    toolsListed: boolean
+    toolNames: string[]
+    missingTools: string[]
+    detail: string
+    error: string | null
+  } | null
   issues: string[]
 }
 
@@ -1111,6 +1120,8 @@ export interface IntegrationSummaryItem {
   workspaceMcpPresent?: boolean
   irantiMcpRegistered: boolean
   irantiWorkspaceMcpRegistered?: boolean
+  mcpInitializeOk?: boolean | null
+  mcpInitializeDetail?: string | null
   hooksPresent: boolean
   irantiHooksCount: number
   issues: string[]

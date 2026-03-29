@@ -340,7 +340,7 @@ function buildRepairAction(scope: ResolvedInstanceAuthority, projectPath: string
   return `/api/control-plane/instances/${encodeURIComponent(scope.instanceId)}/projects/${encodeURIComponent(projectPath)}/repair/${kind}`
 }
 
-function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: SetupStep): SetupStep {
+async function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: SetupStep): Promise<SetupStep> {
   if (projectStep.status === 'incomplete' || (projectStep.status === 'warning' && scope.boundProjects.length === 0)) {
     return {
       id: 'claude_integration',
@@ -353,18 +353,24 @@ function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: 
     }
   }
 
-  const statuses = scope.boundProjects.map((project) => ({
+  const statuses = await Promise.all(scope.boundProjects.map(async (project) => ({
     projectPath: project.projectPath,
-    integration: inspectProjectIntegration(project.projectPath),
-  }))
+    integration: await inspectProjectIntegration(project.projectPath),
+  })))
 
-  const missing = statuses.filter(({ integration }) => !(integration.anyMcpPresent && integration.anyMcpHasIranti && integration.claudeMdPresent && integration.claudeMdHasIranti))
+  const missing = statuses.filter(({ integration }) => !(
+    integration.anyMcpPresent &&
+    integration.anyMcpHasIranti &&
+    integration.claudeMdPresent &&
+    integration.claudeMdHasIranti &&
+    integration.mcpInitialize?.ok !== false
+  ))
   if (missing.length === 0) {
     return {
       id: 'claude_integration',
       label: 'Project integration',
       status: 'complete',
-      message: `Claude integration files are present for all ${statuses.length} bound project${statuses.length === 1 ? '' : 's'}.`,
+      message: `Claude integration files are present and MCP initialize succeeds for all ${statuses.length} bound project${statuses.length === 1 ? '' : 's'}.`,
       actionRequired: null,
       cliCommand: statuses.length === 1 ? `iranti claude-setup "${statuses[0]!.projectPath}"` : `iranti doctor --instance ${scope.instanceName}`,
       repairAction: null,
@@ -374,18 +380,25 @@ function checkProjectIntegration(scope: ResolvedInstanceAuthority, projectStep: 
   const [firstMissing] = missing
   const missingMcp = firstMissing ? !(firstMissing.integration.anyMcpPresent && firstMissing.integration.anyMcpHasIranti) : false
   const missingClaudeMd = firstMissing ? !(firstMissing.integration.claudeMdPresent && firstMissing.integration.claudeMdHasIranti) : false
+  const failedMcpInitialize = firstMissing ? firstMissing.integration.mcpInitialize?.ok === false : false
 
   return {
     id: 'claude_integration',
     label: 'Project integration',
     status: 'warning',
-    message: `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} are missing Iranti Claude or workspace MCP integration files.`,
+    message: failedMcpInitialize
+      ? `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} have Claude integration files, but live MCP initialize is failing.`
+      : `${missing.length}/${statuses.length} bound project${statuses.length === 1 ? '' : 's'} are missing Iranti Claude or workspace MCP integration files.`,
     actionRequired: firstMissing
-      ? `Run Claude setup for ${firstMissing.projectPath}, or repair the missing files from the Instance Manager.`
+      ? failedMcpInitialize
+        ? `Repair MCP startup for ${firstMissing.projectPath}. File wiring exists, but Iranti MCP does not initialize cleanly there right now.`
+        : `Run Claude setup for ${firstMissing.projectPath}, or repair the missing files from the Instance Manager.`
       : null,
     cliCommand: firstMissing ? `iranti claude-setup "${firstMissing.projectPath}"` : null,
     repairAction:
-      firstMissing && missingMcp && !missingClaudeMd
+      failedMcpInitialize
+        ? null
+        : firstMissing && missingMcp && !missingClaudeMd
         ? buildRepairAction(scope, firstMissing.projectPath, 'mcp-json')
         : firstMissing && missingClaudeMd && !missingMcp
         ? buildRepairAction(scope, firstMissing.projectPath, 'claude-md')
@@ -402,7 +415,7 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
     const databaseStep = await checkDatabase(scope, pool)
     const providerStep = checkProvider(scope)
     const projectStep = checkProjectBinding(scope)
-    const integrationStep = checkProjectIntegration(scope, projectStep)
+    const integrationStep = await checkProjectIntegration(scope, projectStep)
 
     const steps: SetupStep[] = [
       ...(runtimeRootStep ? [runtimeRootStep] : []),

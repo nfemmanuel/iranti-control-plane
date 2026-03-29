@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { probeIrantiMcpInitialize, type McpInitializeProbeResult } from './mcp-initialize.js'
 
 export interface ProjectIntegrationStatus {
   projectPath: string
@@ -11,6 +12,7 @@ export interface ProjectIntegrationStatus {
   anyMcpHasIranti: boolean
   claudeMdPresent: boolean
   claudeMdHasIranti: boolean
+  mcpInitialize: McpInitializeProbeResult | null
 }
 
 function readJsonFile(filePath: string): Record<string, unknown> | null {
@@ -24,10 +26,11 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
-export function inspectProjectIntegration(projectPath: string): ProjectIntegrationStatus {
+export async function inspectProjectIntegration(projectPath: string): Promise<ProjectIntegrationStatus> {
   const mcpJsonPath = join(projectPath, '.mcp.json')
   const workspaceMcpJsonPath = join(projectPath, '.vscode', 'mcp.json')
   const claudeMdPath = join(projectPath, 'CLAUDE.md')
+  const projectEnvPath = join(projectPath, '.env.iranti')
   const mcpJson = readJsonFile(mcpJsonPath)
   const workspaceMcpJson = readJsonFile(workspaceMcpJsonPath)
 
@@ -49,6 +52,8 @@ export function inspectProjectIntegration(projectPath: string): ProjectIntegrati
 
   const mcpJsonHasIranti = hasIrantiServer(mcpJson)
   const workspaceMcpHasIranti = hasIrantiServer(workspaceMcpJson)
+  const anyMcpHasIranti = mcpJsonHasIranti || workspaceMcpHasIranti
+  const anyMcpPresent = existsSync(mcpJsonPath) || existsSync(workspaceMcpJsonPath)
 
   let claudeMdHasIranti = false
   if (existsSync(claudeMdPath)) {
@@ -62,15 +67,24 @@ export function inspectProjectIntegration(projectPath: string): ProjectIntegrati
     }
   }
 
+  const mcpInitialize =
+    anyMcpHasIranti && existsSync(projectEnvPath)
+      ? await probeIrantiMcpInitialize({
+          projectPath,
+          projectEnvPath,
+        })
+      : null
+
   return {
     projectPath,
     mcpJsonPresent: existsSync(mcpJsonPath),
     mcpJsonHasIranti,
     workspaceMcpPresent: existsSync(workspaceMcpJsonPath),
     workspaceMcpHasIranti,
-    anyMcpPresent: existsSync(mcpJsonPath) || existsSync(workspaceMcpJsonPath),
-    anyMcpHasIranti: mcpJsonHasIranti || workspaceMcpHasIranti,
+    anyMcpPresent,
+    anyMcpHasIranti,
     claudeMdPresent: existsSync(claudeMdPath),
     claudeMdHasIranti,
+    mcpInitialize,
   }
 }

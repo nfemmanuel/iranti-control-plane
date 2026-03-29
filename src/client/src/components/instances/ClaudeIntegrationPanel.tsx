@@ -50,6 +50,7 @@ function getCapabilityDescriptors(data: ClaudeIntegrationStatus): CapabilityDesc
   const hasSessionStart = data.irantiHooks.sessionStart !== null
   const hasPromptCapture = data.irantiHooks.userPromptSubmit !== null
   const hasStop = data.irantiHooks.stop !== null
+  const mcpInitializeOk = data.mcpInitialize?.ok ?? null
 
   return [
     {
@@ -59,6 +60,16 @@ function getCapabilityDescriptors(data: ClaudeIntegrationStatus): CapabilityDesc
       body: hasAnyMcp
         ? 'Claude can discover Iranti tools from this project.'
         : 'Claude will not be able to call Iranti tools until MCP wiring is added.',
+    },
+    {
+      key: 'mcp-initialize',
+      title: 'Live MCP initialize',
+      tone: mcpInitializeOk === true ? 'ready' : hasAnyMcp ? 'partial' : 'missing',
+      body: mcpInitializeOk === true
+        ? data.mcpInitialize?.detail ?? 'Iranti MCP initialized and exposed its tool surface.'
+        : hasAnyMcp
+          ? data.mcpInitialize?.detail ?? 'File wiring exists, but the live MCP initialize check is not healthy yet.'
+          : 'No Iranti MCP wiring found yet, so a live initialize probe is not available.',
     },
     {
       key: 'workspace-mcp',
@@ -100,6 +111,9 @@ function getCapabilityDescriptors(data: ClaudeIntegrationStatus): CapabilityDesc
 function getNextAction(data: ClaudeIntegrationStatus): string {
   const hasAnyMcp = data.irantiMcpEntry !== null || data.irantiWorkspaceMcpEntry !== null
   const hasAllHooks = Boolean(data.irantiHooks.sessionStart && data.irantiHooks.userPromptSubmit && data.irantiHooks.stop)
+  if (data.mcpInitialize && !data.mcpInitialize.ok) {
+    return 'Re-run scaffold or repair MCP startup. The files exist, but Iranti MCP did not initialize cleanly for this project.'
+  }
   if (!hasAnyMcp) {
     return 'Run Scaffold Integration to add Iranti MCP wiring for this project.'
   }
@@ -129,6 +143,9 @@ type OverviewReadiness = 'ready' | 'partial' | 'missing'
 
 function getOverviewReadiness(project: IntegrationSummaryResponse['projects'][number]): OverviewReadiness {
   const anyMcpRegistered = Boolean(project.irantiMcpRegistered || project.irantiWorkspaceMcpRegistered)
+  if (project.mcpInitializeOk === false) {
+    return 'partial'
+  }
   if (anyMcpRegistered && project.irantiHooksCount === 3) {
     return 'ready'
   }
@@ -140,6 +157,9 @@ function getOverviewReadiness(project: IntegrationSummaryResponse['projects'][nu
 
 function getOverviewWorks(project: IntegrationSummaryResponse['projects'][number]): string {
   const anyMcpRegistered = Boolean(project.irantiMcpRegistered || project.irantiWorkspaceMcpRegistered)
+  if (project.mcpInitializeOk === false) {
+    return project.mcpInitializeDetail ?? 'Files exist, but the live Iranti MCP initialize probe is failing.'
+  }
   if (anyMcpRegistered && project.irantiHooksCount === 3) {
     return 'Prompt capture and response summaries are both wired.'
   }
@@ -160,6 +180,9 @@ function getOverviewWorks(project: IntegrationSummaryResponse['projects'][number
 
 function getOverviewAction(project: IntegrationSummaryResponse['projects'][number]): string {
   const anyMcpRegistered = Boolean(project.irantiMcpRegistered || project.irantiWorkspaceMcpRegistered)
+  if (project.mcpInitializeOk === false) {
+    return 'Repair MCP startup before trusting this integration.'
+  }
   if (!anyMcpRegistered) {
     return 'Run scaffold to add MCP wiring.'
   }
@@ -326,6 +349,14 @@ export function ClaudeIntegrationPanel({ instanceName, projectPath, onClose }: C
                     {data.irantiWorkspaceMcpEntry.command} {data.irantiWorkspaceMcpEntry.args.join(' ')}
                   </span>
                 )}
+              </span>
+            </div>
+
+            <div className={styles.fieldRow}>
+              <span className={styles.fieldLabel}>Live MCP initialize</span>
+              <span className={styles.fieldValue}>
+                <StatusChip ok={data.mcpInitialize ? data.mcpInitialize.ok : null} label={data.mcpInitialize?.ok ? 'Healthy' : 'Unavailable'} />
+                {data.mcpInitialize && <span>{data.mcpInitialize.detail}</span>}
               </span>
             </div>
           </div>

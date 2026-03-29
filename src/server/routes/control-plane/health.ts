@@ -388,10 +388,10 @@ function checkDefaultProvider(scope: ResolvedInstanceAuthority): HealthCheck {
   }
 }
 
-function summarizeProjectIntegration(
+async function summarizeProjectIntegration(
   scope: ResolvedInstanceAuthority,
   checkName: 'mcp_integration' | 'claude_md_integration'
-): HealthCheck {
+): Promise<HealthCheck> {
   if (scope.boundProjects.length === 0) {
     return {
       name: checkName,
@@ -400,7 +400,7 @@ function summarizeProjectIntegration(
     }
   }
 
-  const statuses = scope.boundProjects.map((project) => inspectProjectIntegration(project.projectPath))
+  const statuses = await Promise.all(scope.boundProjects.map((project) => inspectProjectIntegration(project.projectPath)))
   const healthyCount = statuses.filter((status) =>
     checkName === 'mcp_integration'
       ? status.anyMcpPresent && status.anyMcpHasIranti
@@ -641,8 +641,8 @@ export async function runAllHealthChecks(instanceRef?: string): Promise<HealthRe
         Promise.resolve(makeProviderKeyCheck(scope, 'ANTHROPIC_API_KEY', 'anthropic_key', 'claude')),
         Promise.resolve(makeProviderKeyCheck(scope, 'OPENAI_API_KEY', 'openai_key', 'openai')),
         Promise.resolve(checkDefaultProvider(scope)),
-        Promise.resolve(summarizeProjectIntegration(scope, 'mcp_integration')),
-        Promise.resolve(summarizeProjectIntegration(scope, 'claude_md_integration')),
+        summarizeProjectIntegration(scope, 'mcp_integration'),
+        summarizeProjectIntegration(scope, 'claude_md_integration'),
         checkRuntimeVersion(scope),
         checkStaffEventsTable(pool),
       ]),

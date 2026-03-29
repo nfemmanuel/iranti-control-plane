@@ -175,6 +175,7 @@ You'll land on the **Overview** page by default unless your local settings choos
 The Instances page exposes the two agent-tool integration paths differently on purpose:
 
 - **Claude Code** setup is **project-scoped**. Open an instance, go to **Projects**, and use **Claude Setup** on a bound project. That scaffolds `.mcp.json` and `.claude/settings.local.json` for that specific project.
+- Claude setup status is now stricter on purpose: the control plane checks not only whether the MCP and hook files exist, but also whether `iranti mcp` can complete a live MCP `initialize` for that project binding. This catches cases where the files look correct but Claude or VS Code still cannot start the MCP session.
 - **Codex** setup is **machine-scoped**. Open an instance and use the **Codex Integration** panel. The control plane checks live Codex MCP state with `codex mcp get iranti` rather than guessing from old config-file locations.
 
 If Codex registration changes outside the control plane, refresh the page and the Codex panel should reflect the current MCP registration state.

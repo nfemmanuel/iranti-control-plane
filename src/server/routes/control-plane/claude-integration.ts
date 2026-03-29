@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join, isAbsolute } from 'path'
 import { homedir } from 'os'
 import { runIrantiCommand } from '../../lib/iranti-cli.js'
+import { probeIrantiMcpInitialize, type McpInitializeProbeResult } from '../../lib/mcp-initialize.js'
 
 export const claudeIntegrationRouter = Router()
 
@@ -146,6 +147,7 @@ interface IntegrationCheckResult {
   irantiMcpEntry: IrantiMcpEntry | null
   irantiWorkspaceMcpEntry: IrantiMcpEntry | null
   irantiHooks: IrantiHooks
+  mcpInitialize: McpInitializeProbeResult | null
   issues: string[]
 }
 
@@ -154,10 +156,11 @@ function usesPortableIrantiCommand(command: string): boolean {
   return /(^|\/)iranti(\.cmd|\.exe)?$/.test(normalized)
 }
 
-function checkProjectIntegration(projectPath: string): IntegrationCheckResult {
+async function checkProjectIntegration(projectPath: string): Promise<IntegrationCheckResult> {
   const mcpJsonPath = join(projectPath, '.mcp.json')
   const workspaceMcpJsonPath = join(projectPath, '.vscode', 'mcp.json')
   const hooksJsonPath = join(projectPath, '.claude', 'settings.local.json')
+  const projectEnvPath = join(projectPath, '.env.iranti')
 
   const mcpJson = readJsonFile(mcpJsonPath)
   const workspaceMcpJson = readJsonFile(workspaceMcpJsonPath)
@@ -170,6 +173,13 @@ function checkProjectIntegration(projectPath: string): IntegrationCheckResult {
   const issues: string[] = []
   const anyMcpPresent = existsSync(mcpJsonPath) || existsSync(workspaceMcpJsonPath)
   const anyMcpHasIranti = irantiMcpEntry !== null || irantiWorkspaceMcpEntry !== null
+  const mcpInitialize =
+    anyMcpHasIranti && existsSync(projectEnvPath)
+      ? await probeIrantiMcpInitialize({
+          projectPath,
+          projectEnvPath,
+        })
+      : null
 
   if (!anyMcpPresent) {
     issues.push('No MCP config found - add .mcp.json or .vscode/mcp.json so Claude Code and VS Code can discover Iranti tools')
@@ -201,6 +211,10 @@ function checkProjectIntegration(projectPath: string): IntegrationCheckResult {
     }
   }
 
+  if (mcpInitialize && !mcpInitialize.ok) {
+    issues.push(`Iranti MCP initialize probe failed - ${mcpInitialize.detail}`)
+  }
+
   return {
     projectPath,
     mcpJson,
@@ -212,6 +226,7 @@ function checkProjectIntegration(projectPath: string): IntegrationCheckResult {
     irantiMcpEntry,
     irantiWorkspaceMcpEntry,
     irantiHooks,
+    mcpInitialize,
     issues,
   }
 }
@@ -257,7 +272,7 @@ async function scaffoldProjectFiles(opts: ScaffoldOptions): Promise<ScaffoldResu
 
 claudeIntegrationRouter.get(
   '/:instanceName/projects/:projectId/claude-integration',
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const { instanceName, projectId } = req.params
 
     if (!INSTANCE_NAME_RE.test(instanceName)) {
@@ -290,7 +305,7 @@ claudeIntegrationRouter.get(
       return
     }
 
-    const result = checkProjectIntegration(projectPath)
+    const result = await checkProjectIntegration(projectPath)
     res.json(result)
   }
 )
@@ -349,7 +364,7 @@ claudeIntegrationRouter.post(
 
 claudeIntegrationRouter.get(
   '/:instanceName/integration-summary',
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const { instanceName } = req.params
 
     if (!INSTANCE_NAME_RE.test(instanceName)) {
@@ -369,8 +384,8 @@ claudeIntegrationRouter.get(
 
     const liveProjects = registry.projects.filter((entry) => existsSync(join(entry.projectPath, '.env.iranti')))
 
-    const projects = liveProjects.map((entry) => {
-      const check = checkProjectIntegration(entry.projectPath)
+    const projects = await Promise.all(liveProjects.map(async (entry) => {
+      const check = await checkProjectIntegration(entry.projectPath)
       const irantiHooksCount = [check.irantiHooks.sessionStart, check.irantiHooks.userPromptSubmit, check.irantiHooks.stop]
         .filter(Boolean).length
       return {
@@ -379,11 +394,13 @@ claudeIntegrationRouter.get(
         workspaceMcpPresent: check.workspaceMcpJsonPath !== null,
         irantiMcpRegistered: check.irantiMcpEntry !== null,
         irantiWorkspaceMcpRegistered: check.irantiWorkspaceMcpEntry !== null,
+        mcpInitializeOk: check.mcpInitialize?.ok ?? null,
+        mcpInitializeDetail: check.mcpInitialize?.detail ?? null,
         hooksPresent: check.hooksJsonPath !== null,
         irantiHooksCount,
         issues: check.issues,
       }
-    })
+    }))
 
     res.json({ instanceName, projects })
   }

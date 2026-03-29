@@ -403,9 +403,9 @@ function projectRepairUrl(scope: ResolvedInstanceAuthority, projectPath: string,
   return `/api/control-plane/instances/${encodeURIComponent(scope.instanceId)}/projects/${encoded}/repair/${kind}`
 }
 
-function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
-  return scope.boundProjects.flatMap((project) => {
-    const integration = inspectProjectIntegration(project.projectPath)
+async function doctorProjectChecks(scope: ResolvedInstanceAuthority): Promise<DoctorCheck[]> {
+  const checks = await Promise.all(scope.boundProjects.map(async (project) => {
+    const integration = await inspectProjectIntegration(project.projectPath)
     const projectName = basename(project.projectPath)
 
     const mcpCheck: DoctorCheck = {
@@ -435,9 +435,10 @@ function doctorProjectChecks(scope: ResolvedInstanceAuthority): DoctorCheck[] {
       operatorNote: null,
       commands: [],
     }
-
     return [mcpCheck, claudeCheck]
-  })
+  }))
+
+  return checks.flat()
 }
 
 function slugifyDoctorCheckId(value: string): string {
@@ -520,7 +521,7 @@ repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, nex
       dbCheck,
       doctorCheckProvider(scope),
       doctorCheckProjectBindings(scope),
-      ...doctorProjectChecks(scope),
+      ...(await doctorProjectChecks(scope)),
     )
 
     checks = Array.from(
