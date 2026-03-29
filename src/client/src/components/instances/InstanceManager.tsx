@@ -132,15 +132,15 @@ async function parseJsonResponse<T>(res: Response): Promise<T & { error?: string
 /**
  * CP-T029: Map internal runningStatus enum to display label.
  * "unreachable" → "Could not connect" (internal value unchanged)
+ * "stopped" → "Stopped" so operators can distinguish an intentional stop from a connection failure
  * "unknown" is never displayed — it shows as "Checking..." or "Could not connect"
- * "stopped" treated as an alias for "unreachable" in Phase 1 (no shutdown event yet)
  */
 function getStatusDisplayLabel(status: InstanceMetadata['runningStatus'], hasConnectionInfo: boolean): string {
   if (!hasConnectionInfo) return 'Not configured'
   switch (status) {
     case 'running':     return 'Running'
     case 'unreachable': return 'Could not connect'
-    case 'stopped':     return 'Could not connect'
+    case 'stopped':     return 'Stopped'
     case 'unknown':     return 'Could not connect'
   }
 }
@@ -1663,25 +1663,39 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
   const runtimeStale = getStalenesLevel(instance.runningStatusCheckedAt)
   const projectState = getProjectWiringState(instance)
   const providerReady = hasUsableProvider(instance)
-
-  const runtimePriority: PriorityCardDescriptor =
+  const runtimeSummary =
     instance.runtimeStatus === 'invalid'
       ? {
-          key: 'runtime',
-          title: 'Runtime first',
-          tone: 'critical',
           summary: 'Runtime metadata is invalid.',
           detail: 'Control Plane can recover this instance for you. Use recovery before trusting doctor output or project wiring below.',
-          action: { label: 'Recover runtime', type: 'recover' },
+          action: { label: 'Recover runtime', type: 'recover' } as const,
+          tone: 'critical' as const,
         }
-      : instance.runningStatus !== 'running'
+      : instance.runningStatus === 'stopped'
+        ? {
+            summary: 'Instance is stopped.',
+            detail: 'The instance is configured but not currently running. Start it before spending time on bindings, MCP wiring, or client setup.',
+            action: { label: 'Start instance', type: 'start' } as const,
+            tone: 'warning' as const,
+          }
+        : instance.runningStatus !== 'running'
+          ? {
+              summary: 'Runtime is not reachable.',
+              detail: 'Control Plane could not reach the runtime. Start or recover it before trusting the rest of the page.',
+              action: { label: 'Start instance', type: 'start' } as const,
+              tone: 'critical' as const,
+            }
+          : null
+
+  const runtimePriority: PriorityCardDescriptor =
+    runtimeSummary
       ? {
           key: 'runtime',
           title: 'Runtime first',
-          tone: 'critical',
-          summary: 'Instance is not reachable.',
-          detail: 'Start the runtime before spending time on bindings, MCP wiring, or client setup.',
-          action: { label: 'Start instance', type: 'start' },
+          tone: runtimeSummary.tone,
+          summary: runtimeSummary.summary,
+          detail: runtimeSummary.detail,
+          action: runtimeSummary.action,
         }
       : runtimeStale === 'very-stale'
         ? {
@@ -1906,20 +1920,28 @@ function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfig
         </div>
       </div>
 
-      {/* CP-T029: Specific message for unreachable instances */}
+      {/* CP-T029: Specific message for stopped/unreachable/invalid instances */}
       {(instance.runningStatus === 'unreachable' || instance.runningStatus === 'stopped' || instance.runtimeStatus === 'invalid') && (
         <div className={styles.errorBanner}>
           {(() => {
             const actionLabel = instance.runtimeStatus === 'invalid' ? 'Recover' : 'Start'
+            const headline =
+              instance.runtimeStatus === 'invalid'
+                ? 'Runtime metadata is invalid.'
+                : instance.runningStatus === 'stopped'
+                  ? 'Runtime is stopped.'
+                  : 'Runtime is not reachable.'
             return (
               <>
-          <strong>{instance.runtimeStatus === 'invalid' ? 'Runtime metadata is invalid.' : 'Runtime is not reachable.'}</strong>{' '}
-          Use <code className={styles.inlineCode}>{actionLabel}</code> above to let Control Plane recover or start the instance for you.
-          {instance.runningStatusCheckedAt && (
-            <span className={styles.errorBannerTime}>
-              {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
-            </span>
-          )}
+                <strong>{headline}</strong>{' '}
+                {instance.runningStatus === 'stopped' && instance.runtimeStatus !== 'invalid'
+                  ? <>Use <code className={styles.inlineCode}>{actionLabel}</code> above to start the instance from Control Plane.</>
+                  : <>Use <code className={styles.inlineCode}>{actionLabel}</code> above to let Control Plane recover or start the instance for you.</>}
+                {instance.runningStatusCheckedAt && (
+                  <span className={styles.errorBannerTime}>
+                    {' '}Last checked {formatRelativeTime(instance.runningStatusCheckedAt)}.
+                  </span>
+                )}
               </>
             )
           })()}
