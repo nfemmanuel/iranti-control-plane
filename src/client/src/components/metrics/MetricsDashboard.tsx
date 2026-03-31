@@ -578,12 +578,12 @@ function KbGrowthSection({ summary }: { summary: MetricsSummaryResponse | undefi
     staleTime: 5 * 60_000,
   })
 
-  const isEmpty = data && (data.truncated || data.data.length < 2)
+  const isEmpty = !data || (data.truncated && data.data.length === 0) || (!data.truncated && data.data.length < 2)
   const emptyTitle = (summary?.totalFacts ?? 0) > 0
     ? 'History is still warming up'
     : 'Not enough history yet'
   const emptyBody = (summary?.totalFacts ?? 0) > 0
-    ? 'This instance already has live KB data, but the event-backed growth history is still sparse.'
+    ? 'This instance has KB data, but not enough write events have been recorded yet to plot growth over time.'
     : 'Metrics will appear after the instance records enough event history.'
 
   return (
@@ -632,12 +632,12 @@ function AgentActivitySection({ summary }: { summary: MetricsSummaryResponse | u
     staleTime: 5 * 60_000,
   })
 
-  const isEmpty = !data || data.agents.length === 0 || data.agents.every(a => a.data.length < 2)
+  const isEmpty = !data || data.agents.length === 0
   const emptyTitle = (summary?.activeAgentsLast7d ?? 0) > 0
     ? 'Recent history is sparse'
     : 'No recent agent history yet'
   const emptyBody = (summary?.activeAgentsLast7d ?? 0) > 0
-    ? 'Agents are active, but there is not enough recent event history in this time window to plot a chart yet.'
+    ? 'Agents are active, but no write events have been recorded in this time window yet.'
     : 'Agent activity charts appear when recent write history is available for this instance.'
 
   return (

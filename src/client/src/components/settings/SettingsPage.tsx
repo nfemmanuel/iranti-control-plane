@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { stopControlPlane, uninstallControlPlane } from '../../api/client'
+import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { useSettings } from '../../hooks/useSettings'
 import {
   clearSetupGuideFlags,
@@ -81,6 +82,7 @@ export function SettingsPage() {
     action: 'stop' | 'uninstall' | null
     message: string
   }>({ phase: 'idle', action: null, message: '' })
+  const [confirmPending, setConfirmPending] = useState<'stop' | 'uninstall' | null>(null)
 
   useEffect(() => {
     setDraft(settings)
@@ -126,6 +128,7 @@ export function SettingsPage() {
   }
 
   const handleStopControlPlane = async () => {
+    setConfirmPending(null)
     setControlPlaneAction({
       phase: 'working',
       action: 'stop',
@@ -144,6 +147,7 @@ export function SettingsPage() {
   }
 
   const handleUninstallControlPlane = async () => {
+    setConfirmPending(null)
     setControlPlaneAction({
       phase: 'working',
       action: 'uninstall',
@@ -305,7 +309,7 @@ export function SettingsPage() {
             <button
               className={styles.secondaryBtn}
               type="button"
-              onClick={handleStopControlPlane}
+              onClick={() => setConfirmPending('stop')}
               disabled={controlPlaneAction.phase === 'working'}
             >
               {controlPlaneAction.phase === 'working' && controlPlaneAction.action === 'stop' ? 'Stopping…' : 'Stop Control Plane'}
@@ -320,7 +324,7 @@ export function SettingsPage() {
             <button
               className={styles.secondaryBtn}
               type="button"
-              onClick={handleUninstallControlPlane}
+              onClick={() => setConfirmPending('uninstall')}
               disabled={controlPlaneAction.phase === 'working'}
             >
               {controlPlaneAction.phase === 'working' && controlPlaneAction.action === 'uninstall' ? 'Uninstalling…' : 'Uninstall Control Plane'}
@@ -332,6 +336,28 @@ export function SettingsPage() {
           <div className={`${styles.lifecycleNotice} ${controlPlaneAction.phase === 'error' ? styles.lifecycleNoticeError : ''}`}>
             {controlPlaneAction.message}
           </div>
+        )}
+
+        {confirmPending === 'stop' && (
+          <ConfirmationModal
+            title="Stop Control Plane?"
+            description="The dashboard will become unavailable. Restart from a terminal to bring it back."
+            warning="Any in-progress operations will be interrupted."
+            confirmLabel="Stop Control Plane"
+            onConfirm={handleStopControlPlane}
+            onCancel={() => setConfirmPending(null)}
+          />
+        )}
+
+        {confirmPending === 'uninstall' && (
+          <ConfirmationModal
+            title="Uninstall Control Plane?"
+            description="The dashboard will shut down and the iranti-control-plane package will be removed from npm."
+            warning="This cannot be undone without reinstalling the package."
+            confirmLabel="Uninstall"
+            onConfirm={handleUninstallControlPlane}
+            onCancel={() => setConfirmPending(null)}
+          />
         )}
       </Section>
 

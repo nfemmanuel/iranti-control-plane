@@ -1,7 +1,24 @@
 import { spawn } from 'child_process'
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 
 export const controlPlaneSelfRouter = Router()
+
+// ---------------------------------------------------------------------------
+// Shutdown broadcast — SSE registry
+// ---------------------------------------------------------------------------
+
+const shutdownListeners = new Set<Response>()
+
+function broadcastShutdown(): void {
+  for (const client of shutdownListeners) {
+    try {
+      client.write('event: shutdown\ndata: {}\n\n')
+    } catch {
+      // Client already disconnected — ignore
+    }
+  }
+  shutdownListeners.clear()
+}
 
 function scheduleSelfStop(delayMs = 250): void {
   setTimeout(() => {
@@ -12,6 +29,20 @@ function scheduleSelfStop(delayMs = 250): void {
     }
   }, delayMs)
 }
+
+// ---------------------------------------------------------------------------
+// GET /self/shutdown-stream — SSE channel for coordinated client teardown
+// ---------------------------------------------------------------------------
+
+controlPlaneSelfRouter.get('/self/shutdown-stream', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no')
+  res.flushHeaders()
+  shutdownListeners.add(res)
+  req.on('close', () => shutdownListeners.delete(res))
+})
 
 function scheduleSelfUninstall(): void {
   if (process.platform === 'win32') {
@@ -37,6 +68,7 @@ controlPlaneSelfRouter.post('/self/stop', (_req, res) => {
     action: 'stop',
     message: 'Control Plane is shutting down.',
   })
+  broadcastShutdown()
   scheduleSelfStop()
 })
 
@@ -46,6 +78,7 @@ controlPlaneSelfRouter.post('/self/uninstall', (_req, res) => {
     action: 'uninstall',
     message: 'Control Plane uninstall has started. The app will shut down before npm removes the package.',
   })
+  broadcastShutdown()
   scheduleSelfUninstall()
   scheduleSelfStop()
 })

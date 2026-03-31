@@ -579,3 +579,63 @@
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Shutdown overlay — full-viewport takeover on coordinated stop
+   ────────────────────────────────────────────────────────────────── */
+
+.shutdownOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--color-bg-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  animation: shutdownFadeIn 0.2s ease;
+}
+
+@keyframes shutdownFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.shutdownMark {
+  color: var(--color-accent-primary);
+  margin-bottom: var(--space-2);
+}
+
+.shutdownTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.shutdownBody {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+  max-width: 340px;
+  line-height: 1.6;
+}
+
+.shutdownPulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  animation: pulse 1.4s ease-in-out infinite;
+  margin-top: var(--space-2);
+}
+
+.shutdownStopped {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+  margin-top: var(--space-2);
+}

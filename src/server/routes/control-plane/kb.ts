@@ -401,12 +401,24 @@ kbRouter.get('/kb', async (req: Request, res: Response, next: NextFunction) => {
         activeOnly: req.query.activeOnly === 'true',
       }
 
+      const SORT_COLUMN_MAP: Record<string, string> = {
+        updatedAt: '"updatedAt"',
+        confidence: '"confidence"',
+        entityType: '"entityType"',
+        key: '"key"',
+        source: '"source"',
+      }
+      const sortByRaw = req.query.sortBy as string | undefined
+      const sortDirRaw = req.query.sortDir as string | undefined
+      const orderByCol = (sortByRaw && SORT_COLUMN_MAP[sortByRaw]) ?? '"updatedAt"'
+      const orderByDir = sortDirRaw === 'asc' ? 'ASC' : 'DESC'
+
       const params: unknown[] = []
       const where = buildKBWhereClause(filters, params)
 
       const dataParams = [...params, limit, offset]
       const dataResult = await db.query(
-        `SELECT * FROM knowledge_base ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `SELECT * FROM knowledge_base ${where} ORDER BY ${orderByCol} ${orderByDir} LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       )
 
@@ -459,12 +471,25 @@ kbRouter.get('/archive', async (req: Request, res: Response, next: NextFunction)
         flaggedOnly: req.query.flagged === 'true',
       }
 
+      const ARCHIVE_SORT_COLUMN_MAP: Record<string, string> = {
+        updatedAt: '"updatedAt"',
+        archivedAt: '"archivedAt"',
+        confidence: '"confidence"',
+        entityType: '"entityType"',
+        key: '"key"',
+        source: '"source"',
+      }
+      const archiveSortByRaw = req.query.sortBy as string | undefined
+      const archiveSortDirRaw = req.query.sortDir as string | undefined
+      const archiveOrderByCol = (archiveSortByRaw && ARCHIVE_SORT_COLUMN_MAP[archiveSortByRaw]) ?? '"archivedAt"'
+      const archiveOrderByDir = archiveSortDirRaw === 'asc' ? 'ASC' : 'DESC'
+
       const params: unknown[] = []
       const where = buildArchiveWhereClause(filters, params)
 
       const dataParams = [...params, limit, offset]
       const dataResult = await db.query(
-        `SELECT * FROM archive ${where} ORDER BY "createdAt" DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `SELECT * FROM archive ${where} ORDER BY ${archiveOrderByCol} ${archiveOrderByDir} LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       )
 

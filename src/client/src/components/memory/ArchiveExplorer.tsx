@@ -208,6 +208,28 @@ async function apiMutate<T>(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Sort state                                                          */
+/* ------------------------------------------------------------------ */
+
+type ArchiveSortColumn = 'archivedAt' | 'confidence' | 'entityType' | 'key' | 'source'
+
+interface ArchiveSortState {
+  column: ArchiveSortColumn
+  dir: 'asc' | 'desc'
+}
+
+function ArchiveSortIndicator({ column, sort }: { column: ArchiveSortColumn; sort: ArchiveSortState }) {
+  if (sort.column !== column) {
+    return <span className={styles.sortInactive} aria-hidden="true">⇅</span>
+  }
+  return (
+    <span className={styles.sortActive} aria-label={sort.dir === 'asc' ? 'sorted ascending' : 'sorted descending'}>
+      {sort.dir === 'asc' ? '↑' : '↓'}
+    </span>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Pagination                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -798,6 +820,7 @@ export function ArchiveExplorer() {
   const activeInstanceId = activeInstance?.id
   const queryClient = useQueryClient()
   const [filters, dispatch] = useReducer(filterReducer, DEFAULT_FILTERS)
+  const [sort, setSort] = useState<ArchiveSortState>({ column: 'archivedAt', dir: 'desc' })
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [pagination, setPagination] = useState<PaginationState>({ offset: 0, limit: 25 })
   // CP-T049: optimistic flagging state — override server data for immediate feedback
@@ -806,6 +829,15 @@ export function ArchiveExplorer() {
   >({})
 
   const debouncedSearch = useDebounced(filters.search, 300)
+
+  const handleSort = (column: ArchiveSortColumn) => {
+    setSort(prev =>
+      prev.column === column
+        ? { ...prev, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { column, dir: 'desc' }
+    )
+    setPagination(p => ({ ...p, offset: 0 }))
+  }
 
   const queryParams = {
     ...(activeInstanceId && { instanceId: activeInstanceId }),
@@ -819,6 +851,8 @@ export function ArchiveExplorer() {
     ...(filters.archivedReason && { archivedReason: filters.archivedReason }),
     ...(filters.resolutionState && { resolutionState: filters.resolutionState }),
     ...(filters.flaggedOnly && { flagged: true }),
+    sortBy: sort.column,
+    sortDir: sort.dir,
     limit: pagination.limit,
     offset: pagination.offset,
   }
@@ -988,15 +1022,25 @@ export function ArchiveExplorer() {
           </colgroup>
           <thead>
             <tr>
-              <th>Entity</th>
-              <th>Key</th>
+              <th className={styles.thSortable} onClick={() => handleSort('entityType')} aria-sort={sort.column === 'entityType' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                Entity <ArchiveSortIndicator column="entityType" sort={sort} />
+              </th>
+              <th className={styles.thSortable} onClick={() => handleSort('key')} aria-sort={sort.column === 'key' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                Key <ArchiveSortIndicator column="key" sort={sort} />
+              </th>
               <th>Summary</th>
-              <th>Conf</th>
+              <th className={styles.thSortable} onClick={() => handleSort('confidence')} aria-sort={sort.column === 'confidence' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                Conf <ArchiveSortIndicator column="confidence" sort={sort} />
+              </th>
               <th>Archived reason</th>
               <th>Resolution</th>
-              <th>Archived at</th>
+              <th className={styles.thSortable} onClick={() => handleSort('archivedAt')} aria-sort={sort.column === 'archivedAt' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                Archived at <ArchiveSortIndicator column="archivedAt" sort={sort} />
+              </th>
               <th>Valid from</th>
-              <th>Agent</th>
+              <th className={styles.thSortable} onClick={() => handleSort('source')} aria-sort={sort.column === 'source' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                Agent <ArchiveSortIndicator column="source" sort={sort} />
+              </th>
               <th>Flag</th>
             </tr>
           </thead>

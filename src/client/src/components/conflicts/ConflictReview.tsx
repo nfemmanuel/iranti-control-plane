@@ -40,16 +40,13 @@
  */
 
 import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '../../api/client'
+import { Spinner } from '../ui/Spinner'
 import styles from './ConflictReview.module.css'
 
 /* ------------------------------------------------------------------ */
-/*  Feature flag — flip to true when backend route is live             */
-/* ------------------------------------------------------------------ */
-
-const ESCALATIONS_API_AVAILABLE = true
-
-/* ------------------------------------------------------------------ */
-/*  Types — mirror the expected API shape from CP-T021 spec            */
+/*  Types — aligned with GET /escalations API response shapes          */
 /* ------------------------------------------------------------------ */
 
 export interface EscalationFact {
@@ -59,8 +56,8 @@ export interface EscalationFact {
   valueRaw: string | null
   valueSummary: string | null
   confidence: number
-  source: string
-  createdBy: string
+  source: string | null
+  createdBy: string | null
   createdAt: string
   validFrom: string | null
   reason: string | null
@@ -72,12 +69,9 @@ export interface PendingEscalation {
   entityType: string
   entityId: string
   key: string
-  escalationReason: string
-  conflictType: 'value_conflict' | 'confidence_conflict' | 'source_conflict'
-  createdAt: string
-  source: string
-  challengingAgent: string
-  existing: EscalationFact
+  conflictType: string
+  age: string
+  existing: EscalationFact | null
   challenger: EscalationFact
 }
 
@@ -86,9 +80,9 @@ export interface ResolvedEscalation {
   entityType: string
   entityId: string
   key: string
-  resolutionType: 'keep_existing' | 'accept_challenger' | 'custom'
-  resolvedAt: string
-  resolvedBy: string
+  resolutionState: string
+  archivedAt: string
+  resolutionNote: string | null
 }
 
 type ResolutionChoice = 'keep_existing' | 'accept_challenger' | 'custom'
@@ -96,16 +90,6 @@ type ResolutionChoice = 'keep_existing' | 'accept_challenger' | 'custom'
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
-
-function formatAge(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
 
 function confidenceDelta(existing: number, challenger: number): { label: string; positive: boolean } {
   const delta = challenger - existing
@@ -123,42 +107,6 @@ function EmptyState() {
       <span className={styles.emptyIcon} aria-hidden="true">◎</span>
       <p className={styles.emptyTitle}>No pending conflicts</p>
       <p className={styles.emptyBody}>The Resolutionist has nothing to review. All facts are consistent.</p>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  API not available placeholder                                       */
-/* ------------------------------------------------------------------ */
-
-function ApiNotAvailable() {
-  return (
-    <div className={styles.apiNotAvailable}>
-      <div className={styles.apiNotAvailableIcon} aria-hidden="true">⬡</div>
-      <h2 className={styles.apiNotAvailableTitle}>Escalation API not yet available</h2>
-      <p className={styles.apiNotAvailableBody}>
-        The backend escalation endpoints have not been implemented yet.
-        This UI is complete and ready to wire up once the backend routes are live.
-      </p>
-      <div className={styles.apiNotAvailableBlock}>
-        <p className={styles.apiNotAvailableBlockTitle}>Required endpoints (backend_developer):</p>
-        <ul className={styles.apiNotAvailableList}>
-          <li><code>GET /api/control-plane/escalations?status=pending</code></li>
-          <li><code>GET /api/control-plane/escalations/:id</code></li>
-          <li><code>POST /api/control-plane/escalations/:id/resolve</code></li>
-        </ul>
-      </div>
-      <div className={styles.apiNotAvailableBlock}>
-        <p className={styles.apiNotAvailableBlockTitle}>Open questions for system_architect:</p>
-        <ul className={styles.apiNotAvailableList}>
-          <li>Does the Resolutionist store escalations in the archive table, a separate table, or filesystem files?</li>
-          <li>Is there a programmatic resolution pathway (API), or is resolution currently CLI-only?</li>
-          <li>If CLI-only, will the backend wrap the CLI in a subprocess for Phase 2, or implement a proper API first?</li>
-        </ul>
-      </div>
-      <p className={styles.apiNotAvailableNote}>
-        Investigation findings: entity <code>ticket/cp_t021</code>, key <code>frontend_investigation</code> in Iranti.
-      </p>
     </div>
   )
 }
@@ -257,7 +205,9 @@ function ComparisonPanel({ escalation, onResolve, onClose }: ComparisonPanelProp
   const [resolved, setResolved] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
 
-  const delta = confidenceDelta(escalation.existing.confidence, escalation.challenger.confidence)
+  const delta = escalation.existing
+    ? confidenceDelta(escalation.existing.confidence, escalation.challenger.confidence)
+    : null
 
   const entityLink = `/control-plane/memory/${encodeURIComponent(escalation.entityType)}/${encodeURIComponent(escalation.entityId)}`
 
@@ -336,25 +286,32 @@ function ComparisonPanel({ escalation, onResolve, onClose }: ComparisonPanelProp
         <button className={styles.closePanelBtn} onClick={onClose} type="button" aria-label="Close comparison">×</button>
       </div>
 
-      {/* Escalation reason */}
-      <div className={styles.escalationReason}>
-        <span className={styles.escalationReasonLabel}>Escalation reason</span>
-        <p className={styles.escalationReasonText}>{escalation.escalationReason}</p>
-      </div>
-
-      {/* Confidence delta */}
-      <div className={styles.confidenceDelta}>
-        <span className={styles.confidenceDeltaLabel}>Confidence delta</span>
-        <span
-          className={`${styles.confidenceDeltaValue} ${delta.positive ? styles.deltaPositive : styles.deltaNegative}`}
-        >
-          {delta.label} points (challenger vs existing)
-        </span>
-      </div>
+      {/* Confidence delta — only when an existing fact is present */}
+      {delta !== null && (
+        <div className={styles.confidenceDelta}>
+          <span className={styles.confidenceDeltaLabel}>Confidence delta</span>
+          <span
+            className={`${styles.confidenceDeltaValue} ${delta.positive ? styles.deltaPositive : styles.deltaNegative}`}
+          >
+            {delta.label} points (challenger vs existing)
+          </span>
+        </div>
+      )}
 
       {/* Side-by-side facts */}
       <div className={styles.factColumns}>
-        <FactColumn label="Existing fact" fact={escalation.existing} entityLink={entityLink} />
+        {escalation.existing ? (
+          <FactColumn label="Existing fact" fact={escalation.existing} entityLink={entityLink} />
+        ) : (
+          <div className={styles.factColumn}>
+            <div className={styles.factColumnHeader}>
+              <span className={styles.factColumnLabel}>Existing fact</span>
+            </div>
+            <p className={styles.factFieldValue} style={{ color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+              No current fact found in knowledge base.
+            </p>
+          </div>
+        )}
         <FactColumn label="Challenger fact" fact={escalation.challenger} entityLink={entityLink} />
       </div>
 
@@ -462,7 +419,10 @@ function EscalationRow({
   selected: boolean
   onClick: () => void
 }) {
-  const delta = confidenceDelta(escalation.existing.confidence, escalation.challenger.confidence)
+  const delta = escalation.existing
+    ? confidenceDelta(escalation.existing.confidence, escalation.challenger.confidence)
+    : null
+
   return (
     <tr
       className={`${styles.escalationRow} ${selected ? styles.escalationRowSelected : ''}`}
@@ -474,19 +434,22 @@ function EscalationRow({
     >
       <td className={styles.cellMono}>{escalation.entityType}/{escalation.entityId}</td>
       <td className={styles.cellMono}>{escalation.key}</td>
-      <td className={styles.cellText}>{escalation.escalationReason}</td>
       <td>
         <span className={styles.conflictTypeBadge} data-type={escalation.conflictType}>
           {escalation.conflictType.replace(/_/g, ' ')}
         </span>
       </td>
-      <td className={styles.cellMeta}>{formatAge(escalation.createdAt)}</td>
+      <td className={styles.cellMeta}>{escalation.age}</td>
       <td>
-        <span className={`${styles.deltaCell} ${delta.positive ? styles.deltaPositive : styles.deltaNegative}`}>
-          {delta.label}
-        </span>
+        {delta !== null ? (
+          <span className={`${styles.deltaCell} ${delta.positive ? styles.deltaPositive : styles.deltaNegative}`}>
+            {delta.label}
+          </span>
+        ) : (
+          <span className={styles.cellMeta}>—</span>
+        )}
       </td>
-      <td className={styles.cellMono}>{escalation.source}</td>
+      <td className={styles.cellMono}>{escalation.challenger.source ?? '—'}</td>
     </tr>
   )
 }
@@ -515,7 +478,7 @@ function ResolvedList({ items }: { items: ResolvedEscalation[] }) {
             <th>Key</th>
             <th>Resolution</th>
             <th>Resolved at</th>
-            <th>Resolved by</th>
+            {items.some(e => e.resolutionNote) && <th>Note</th>}
           </tr>
         </thead>
         <tbody>
@@ -524,12 +487,12 @@ function ResolvedList({ items }: { items: ResolvedEscalation[] }) {
               <td className={styles.cellMono}>{e.entityType}/{e.entityId}</td>
               <td className={styles.cellMono}>{e.key}</td>
               <td>
-                <span className={styles.resolutionTypeBadge} data-type={e.resolutionType}>
-                  {e.resolutionType.replace(/_/g, ' ')}
+                <span className={styles.resolutionTypeBadge} data-type={e.resolutionState}>
+                  {e.resolutionState.replace(/^resolved_/, '').replace(/_/g, ' ')}
                 </span>
               </td>
-              <td className={styles.cellMeta}>{new Date(e.resolvedAt).toLocaleString()}</td>
-              <td className={styles.cellMono}>{e.resolvedBy}</td>
+              <td className={styles.cellMeta}>{new Date(e.archivedAt).toLocaleString()}</td>
+              {e.resolutionNote && <td className={styles.cellText}>{e.resolutionNote}</td>}
             </tr>
           ))}
         </tbody>
@@ -543,32 +506,53 @@ function ResolvedList({ items }: { items: ResolvedEscalation[] }) {
 /* ------------------------------------------------------------------ */
 
 export function ConflictReview() {
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'pending' | 'resolved'>('pending')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // These would be fetched from the API when ESCALATIONS_API_AVAILABLE is true.
-  // For now: typed as the expected shapes so the TypeScript compiles correctly.
-  const pendingItems: PendingEscalation[] = []
-  const resolvedItems: ResolvedEscalation[] = []
+  const {
+    data: pendingData,
+    isLoading: pendingLoading,
+    error: pendingError,
+    refetch: refetchPending,
+  } = useQuery<{ pending: PendingEscalation[]; total: number }, Error>({
+    queryKey: ['escalations', 'pending'],
+    queryFn: () => apiFetch<{ pending: PendingEscalation[]; total: number }>('/escalations', { status: 'pending' }),
+    refetchInterval: 30_000,
+  })
+
+  const { data: resolvedData, isLoading: resolvedLoading } = useQuery<
+    { resolved: ResolvedEscalation[]; total: number },
+    Error
+  >({
+    queryKey: ['escalations', 'resolved'],
+    queryFn: () =>
+      apiFetch<{ resolved: ResolvedEscalation[]; total: number }>('/escalations', { status: 'resolved' }),
+    enabled: activeTab === 'resolved',
+    staleTime: 30_000,
+  })
+
+  const pendingItems: PendingEscalation[] = pendingData?.pending ?? []
+  const resolvedItems: ResolvedEscalation[] = resolvedData?.resolved ?? []
 
   const selectedEscalation = pendingItems.find(e => e.id === selectedId) ?? null
 
   const handleResolve = async (
-    _id: string,
-    _resolution: ResolutionChoice,
-    _customValue?: string
+    id: string,
+    resolution: ResolutionChoice,
+    customValue?: string
   ): Promise<void> => {
-    // Will call POST /api/control-plane/escalations/:id/resolve when backend is live.
-    // Body: { resolution: _resolution, customValue: _customValue }
-    throw new Error('Escalation API not yet available. Backend route required.')
-  }
-
-  if (!ESCALATIONS_API_AVAILABLE) {
-    return (
-      <div className={styles.page}>
-        <ApiNotAvailable />
-      </div>
-    )
+    const res = await fetch(`/api/control-plane/escalations/${id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolution, customValue }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error((err as { error?: string }).error ?? res.statusText)
+    }
+    void queryClient.invalidateQueries({ queryKey: ['escalations', 'pending'] })
+    void queryClient.invalidateQueries({ queryKey: ['escalations', 'resolved'] })
   }
 
   return (
@@ -602,16 +586,39 @@ export function ConflictReview() {
           <div className={styles.pendingLayout}>
             {/* List */}
             <div className={`${styles.listPanel} ${selectedId ? styles.listPanelNarrow : ''}`}>
-              {pendingItems.length === 0 ? (
+              {pendingLoading && (
+                <div className={styles.emptyState}>
+                  <Spinner size="md" label="Loading escalations" />
+                </div>
+              )}
+
+              {!pendingLoading && pendingError && (
+                <div className={styles.emptyState}>
+                  <span className={styles.emptyIcon} aria-hidden="true">⚠</span>
+                  <p className={styles.emptyTitle}>Failed to load escalations</p>
+                  <p className={styles.emptyBody}>{pendingError.message}</p>
+                  <button
+                    className={styles.tab}
+                    type="button"
+                    onClick={() => void refetchPending()}
+                    style={{ marginTop: 'var(--space-2)' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!pendingLoading && !pendingError && pendingItems.length === 0 && (
                 <EmptyState />
-              ) : (
+              )}
+
+              {!pendingLoading && !pendingError && pendingItems.length > 0 && (
                 <div className={styles.tableRegion}>
                   <table className={styles.table} aria-label="Pending escalations">
                     <thead>
                       <tr>
                         <th>Entity</th>
                         <th>Key</th>
-                        <th>Reason</th>
                         <th>Type</th>
                         <th>Age</th>
                         <th>Conf Δ</th>
@@ -647,7 +654,13 @@ export function ConflictReview() {
         )}
 
         {activeTab === 'resolved' && (
-          <ResolvedList items={resolvedItems} />
+          resolvedLoading ? (
+            <div className={styles.emptyState}>
+              <Spinner size="md" label="Loading resolved escalations" />
+            </div>
+          ) : (
+            <ResolvedList items={resolvedItems} />
+          )
         )}
       </div>
     </div>

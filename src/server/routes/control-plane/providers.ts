@@ -346,7 +346,7 @@ function defaultModelForTask(taskType: RoutingTaskType, provider: string): strin
       return 'llama3.2'
     case 'claude':
     case 'anthropic':
-      return taskType === 'conflict_resolution' ? 'claude-sonnet-4' : 'claude-3-5-haiku-latest'
+      return taskType === 'conflict_resolution' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001'
     case 'mock':
       return 'mock'
     case 'gemini':

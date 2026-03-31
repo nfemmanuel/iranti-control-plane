@@ -951,6 +951,8 @@ export function MemoryExplorer() {
     ...(filters.minConfidence > 0 && { minConfidence: filters.minConfidence }),
     ...(debouncedSearch && { search: debouncedSearch }),
     ...(filters.activeOnly && { activeOnly: true }),
+    sortBy: sort.column,
+    sortDir: sort.dir,
     limit: pagination.limit,
     offset: pagination.offset,
   }

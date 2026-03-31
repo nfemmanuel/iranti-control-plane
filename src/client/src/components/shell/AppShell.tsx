@@ -320,6 +320,32 @@ export function AppShell() {
     return () => clearInterval(id)
   }, [addToast, settings.healthPollIntervalMs])
 
+  // ---------------------------------------------------------------------------
+  // Coordinated shutdown — subscribe to SSE shutdown-stream
+  // ---------------------------------------------------------------------------
+
+  const shutdownPhaseRef = useRef<'shutting-down' | 'stopped' | null>(null)
+  const [shutdownPhase, setShutdownPhase] = useState<'shutting-down' | 'stopped' | null>(null)
+
+  useEffect(() => {
+    const es = new EventSource('/api/control-plane/self/shutdown-stream')
+
+    es.addEventListener('shutdown', () => {
+      shutdownPhaseRef.current = 'shutting-down'
+      setShutdownPhase('shutting-down')
+    })
+
+    es.onerror = () => {
+      if (shutdownPhaseRef.current === 'shutting-down') {
+        shutdownPhaseRef.current = 'stopped'
+        setShutdownPhase('stopped')
+        es.close()
+      }
+    }
+
+    return () => es.close()
+  }, [])
+
   const { goModeActive } = useViewNavigationShortcuts()
 
   const { data: installState } = useQuery<InstallStateResult>({
@@ -406,6 +432,25 @@ export function AppShell() {
       <ChatPanel isOpen={settings.chatPanelOpen} onClose={handleChatClose} />
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {shutdownPhase !== null && (
+        <div className={styles.shutdownOverlay} role="alert" aria-live="assertive">
+          <span className={styles.shutdownMark} aria-hidden="true">
+            <IrantiMark size={28} />
+          </span>
+          <h1 className={styles.shutdownTitle}>
+            {shutdownPhase === 'stopped' ? 'Control Plane stopped' : 'Shutting down…'}
+          </h1>
+          <p className={styles.shutdownBody}>
+            {shutdownPhase === 'stopped'
+              ? 'Run iranti-cp in a terminal to restart, then refresh this tab.'
+              : 'The dashboard will be unavailable in a moment.'}
+          </p>
+          {shutdownPhase === 'shutting-down'
+            ? <span className={styles.shutdownPulse} aria-hidden="true" />
+            : <span className={styles.shutdownStopped} aria-hidden="true" />}
+        </div>
+      )}
 
       {goModeActive && (
         <div className={styles.goModeChip} role="status" aria-live="polite">
