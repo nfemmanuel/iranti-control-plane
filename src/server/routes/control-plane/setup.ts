@@ -1,13 +1,15 @@
 /**
  * Setup status routes
  *
- * GET  /:instanceId/setup-status          — 4-step guided setup check
- * POST /:instanceId/setup-status/refresh  — rerun the checks
- * POST /:instanceId/setup-status/complete — mark first-run wizard complete
+ * GET  /:instanceId/setup-status                 — 5-step guided setup check
+ * POST /:instanceId/setup-status/refresh         — rerun the checks
+ * POST /:instanceId/setup-status/complete        — mark first-run wizard complete
+ * POST /:instanceId/setup-status/generate-pepper — generate and write IRANTI_API_KEY_PEPPER
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
-import { access, writeFile, constants } from 'fs/promises'
+import { randomBytes } from 'crypto'
+import { access, readFile, writeFile, constants } from 'fs/promises'
 import { join } from 'path'
 import * as net from 'net'
 import pg from 'pg'
@@ -312,6 +314,30 @@ function checkProvider(scope: ResolvedInstanceAuthority): SetupStep {
   }
 }
 
+function checkApiKeyPepper(scope: ResolvedInstanceAuthority): SetupStep {
+  const pepper = (scope.env['IRANTI_API_KEY_PEPPER'] ?? '').trim()
+  if (pepper.length >= 32) {
+    return {
+      id: 'api_key_pepper',
+      label: 'API key security',
+      status: 'complete',
+      message: 'IRANTI_API_KEY_PEPPER is configured.',
+      actionRequired: null,
+      cliCommand: null,
+      repairAction: null,
+    }
+  }
+  return {
+    id: 'api_key_pepper',
+    label: 'API key security',
+    status: 'warning',
+    message: 'IRANTI_API_KEY_PEPPER is not set. API keys stored without a pepper have weaker security.',
+    actionRequired: `Add IRANTI_API_KEY_PEPPER to ${scope.instanceEnvPath} and restart the instance. Use the repair button to generate and write one automatically.`,
+    cliCommand: null,
+    repairAction: `/api/control-plane/instances/${encodeURIComponent(scope.instanceId)}/setup-status/generate-pepper`,
+  }
+}
+
 function checkProjectBinding(scope: ResolvedInstanceAuthority): SetupStep {
   if (scope.boundProjects.length > 0) {
     return {
@@ -414,6 +440,7 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
     const runtimeRootStep = checkRuntimeRoot(scope)
     const databaseStep = await checkDatabase(scope, pool)
     const providerStep = checkProvider(scope)
+    const pepperStep = checkApiKeyPepper(scope)
     const projectStep = checkProjectBinding(scope)
     const integrationStep = await checkProjectIntegration(scope, projectStep)
 
@@ -421,6 +448,7 @@ async function buildSetupStatus(scope: ResolvedInstanceAuthority) {
       ...(runtimeRootStep ? [runtimeRootStep] : []),
       databaseStep,
       providerStep,
+      pepperStep,
       projectStep,
       integrationStep,
     ]
@@ -471,6 +499,38 @@ setupRouter.post(
       const completedAt = new Date().toISOString()
       await writeFile(setupCompleteFlagPath(scope), JSON.stringify({ completedAt, instanceId: scope.instanceId }), 'utf8')
       res.json({ success: true, completedAt, scope: scopeSummary(scope) })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+setupRouter.post(
+  '/:instanceId/setup-status/generate-pepper',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const scope = await resolveScopeOrThrow(req.params['instanceId'] ?? '')
+      const pepper = randomBytes(32).toString('hex')
+
+      let content: string
+      try {
+        content = await readFile(scope.instanceEnvPath, 'utf8')
+      } catch {
+        content = ''
+      }
+
+      const pepperLine = `IRANTI_API_KEY_PEPPER=${pepper}`
+      if (/^IRANTI_API_KEY_PEPPER\s*=/m.test(content)) {
+        content = content.replace(/^IRANTI_API_KEY_PEPPER\s*=.*/m, pepperLine)
+      } else {
+        content = content.endsWith('\n') ? content + pepperLine + '\n' : content + '\n' + pepperLine + '\n'
+      }
+
+      await writeFile(scope.instanceEnvPath, content, 'utf8')
+      res.json({
+        success: true,
+        message: 'IRANTI_API_KEY_PEPPER generated and written to instance env. Restart the instance to apply.',
+      })
     } catch (err) {
       next(err)
     }

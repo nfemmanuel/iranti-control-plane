@@ -130,4 +130,47 @@ describe('setup status is selected-instance scoped', () => {
     expect(String(databaseStep?.actionRequired)).toContain('legacy runtime root')
     expect(String(databaseStep?.actionRequired)).toContain(legacyRoot)
   })
+
+  it('warns when IRANTI_API_KEY_PEPPER is absent and surfaces a repairAction pointing to generate-pepper', async () => {
+    // The alpha instance .env in beforeEach does not set IRANTI_API_KEY_PEPPER
+    const statusRes = await fetch(`${apiBase}/${alphaInstanceId}/setup-status`)
+    const statusBody = await statusRes.json() as Record<string, unknown>
+
+    expect(statusRes.status).toBe(200)
+    const steps = statusBody.steps as Array<Record<string, unknown>>
+    const pepperStep = steps.find((step) => step.id === 'api_key_pepper')
+
+    expect(pepperStep).toBeDefined()
+    expect(pepperStep?.status).toBe('warning')
+    expect(String(pepperStep?.message)).toContain('IRANTI_API_KEY_PEPPER')
+    expect(typeof pepperStep?.repairAction).toBe('string')
+    expect(String(pepperStep?.repairAction)).toContain('/setup-status/generate-pepper')
+  })
+
+  it('generate-pepper writes IRANTI_API_KEY_PEPPER to instance env and marks step complete on recheck', async () => {
+    const envPath = join(runtimeRoot, 'instances', 'alpha', '.env')
+
+    // Pepper absent before
+    const beforeContent = await readFile(envPath, 'utf8')
+    expect(beforeContent).not.toContain('IRANTI_API_KEY_PEPPER')
+
+    const repairRes = await fetch(`${apiBase}/${alphaInstanceId}/setup-status/generate-pepper`, { method: 'POST' })
+    const repairBody = await repairRes.json() as Record<string, unknown>
+
+    expect(repairRes.status).toBe(200)
+    expect(repairBody.success).toBe(true)
+
+    // Pepper now written
+    const afterContent = await readFile(envPath, 'utf8')
+    const pepperMatch = afterContent.match(/^IRANTI_API_KEY_PEPPER=([0-9a-f]+)$/m)
+    expect(pepperMatch).not.toBeNull()
+    expect(pepperMatch![1]!.length).toBe(64)
+
+    // A second call replaces the pepper rather than appending a duplicate line
+    const repairRes2 = await fetch(`${apiBase}/${alphaInstanceId}/setup-status/generate-pepper`, { method: 'POST' })
+    expect(repairRes2.status).toBe(200)
+    const afterContent2 = await readFile(envPath, 'utf8')
+    const pepperLines = afterContent2.split('\n').filter((l) => l.startsWith('IRANTI_API_KEY_PEPPER='))
+    expect(pepperLines.length).toBe(1)
+  })
 })

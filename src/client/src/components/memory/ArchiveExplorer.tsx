@@ -702,8 +702,14 @@ function FlaggedQueue({ instanceId, onUnflagged }: FlaggedQueueProps) {
       )}
 
       {!isLoading && error && (
-        <div className={archiveStyles.flaggedQueueError}>
-          Unable to load flagged facts: {error.message}
+        <div className={
+          error.message.includes('archive_flags') || error.message.includes('ARCHIVE_FLAGS_TABLE_MISSING')
+            ? archiveStyles.flaggedQueueEmpty
+            : archiveStyles.flaggedQueueError
+        }>
+          {error.message.includes('archive_flags') || error.message.includes('ARCHIVE_FLAGS_TABLE_MISSING')
+            ? 'Flagging is not yet enabled for this instance. Apply migration 002_create_archive_flags.sql to enable operator review flags.'
+            : `Unable to load flagged facts: ${error.message}`}
         </div>
       )}
 

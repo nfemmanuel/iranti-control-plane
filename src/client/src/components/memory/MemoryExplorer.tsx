@@ -1106,6 +1106,7 @@ export function MemoryExplorer() {
                     className={styles.thSortable}
                     onClick={() => handleSort('confidence')}
                     aria-sort={sort.column === 'confidence' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    title="Confidence"
                   >
                     Conf <SortIndicator column="confidence" sort={sort} />
                   </th>
@@ -1113,17 +1114,19 @@ export function MemoryExplorer() {
                     className={styles.thSortable}
                     onClick={() => handleSort('source')}
                     aria-sort={sort.column === 'source' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    title="Source"
                   >
                     Source <SortIndicator column="source" sort={sort} />
                   </th>
-                  <th>Written by</th>
-                  <th>Valid from</th>
+                  <th title="Written by">By</th>
+                  <th title="Valid from">From</th>
                   <th
                     className={styles.thSortable}
                     onClick={() => handleSort('updatedAt')}
                     aria-sort={sort.column === 'updatedAt' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    title="Last updated"
                   >
-                    Updated <SortIndicator column="updatedAt" sort={sort} />
+                    Upd <SortIndicator column="updatedAt" sort={sort} />
                   </th>
                 </tr>
               </thead>

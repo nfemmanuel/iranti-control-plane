@@ -41,11 +41,9 @@ type Period = '7d' | '30d'
 /*  Date formatting helpers                                             */
 /* ------------------------------------------------------------------ */
 
-function formatDateAxis(iso: string): string {
-  // "2026-03-20" → "Mar 20"
-  const [year, month, day] = iso.split('-').map(Number)
-  if (!year || !month || !day) return iso
-  const d = new Date(year, month - 1, day)
+function formatDateAxis(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr.slice(0, 10)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 

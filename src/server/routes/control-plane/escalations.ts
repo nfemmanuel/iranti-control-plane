@@ -230,7 +230,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           "validFrom",
           "archivedAt",
           "archivedReason",
-          resolution_note       AS "resolutionNote",
+          NULL::text            AS "resolutionNote",
           "supersededBy"::text AS "supersededBy",
           "conflictLog"
         FROM archive
@@ -316,7 +316,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           key,
           "resolutionState",
           "archivedAt",
-          resolution_note AS "resolutionNote"
+          NULL::text AS "resolutionNote"
         FROM archive
         WHERE "resolutionState" IS NOT NULL
         ORDER BY "archivedAt" DESC

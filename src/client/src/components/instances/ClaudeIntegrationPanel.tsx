@@ -589,7 +589,7 @@ export function IntegrationOverviewSection({ instanceName }: IntegrationOverview
   const { data, isLoading, error } = useQuery<IntegrationSummaryResponse, Error>({
     queryKey: ['integration-summary', instanceName],
     queryFn: () => fetchIntegrationSummary(instanceName),
-    staleTime: 60_000,
+    staleTime: 0,
   })
 
   if (isLoading) {

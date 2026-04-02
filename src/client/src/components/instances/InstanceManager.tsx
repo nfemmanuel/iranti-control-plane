@@ -1622,8 +1622,8 @@ interface PriorityCardDescriptor {
   action: PriorityAction
 }
 
-function getProjectWiringState(instance: InstanceMetadata): { total: number; fullyWired: number; partiallyWired: number } {
-  const total = instance.projects.length
+function getProjectWiringState(instance: InstanceMetadata, boundProjectCount?: number): { total: number; fullyWired: number; partiallyWired: number } {
+  const total = boundProjectCount ?? instance.projects.length
   let fullyWired = 0
   let partiallyWired = 0
 
@@ -1659,9 +1659,9 @@ function getProjectReadiness(project: ProjectBinding): ProjectReadiness {
   return 'missing'
 }
 
-function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescriptor[] {
+function getOperatorPriorities(instance: InstanceMetadata, boundProjectCount?: number): PriorityCardDescriptor[] {
   const runtimeStale = getStalenesLevel(instance.runningStatusCheckedAt)
-  const projectState = getProjectWiringState(instance)
+  const projectState = getProjectWiringState(instance, boundProjectCount)
   const providerReady = hasUsableProvider(instance)
   const runtimeSummary =
     instance.runtimeStatus === 'invalid'
@@ -1740,7 +1740,7 @@ function getOperatorPriorities(instance: InstanceMetadata): PriorityCardDescript
             tone: 'warning',
             summary: `${projectState.fullyWired}/${projectState.total} project${projectState.total === 1 ? '' : 's'} fully wired.`,
             detail: 'Some projects are only partially ready. Fix the project wiring before testing client memory behavior.',
-            action: { label: 'Fix project wiring', type: 'scroll', target: 'claude-overview-section' },
+            action: { label: 'Fix project wiring', type: 'scroll', target: 'claude-integration-section' },
           }
 
   const clientsPriority: PriorityCardDescriptor =
@@ -1796,6 +1796,14 @@ function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfig
   const hasConnectionInfo = Boolean(instance.database)
   const [priorityActionBusy, setPriorityActionBusy] = useState(false)
   const [migrateRootBusy, setMigrateRootBusy] = useState(false)
+
+  // Fetch live bound projects so the DO THIS NOW card reflects the same count as the PROJECTS section.
+  // Shares the query key with ProjectsSection so React Query deduplicates the request.
+  const { data: priorityProjectsData } = useQuery({
+    queryKey: ['instance-projects', instance.name],
+    queryFn: () => fetchInstanceProjects(instance.name),
+    staleTime: 30_000,
+  })
 
   // CP-T090: Configure panel inline state
   const [showConfigure, setShowConfigure] = useState(false)
@@ -1995,7 +2003,7 @@ function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfig
         <section className={styles.detailSection}>
           <h3 className={styles.sectionTitle}>Do This Now</h3>
           <div className={styles.priorityGrid}>
-            {getOperatorPriorities(instance).map((priority) => (
+            {getOperatorPriorities(instance, priorityProjectsData?.projects?.length).map((priority) => (
               <div
                 key={priority.key}
                 className={`${styles.priorityCard} ${
@@ -2062,8 +2070,8 @@ function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfig
           />
         </div>
         {/* CP-T093: Integration Overview — aggregated MCP/hooks status across all bound projects */}
-        <section id="claude-overview-section" className={styles.detailSection}>
-          <h3 className={styles.sectionTitle}>Claude Code Setup & Overview</h3>
+        <section id="claude-integration-section" className={styles.detailSection}>
+          <h3 className={styles.sectionTitle}>Claude Code Integration</h3>
           <IntegrationOverviewSection instanceName={instance.name} />
         </section>
         {/* CP-T095: Codex Integration Manager — instance-level Codex MCP registration */}
