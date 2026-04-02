@@ -37,6 +37,14 @@ const VECTOR_PROBE_QUERY = 'team memory for research workflows'
 
 const lastDiagnosticResult = new Map<string, DiagnosticResult>()
 
+function usedConservativeNoMemoryFallback(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false
+  const record = body as Record<string, unknown>
+  const decision = record['decision']
+  if (!decision || typeof decision !== 'object') return false
+  return (decision as Record<string, unknown>)['explanation'] === 'classification_parse_failed_default_false'
+}
+
 function scopeSummary(scope: ResolvedInstanceAuthority): InstanceScopeSummary {
   return {
     instanceId: scope.instanceId,
@@ -459,7 +467,7 @@ async function checkAttend(scope: ResolvedInstanceAuthority): Promise<CheckResul
 
     try {
       const body = await res.json() as unknown
-      if (JSON.stringify(body).includes('classification_parse_failed_default_false')) {
+      if (usedConservativeNoMemoryFallback(body)) {
         return {
           check: 'attend_check',
           status: 'warn',

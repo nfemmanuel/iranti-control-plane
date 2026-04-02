@@ -325,9 +325,11 @@ export function TemporalHistory() {
   const { activeInstance } = useInstanceContext()
   const activeInstanceId = activeInstance?.id
 
-  const decodedType = entityType ? decodeURIComponent(entityType) : ''
-  const decodedId = entityId ? decodeURIComponent(entityId) : ''
-  const decodedKey = key ? decodeURIComponent(key) : ''
+  // React Router already decodes matched path params. Decoding again can throw
+  // on valid values that contain a literal "%" after the first decode.
+  const decodedType = entityType ?? ''
+  const decodedId = entityId ?? ''
+  const decodedKey = key ?? ''
 
   // ---- asOf picker state ----
   // pickerValue: the raw string from the datetime-local input (e.g. "2026-03-15T14:30")

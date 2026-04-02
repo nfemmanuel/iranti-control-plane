@@ -9,10 +9,16 @@ vi.mock('../../lib/mcp-initialize.js', () => ({
   probeIrantiMcpInitialize: vi.fn(),
 }))
 
+vi.mock('../../lib/iranti-cli.js', () => ({
+  runIrantiCommand: vi.fn(),
+}))
+
 import { probeIrantiMcpInitialize } from '../../lib/mcp-initialize.js'
+import { runIrantiCommand } from '../../lib/iranti-cli.js'
 import { claudeIntegrationRouter } from '../../routes/control-plane/claude-integration.js'
 
 const probeIrantiMcpInitializeMock = vi.mocked(probeIrantiMcpInitialize)
+const runIrantiCommandMock = vi.mocked(runIrantiCommand)
 
 describe('claude integration routes', () => {
   let tempRoot: string
@@ -119,5 +125,74 @@ describe('claude integration routes', () => {
       mcpInitializeOk: true,
       mcpInitializeDetail: 'Iranti MCP initialized and exposed 2 tools.',
     })
+  })
+
+  it('runs claude scaffold through the shared Iranti CLI and reports written files', async () => {
+    runIrantiCommandMock.mockImplementation(async () => {
+      await writeFile(
+        join(projectPath, '.mcp.json'),
+        JSON.stringify({ mcpServers: { iranti: { command: 'iranti', args: ['mcp'] } } }, null, 2),
+        'utf8',
+      )
+      await writeFile(
+        join(projectPath, '.vscode', 'mcp.json'),
+        JSON.stringify({ mcpServers: { iranti: { command: 'iranti', args: ['mcp'] } } }, null, 2),
+        'utf8',
+      )
+      await writeFile(
+        join(projectPath, '.claude', 'settings.local.json'),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [{ hooks: [{ command: 'iranti claude-hook SessionStart' }] }],
+            UserPromptSubmit: [{ hooks: [{ command: 'iranti claude-hook UserPromptSubmit' }] }],
+            Stop: [{ hooks: [{ command: 'iranti claude-hook Stop' }] }],
+          },
+        }, null, 2),
+        'utf8',
+      )
+      return {
+        resolution: null as never,
+        stdout: 'Claude Code integration scaffolded.',
+        stderr: '',
+      }
+    })
+
+    const res = await fetch(`${apiBase}/alpha/projects/${encodeURIComponent(projectPath)}/claude-integration/scaffold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: true }),
+    })
+    const body = await res.json() as Record<string, unknown>
+
+    expect(res.status).toBe(200)
+    expect(runIrantiCommandMock).toHaveBeenCalledWith(
+      ['claude-setup', projectPath, '--project-env', join(projectPath, '.env.iranti'), '--force'],
+      { cwd: projectPath, timeoutMs: 15000 },
+    )
+    expect(body).toMatchObject({
+      ok: true,
+      written: [
+        join(projectPath, '.mcp.json'),
+        join(projectPath, '.vscode', 'mcp.json'),
+        join(projectPath, '.claude', 'settings.local.json'),
+      ],
+      output: 'Claude Code integration scaffolded.',
+    })
+  })
+
+  it('rejects scaffold requests when the project binding file is missing', async () => {
+    await rm(join(projectPath, '.env.iranti'), { force: true })
+
+    const res = await fetch(`${apiBase}/alpha/projects/${encodeURIComponent(projectPath)}/claude-integration/scaffold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: false }),
+    })
+    const body = await res.json() as Record<string, unknown>
+
+    expect(res.status).toBe(400)
+    expect(body.code).toBe('IRANTI_PROJECT_BINDING_MISSING')
+    expect(String(body.error)).toContain('.env.iranti not found')
+    expect(runIrantiCommandMock).not.toHaveBeenCalled()
   })
 })

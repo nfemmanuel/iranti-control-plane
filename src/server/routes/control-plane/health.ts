@@ -58,6 +58,14 @@ interface AttendantStatus {
   checkedAt: string
 }
 
+function usedConservativeNoMemoryFallback(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false
+  const record = body as Record<string, unknown>
+  const decision = record['decision']
+  if (!decision || typeof decision !== 'object') return false
+  return (decision as Record<string, unknown>)['explanation'] === 'classification_parse_failed_default_false'
+}
+
 const RUNTIME_CHECK_NAMES = new Set([
   'db_reachability',
   'db_schema_version',
@@ -595,7 +603,7 @@ async function buildAttendantStatus(scope: ResolvedInstanceAuthority): Promise<A
 
     try {
       const body = await res.json() as unknown
-      if (JSON.stringify(body).includes('classification_parse_failed_default_false')) {
+      if (usedConservativeNoMemoryFallback(body)) {
         return {
           status: 'warn',
           message: 'Attendant responded, but the diagnostic probe fell back to a conservative no-memory decision.',

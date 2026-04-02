@@ -805,6 +805,26 @@ export interface UpgradeJobStatus {
 
 export type SessionRawStatus = 'active' | 'interrupted' | 'completed' | 'abandoned' | null
 export type SessionOperatorState = 'none' | 'active' | 'interrupted' | 'completed' | 'abandoned'
+export type SessionComplianceStatus = 'healthy' | 'degraded' | 'non_compliant'
+
+export interface SessionComplianceRecord {
+  status: SessionComplianceStatus
+  summary: string
+  issues: Array<{
+    code: string
+    severity: 'warn' | 'error'
+    count: number
+    message: string
+    requiredAction: string
+  }>
+  lastUpdated: string | null
+  counters: {
+    attendsWithoutPersist: number
+    consecutivePreResponseWithoutPost: number
+    pendingPostResponse: boolean
+    lastAttendPhase: 'pre-response' | 'post-response' | 'mid-turn' | null
+  }
+}
 
 export interface SessionRecord {
   sessionId: string
@@ -826,6 +846,7 @@ export interface SessionRecord {
     openRiskCount: number
     entityTargetCount: number
   } | null
+  compliance?: SessionComplianceRecord | null
   checkpoint?: Record<string, unknown> | null
   recovery?: Record<string, unknown> | null
 }

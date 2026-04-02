@@ -66,6 +66,26 @@ describe('buildSessionsFromAttendantStateRows', () => {
       {
         entityId: 'agent/alpha',
         valueRaw: {
+          compliance: {
+            status: 'degraded',
+            summary: 'Lifecycle is degraded: persistence breadcrumbs are lagging.',
+            issues: [
+              {
+                code: 'missing_durable_persistence',
+                severity: 'warn',
+                count: 3,
+                message: 'There have been 3 attend calls since the last iranti_write or iranti_checkpoint.',
+                requiredAction: 'Persist durable findings.',
+              },
+            ],
+            lastUpdated: '2026-03-22T10:29:00Z',
+            counters: {
+              attendsWithoutPersist: 3,
+              consecutivePreResponseWithoutPost: 0,
+              pendingPostResponse: false,
+              lastAttendPhase: 'mid-turn',
+            },
+          },
           sessionCheckpoint: {
             sessionId: 'sess-001',
             status: 'checkpointed',
@@ -87,6 +107,8 @@ describe('buildSessionsFromAttendantStateRows', () => {
     expect(session.state).toBe('checkpointed')
     expect(session.task).toBe('Analyze data pipeline')
     expect(session.startedAt).toBe('2026-03-22T10:00:00Z')
+    expect(session.compliance?.status).toBe('degraded')
+    expect(session.compliance?.counters.attendsWithoutPersist).toBe(3)
   })
 
   it('maps status "active" to state "checkpointed"', () => {

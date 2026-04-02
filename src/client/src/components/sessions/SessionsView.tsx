@@ -10,6 +10,7 @@ import type {
   SessionRecord,
   SessionsResponse,
   SessionOperatorState,
+  SessionComplianceStatus,
   SessionActionResponse,
 } from '../../api/types'
 import styles from './SessionsView.module.css'
@@ -95,6 +96,29 @@ function StateBadge({ state }: { state: SessionOperatorState }) {
     case 'none':
     default:
       className += ` ${styles.stateBadgeRose}`
+      break
+  }
+
+  return <span className={className}>{label}</span>
+}
+
+function ComplianceBadge({ status }: { status: SessionComplianceStatus }) {
+  let className = styles.complianceBadge
+  let label: string = status
+
+  switch (status) {
+    case 'healthy':
+      className += ` ${styles.complianceHealthy}`
+      label = 'healthy'
+      break
+    case 'degraded':
+      className += ` ${styles.complianceDegraded}`
+      label = 'degraded'
+      break
+    case 'non_compliant':
+    default:
+      className += ` ${styles.complianceNonCompliant}`
+      label = 'non-compliant'
       break
   }
 
@@ -306,6 +330,33 @@ function SessionDetailPanel({
           )}
         </div>
       </div>
+
+      {session.compliance && (
+        <div className={styles.detailField}>
+          <span className={styles.detailLabel}>Compliance</span>
+          <div className={styles.compliancePanel}>
+            <div className={styles.complianceHeader}>
+              <ComplianceBadge status={session.compliance.status} />
+              <span className={styles.detailValue}>{session.compliance.summary}</span>
+            </div>
+            <div className={styles.complianceCounters}>
+              <span>attends since persist: {session.compliance.counters.attendsWithoutPersist}</span>
+              <span>pre-response misses: {session.compliance.counters.consecutivePreResponseWithoutPost}</span>
+              <span>pending post-response: {session.compliance.counters.pendingPostResponse ? 'yes' : 'no'}</span>
+            </div>
+            {session.compliance.issues.length > 0 && (
+              <ul className={styles.complianceIssueList}>
+                {session.compliance.issues.map((issue) => (
+                  <li key={`${issue.code}-${issue.count}`} className={styles.complianceIssue}>
+                    <span className={styles.complianceIssueMessage}>{issue.message}</span>
+                    <span className={styles.complianceIssueAction}>{issue.requiredAction}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Raw checkpoint JSON — collapsible */}
       {session.checkpoint && (

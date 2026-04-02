@@ -234,6 +234,31 @@ describe('health and diagnostics instance scoping', () => {
     })
   })
 
+  it('does not warn when the parse-failure marker appears outside the attend decision payload', async () => {
+    attendResponse = {
+      ok: true,
+      note: 'classification_parse_failed_default_false',
+    }
+
+    const healthRes = await fetch(`${apiBase}/health?instanceId=${betaInstanceId}`)
+    const healthBody = await healthRes.json() as Record<string, unknown>
+    expect(healthRes.status).toBe(200)
+    expect(healthBody.attendant).toMatchObject({
+      status: 'ok',
+      message: 'Attendant is responding normally',
+    })
+
+    const diagRes = await fetch(`${apiBase}/diagnostics/run?instanceId=${betaInstanceId}`, { method: 'POST' })
+    const diagBody = await diagRes.json() as Record<string, unknown>
+    expect(diagRes.status).toBe(200)
+    const checks = diagBody.checks as Array<Record<string, unknown>>
+    const attendCheck = checks.find((check) => check.check === 'attend_check')
+    expect(attendCheck).toMatchObject({
+      status: 'pass',
+      message: 'Attendant responded successfully',
+    })
+  })
+
   it('treats lexical-only semantic probe matches as a vector-search warning instead of a hard failure', async () => {
     searchResults = [{ entity: '__diagnostics__/__probe__', key: 'semantic_probe', value: 'ok', vectorScore: 0 }]
 

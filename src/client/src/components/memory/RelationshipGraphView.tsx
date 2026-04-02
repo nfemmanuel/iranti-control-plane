@@ -468,11 +468,10 @@ export function RelationshipGraphView({ entityType, entityId, instanceId }: Rela
         <EdgeListView graph={data} onNodeClick={handleNodeClick} />
       )}
 
-      {/* CP-T062 — B9 blocker note: semantic relationships via GET /kb/related are not yet available */}
+      {/* Relationship graph note: explicit edges only, not semantic-neighbor discovery */}
       <p className={styles.semanticNote} role="note">
-        This graph shows explicit relationships. Semantic relationships via vector similarity (
-        <code className={styles.semanticNoteCode}>GET /kb/related</code>) are not yet available
-        from the control plane — this requires MCP read tool support (B9). Check{' '}
+        This graph shows explicit relationship edges recorded in the knowledge base. It does not
+        include search-based semantic neighbors or vector-similarity ranking. Check{' '}
         <a href="/health" className={styles.semanticNoteLink}>Vector Backend status</a>.
       </p>
     </div>

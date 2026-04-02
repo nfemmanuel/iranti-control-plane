@@ -131,4 +131,68 @@ describe('codex integration routes', () => {
     expect(body.ok).toBe(true)
     expect(body.output).toBe('Codex is now configured to use Iranti through MCP.')
   })
+
+  it('returns a clean no-op when Codex is not installed during remove', async () => {
+    resolveCodexCliMock.mockResolvedValue(null)
+
+    const res = await fetch(`${apiBase}/codex`, { method: 'DELETE' })
+    const body = await res.json() as Record<string, unknown>
+
+    expect(res.status).toBe(200)
+    expect(body).toMatchObject({
+      ok: true,
+      output: 'Codex is not installed — nothing to remove',
+    })
+    expect(runIrantiCommandMock).not.toHaveBeenCalled()
+    expect(runCodexCommandMock).not.toHaveBeenCalled()
+  })
+
+  it('removes Iranti from Codex after uninstall if live MCP state still shows it registered', async () => {
+    resolveCodexCliMock.mockResolvedValue({
+      command: process.execPath,
+      args: ['codex.js'],
+      displayPath: 'C:\\Users\\NF\\AppData\\Roaming\\npm\\codex.cmd',
+      source: 'path',
+    })
+    runIrantiCommandMock.mockResolvedValue({
+      resolution: null as never,
+      stdout: 'Attempted Codex uninstall cleanup.',
+      stderr: '',
+    })
+    runCodexCommandMock
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: JSON.stringify({
+          name: 'iranti',
+          transport: { type: 'stdio', command: 'iranti', args: ['mcp'] },
+        }),
+        stderr: '',
+        exitCode: 0,
+      })
+      .mockResolvedValueOnce({
+        resolution: null as never,
+        stdout: 'Removed MCP server "iranti".',
+        stderr: '',
+        exitCode: 0,
+      })
+
+    const res = await fetch(`${apiBase}/codex`, { method: 'DELETE' })
+    const body = await res.json() as Record<string, unknown>
+
+    expect(res.status).toBe(200)
+    expect(runIrantiCommandMock).toHaveBeenCalledWith(
+      ['uninstall', '--target', 'codex'],
+      { timeoutMs: 5000, allowNonZeroExit: true },
+    )
+    expect(runCodexCommandMock).toHaveBeenNthCalledWith(
+      2,
+      ['mcp', 'remove', 'iranti'],
+      { timeoutMs: 5000, allowNonZeroExit: true },
+    )
+    expect(body).toMatchObject({
+      ok: true,
+    })
+    expect(String(body.output)).toContain('Attempted Codex uninstall cleanup.')
+    expect(String(body.output)).toContain('Removed MCP server "iranti".')
+  })
 })

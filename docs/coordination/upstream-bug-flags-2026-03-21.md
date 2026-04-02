@@ -2,13 +2,13 @@
 
 **Prepared by:** product_manager
 **Date:** 2026-03-21
-**Last revised:** 2026-03-21 — v6.0 benchmark revalidation: slash-value RETRACTED; user/main RESOLVED confirmed
+**Last revised:** 2026-04-02 — current-core closure pass: B9 resolved upstream, B11 narrowed to bounded reliability, B12 still awaiting fresh rerun
 **Project context:** Iranti Control Plane — Phase 3/4
-**Iranti version tested against:** 0.2.12 (audit), 0.2.13–0.2.14 (partial fix to B11), 0.2.16 (B6 confirmed fixed)
+**Iranti version tested against:** 0.2.12 (audit), 0.2.13–0.2.14 (partial fix to B11), 0.2.16 (B6 confirmed fixed), 0.2.52 (current core validation sweep)
 
 These flags are produced from the cross-repo audit (`docs/coordination/cross-repo-audit-2026-03-21.md`) and subsequent agent testing. They document confirmed Iranti bugs that affect control plane operators. The control plane team cannot fix these — they require changes to Iranti core.
 
-### Revision notes — 2026-03-21
+### Revision notes — 2026-04-02
 
 | Item | Previous status | Corrected status | Reason |
 |------|----------------|-----------------|--------|
@@ -16,6 +16,8 @@ These flags are produced from the cross-repo audit (`docs/coordination/cross-rep
 | Slash-value retrieval loss | Claimed confirmed | **RETRACTED** | v6.0 benchmark revalidation confirmed: `query`, `search`, `observe`, and `attend` all return slash-bearing values correctly. Signal was benchmark harness parse fallback noise. Defect fully retracted — do not cite. |
 | Transaction timeout on LLM-arbitrated writes | Not previously tracked | **NEW — OPEN, HIGH PRIORITY** | Confirmed runtime defect: writes requiring LLM arbitration (conflict resolution path) are timing out at the transaction layer. See B12 below. |
 | B6: ingest contamination | Critical/Unfixed (v0.2.14 and below) | **FIXED in v0.2.16** | `iranti_ingest` prose extraction is now benchmark-confirmed working per v0.2.16 CHANGELOG. Prior behavior where the Librarian extracted from existing KB instead of input text is resolved. |
+| B9: no MCP read for relationships | Open through v0.2.16 | **RESOLVED upstream by v0.2.52** | Current core MCP smoke tests and feature specs expose `iranti_related` and `iranti_related_deep`; the prior gap is no longer current reality. |
+| B11: classifier fully broken | Open operator-critical defect | **NARROWED** | Current core README/tests still show conservative parse-failure fallbacks can occur, but the blanket "automatic injection is non-functional" framing is no longer truthful for current versions. |
 
 ---
 
@@ -55,13 +57,13 @@ The v0.2.16 CHANGELOG states: "`iranti_ingest` prose extraction is now benchmark
 
 ---
 
-## B11 — `iranti_attend` Classifier: `classification_parse_failed_default_false`
+## B11 — `iranti_attend` Reliability Boundaries on Conservative Parse Fallbacks
 
-**Severity:** High (automatic memory injection non-functional)
-**Status:** Partially fixed in v0.2.13 ("attend() no longer defaults ambiguous prompts to memory_not_needed so aggressively"). Was fully broken as of v0.2.12. The specific `user/main` recovery pattern — which was previously attributed as an open item under this bug — is now **RESOLVED upstream** as of v0.2.14 (upstream regression tests for `user/main` entity recovery without `entityHints` pass).
-**Iranti versions affected:** Confirmed broken in v0.2.9–v0.2.12; partially fixed in v0.2.13; `user/main` recovery confirmed working in v0.2.14.
+**Severity:** Medium
+**Status:** The historical classifier failure was real on older releases, but current-core evidence narrows the live issue to bounded reliability gaps on terse or ambiguous prompts. Do not describe current Iranti as "automatic injection non-functional."
+**Iranti versions affected:** Confirmed broadly broken in v0.2.9–v0.2.12. Current v0.2.52 still preserves a conservative parse-failure fallback in some tests, but first-party regressions no longer support the older blanket outage framing.
 
-### What was broken (v0.2.12 and earlier)
+### What was broken historically (v0.2.12 and earlier)
 
 The `iranti_attend` MCP tool is supposed to decide whether to inject memory before an agent turn. The classifier — which determines if memory injection is needed — was systematically returning `classification_parse_failed_default_false`, meaning:
 
@@ -69,29 +71,29 @@ The `iranti_attend` MCP tool is supposed to decide whether to inject memory befo
 - The system defaulted to `memory_not_needed = false` (i.e., always inject) OR to `memory_not_needed = true` (never inject) — the direction of the default was unclear from error messages
 - Automatic context-aware injection was non-functional regardless of which direction the default went
 
-### What is resolved (v0.2.13–v0.2.14)
+### What is resolved now
 
 The CHANGELOG for v0.2.13 states: "attend() no longer defaults ambiguous prompts to memory_not_needed so aggressively, and can now recover personal-memory facts like user/main without manual entity hints."
 
-**2026-03-21 verification update:** Upstream regression tests for the `user/main` entity recovery pattern now pass without `entityHints`. The `user/main` noise previously observed in `typescript_smoke` benchmarks was caused by the classifier bug and is resolved. **Do not cite `user/main` recovery failure as an open defect.**
+**2026-04-02 validation update:** Current core regression runs passed for cross-tool handoff, cross-process invalidation, and memory retrieval regressions. Core README and tests still acknowledge conservative parse-failure fallbacks, but they no longer justify a control-plane message that says `forceInject` is required across the board. **Do not cite `user/main` recovery failure or "attend is basically broken" as a current defect.**
 
 ### What may still be open
 
-The v0.2.13 fix addressed the over-aggressive default; it is not fully confirmed whether `classification_parse_failed_default_false` can still be emitted under edge conditions. The control plane team recommends the Iranti maintainer verify:
-1. Is `classification_parse_failed_default_false` still being emitted in logs under any conditions with v0.2.14+?
-2. Does `iranti_attend` now work correctly for all entity types, not just `user/main`?
-3. Is the fix backward-compatible with agents that never supply `entityHints`?
+Current evidence still leaves bounded open questions:
+1. How often do terse or weak prompts still land on conservative no-memory fallbacks in real workloads?
+2. Where does explicit `forceInject` materially outperform ordinary `attend()` on current versions?
+3. How much of the remaining weakness is routing/retrieval quality versus classifier behavior itself?
 
 ### Operator impact
 
-- Agents using `iranti_attend` without `entityHints` should now work correctly for `user/main` entities
-- The control plane's Staff Activity Stream may still show stale `memory_not_needed` events from pre-v0.2.13 runs — these can be disregarded
-- Users on v0.2.12 or earlier should upgrade; the classifier failure is not recoverable at the control plane layer
+- Operators should treat a parse-fallback warning as a signal to inspect prompt clarity and retrieval context, not as proof that Attendant is unavailable.
+- The control plane should not recommend blanket `forceInject` usage as the default operating mode.
+- Users on v0.2.12 or earlier should still upgrade; those older releases genuinely suffered the stronger classifier defect.
 
 ### Control plane team surface
 
-- CP-T052: The "Attendant" card in the Health Dashboard surfaces the current classifier status including the v0.2.14 resolution note
-- The `entityHints` workaround remains documented but is no longer required for `user/main` on v0.2.14+
+- CP-T052: The Health Dashboard and Interactive Diagnostics should describe the parse-fallback probe in operator language, not as a blanket upstream outage.
+- Use `forceInject` as a targeted recovery/debugging control, not as universal advice.
 
 ---
 
@@ -121,25 +123,24 @@ CP-T052 adds a Vector Backend health card to the control plane Health Dashboard 
 
 ---
 
-## B9 — `iranti_relate` Writes Work, But No MCP Read Tool for `GET /kb/related`
+## B9 — MCP Relationship Read Gap
 
-**Severity:** Low (affects agent-to-agent coordination, not operator visibility)
-**Status:** Known gap — not expected to be fixed imminently. Control plane reads relationships correctly via REST.
-**Iranti versions affected:** v0.2.9–v0.2.14 (no fix noted in any CHANGELOG entry).
+**Severity:** Resolved
+**Status:** **RESOLVED upstream for current versions.** Current core exposes `iranti_related` and `iranti_related_deep`, and MCP smoke tests cover them.
+**Iranti versions affected:** Historical gap on older versions only. Do not keep citing this as an open current-core defect.
 
-### What is missing
+### What was missing historically
 
 Agents can write relationship edges via `iranti_relate` (5/5 test cases pass). However, there is no MCP tool for reading relationships back — no `iranti_related` or equivalent. Agents who want to know which entities are related to a given entity must call the REST API directly, which is not possible in a Claude Code context where only MCP tools are available.
 
-### Impact
+### Current impact
 
-- Agents cannot query relationships they wrote — relationship data is write-only from the agent perspective
-- The control plane reads `GET /kb/related` correctly via REST, so the Entity Relationship Graph (CP-T032) works correctly for operators
-- The gap only affects agents, not control plane operators
+- For current releases, there is no live control-plane messaging need to describe agent relationship reads as missing.
+- The remaining distinction is product shape: the Relationship Graph shows explicit relationship edges, while semantic-neighbor discovery and search-based relatedness are separate surfaces.
 
-### Suggested action
+### Control plane action
 
-Add an `iranti_related` MCP tool that maps to `GET /kb/related/:entityType/:entityId`. This would complete the agent relationship round-trip. Low urgency but high value for multi-agent coordination workflows.
+Remove stale operator copy that says relationship reads require unresolved MCP support. Keep the note focused on the real boundary: explicit edges versus semantic discovery.
 
 ---
 
@@ -208,8 +209,8 @@ Confirmed by runtime testing 2026-03-21. The transaction timeout occurs specific
 | Bug | Severity | Latest status | Control plane workaround | Upstream action needed |
 |-----|----------|---------------|--------------------------|----------------------|
 | B6: ingest contamination | ~~Critical~~ | **Fixed in v0.2.16** | `iranti_write` workaround no longer required on v0.2.16+ | None — resolved |
-| B11: attend classifier | High | `user/main` recovery **RESOLVED** in v0.2.14; other edge cases may remain | `entityHints` no longer required for `user/main`; CP-T052 notes resolution | Verify classifier fully functional for all entity types without hints |
+| B11: attend reliability boundaries | Medium | Historical outage framing no longer current; bounded fallback/relevance gaps remain | Use operator-language warnings; reserve `forceInject` for targeted recovery/debugging | Re-run current-version truthfulness and retrieval validation |
 | B12: transaction timeout on LLM-arbitrated writes | High | **OPEN** (confirmed 2026-03-21, not fixed through v0.2.16) | Use `iranti_write` with explicit resolved value to manually resolve conflicts | Move LLM arbitration outside DB transaction or extend timeout |
 | B4: vectorScore=0 | Medium | Improved in v0.2.13 (fallback added); no further changes in v0.2.14–v0.2.16 | CP-T052 vector health card | Confirm in-process scoring performance at scale |
 | Slash-value retrieval loss | N/A | **RETRACTED** — v6.0 revalidation confirmed no defect; benchmark harness noise only | None required | Defect fully retracted — do not cite |
-| B9: no MCP read for relationships | Low | Not fixed through v0.2.16 | Control plane reads REST correctly | Add `iranti_related` MCP tool |
+| B9: no MCP read for relationships | N/A | **RESOLVED upstream for current versions** | No workaround needed on current core | None for current versions |

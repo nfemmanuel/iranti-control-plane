@@ -6,7 +6,27 @@ export const sessionsRouter = Router()
 
 export type SessionRawStatus = 'active' | 'interrupted' | 'completed' | 'abandoned' | null
 export type SessionOperatorState = 'none' | 'active' | 'interrupted' | 'completed' | 'abandoned'
+export type SessionComplianceStatus = 'healthy' | 'degraded' | 'non_compliant'
 export type SessionListSort = 'operator' | 'updated_desc' | 'agent_asc'
+
+export interface SessionComplianceRecord {
+  status: SessionComplianceStatus
+  summary: string
+  issues: Array<{
+    code: string
+    severity: 'warn' | 'error'
+    count: number
+    message: string
+    requiredAction: string
+  }>
+  lastUpdated: string | null
+  counters: {
+    attendsWithoutPersist: number
+    consecutivePreResponseWithoutPost: number
+    pendingPostResponse: boolean
+    lastAttendPhase: 'pre-response' | 'post-response' | 'mid-turn' | null
+  }
+}
 
 export interface SessionRecord {
   sessionId: string
@@ -30,6 +50,7 @@ export interface SessionRecord {
     openRiskCount: number
     entityTargetCount: number
   } | null
+  compliance?: SessionComplianceRecord | null
   checkpoint?: Record<string, unknown> | null
   recovery?: Record<string, unknown> | null
 }
@@ -135,6 +156,45 @@ function buildCheckpointSummary(value: unknown): SessionRecord['checkpointSummar
   }
 }
 
+function buildComplianceSummary(value: unknown): SessionComplianceRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, unknown>
+  const status = raw['status']
+  if (status !== 'healthy' && status !== 'degraded' && status !== 'non_compliant') return null
+
+  const countersRaw = raw['counters']
+  const counters = countersRaw && typeof countersRaw === 'object' && !Array.isArray(countersRaw)
+    ? countersRaw as Record<string, unknown>
+    : {}
+  const lastAttendPhase = counters['lastAttendPhase']
+
+  return {
+    status,
+    summary: typeof raw['summary'] === 'string' ? raw['summary'] : '',
+    issues: Array.isArray(raw['issues'])
+      ? raw['issues']
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+          .map((entry) => ({
+            code: typeof entry['code'] === 'string' ? entry['code'] : 'unknown',
+            severity: entry['severity'] === 'error' ? 'error' : 'warn',
+            count: typeof entry['count'] === 'number' ? entry['count'] : 0,
+            message: typeof entry['message'] === 'string' ? entry['message'] : '',
+            requiredAction: typeof entry['requiredAction'] === 'string' ? entry['requiredAction'] : '',
+          }))
+      : [],
+    lastUpdated: typeof raw['lastUpdated'] === 'string' ? raw['lastUpdated'] : null,
+    counters: {
+      attendsWithoutPersist: typeof counters['attendsWithoutPersist'] === 'number' ? counters['attendsWithoutPersist'] : 0,
+      consecutivePreResponseWithoutPost: typeof counters['consecutivePreResponseWithoutPost'] === 'number' ? counters['consecutivePreResponseWithoutPost'] : 0,
+      pendingPostResponse: counters['pendingPostResponse'] === true,
+      lastAttendPhase:
+        lastAttendPhase === 'pre-response' || lastAttendPhase === 'post-response' || lastAttendPhase === 'mid-turn'
+          ? lastAttendPhase
+          : null,
+    },
+  }
+}
+
 export function normalizeSessionSummary(raw: Record<string, unknown>): SessionRecord {
   const status = normalizeStatus(raw['status'])
   const operatorState = normalizeOperatorState(raw['operatorState'])
@@ -157,6 +217,7 @@ export function normalizeSessionSummary(raw: Record<string, unknown>): SessionRe
     isStale: raw['isStale'] === true,
     persistedBriefGeneratedAt: typeof raw['persistedBriefGeneratedAt'] === 'string' ? raw['persistedBriefGeneratedAt'] : null,
     checkpointSummary: buildCheckpointSummary(raw['checkpointSummary']),
+    compliance: buildComplianceSummary(raw['compliance']),
     checkpoint: raw['checkpoint'] && typeof raw['checkpoint'] === 'object' && !Array.isArray(raw['checkpoint'])
       ? raw['checkpoint'] as Record<string, unknown>
       : null,
@@ -244,6 +305,7 @@ export function buildSessionsFromAttendantStateRows(rows: AttendantStateRow[]): 
       isStale: checkpointRecord['isStale'] === true || operatorState === 'interrupted',
       persistedBriefGeneratedAt: typeof state['briefGeneratedAt'] === 'string' ? state['briefGeneratedAt'] : null,
       checkpointSummary: buildCheckpointSummary(checkpointRecord['checkpoint']),
+      compliance: buildComplianceSummary(state['compliance']),
       checkpoint: checkpointRecord['checkpoint'] && typeof checkpointRecord['checkpoint'] === 'object' && !Array.isArray(checkpointRecord['checkpoint'])
         ? checkpointRecord['checkpoint'] as Record<string, unknown>
         : null,

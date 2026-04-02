@@ -309,6 +309,85 @@
   color: var(--color-text-tertiary);
 }
 
+.complianceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+.complianceHealthy {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent);
+}
+
+.complianceDegraded {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+}
+
+.complianceNonCompliant {
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+}
+
+.compliancePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-base);
+}
+
+.complianceHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.complianceCounters {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.complianceIssueList {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.complianceIssue {
+  color: var(--color-text-secondary);
+}
+
+.complianceIssueMessage {
+  display: block;
+  color: var(--color-text-primary);
+}
+
+.complianceIssueAction {
+  display: block;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
 /* Session ID row with copy button */
 .sessionIdRow {
   display: flex;

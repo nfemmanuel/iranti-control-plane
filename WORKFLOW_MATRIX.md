@@ -1,6 +1,6 @@
 # WORKFLOW_MATRIX.md — Operator Workflow Coverage
 
-**Updated:** 2026-03-23
+**Updated:** 2026-04-02
 
 ---
 
@@ -9,9 +9,9 @@
 | Config Layer | What It Is | What It Controls | Who Writes It |
 |---|---|---|---|
 | **Instance env** (`~/.iranti-runtime/instances/<name>/.env`) | Live instance config | `DATABASE_URL`, `LLM_PROVIDER`, provider API keys, `IRANTI_PORT`, `IRANTI_API_KEY` | Iranti CLI (`iranti run`, `iranti add api-key`) |
-| **Project binding** (`.env.iranti` in project dir) | Connector pointer | `IRANTI_URL`, `IRANTI_API_KEY`, `IRANTI_INSTANCE`, `IRANTI_INSTANCE_ENV` | Iranti CLI (`iranti bind`) / control plane |
+| **Project binding** (`.env.iranti` in project dir) | Connector pointer | `IRANTI_URL`, `IRANTI_API_KEY`, `IRANTI_INSTANCE`, `IRANTI_INSTANCE_ENV` | Iranti CLI (`iranti project init` / `iranti configure project`) / control plane |
 | **Runtime metadata** (`runtime.json`) | Process state | PID, port, heartbeat, version, status | Iranti runtime process |
-| **Instance registry** (`instance.json`) | Static instance info | Name, created-at, port config | Iranti CLI (`iranti init`) |
+| **Instance registry** (`instance.json`) | Static instance info | Name, created-at, port config | Iranti CLI (`iranti setup` / `iranti instance create`) |
 | **Control plane env** (loaded at startup) | Merged view | Union of binding + instance env | Read-only by control plane |
 
 **Rule:** Provider keys and runtime config MUST be written to the instance env, not the project binding. The control plane enforces this via `IRANTI_INSTANCE_ENV`.
@@ -22,22 +22,22 @@
 
 | Workflow | UI Surface | Backend Route(s) | CLI Equivalent | Config Authority | Status |
 |---|---|---|---|---|---|
-| **Install/Bootstrap** | Getting Started | `/instances/:id/setup-status` | `iranti init` | Instance env | ⚠️ PARTIAL — shows steps, action required unclear |
+| **Install/Bootstrap** | Getting Started | `/instances/:id/setup-status` | `iranti setup` | Instance env | ✅ TEST-COVERED — setup-status routes are covered; action wording still needs UX polish |
 | **Instance Discovery** | Instances list | `GET /instances` | `iranti list` | Instance env + runtime.json | ✅ WORKING (dev) / ❌ BROKEN (dist) |
-| **Instance Create** | Instances > Create | `POST /instances` | `iranti init --name <n>` | Instance env | ⚠️ UNTESTED LIVE |
-| **Instance Configure** | Instances > Configure | `PATCH /instances/:name` | `iranti config --instance <n>` | Instance env | ⚠️ UNTESTED LIVE |
-| **Instance Start** | Instances > Start | `POST /instances/:name/start` | `iranti run --instance <n>` | Runtime | ⚠️ UNTESTED LIVE |
-| **Instance Stop** | Instances > Stop | `POST /instances/:name/stop` | `iranti stop --instance <n>` | Runtime | ⚠️ UNTESTED LIVE |
-| **Instance Doctor** | Instances > Doctor | `POST /instances/:id/doctor` | `iranti doctor --instance <n>` | Live runtime | ⚠️ UNTESTED LIVE |
-| **Repair MCP** | Instances > Repair | `POST /instances/:id/repair/mcp-json` | `iranti setup --mcp [path]` | Project binding | ⚠️ UNTESTED LIVE |
-| **Repair CLAUDE.md** | Instances > Repair | `POST /instances/:id/repair/claude-md` | Manual | Project dir | ⚠️ UNTESTED LIVE |
-| **Project Binding** | Instances > Projects | `GET/POST/PATCH /instances/:id/projects` | `iranti bind [path]` | Project binding | ⚠️ NEW — UNTESTED |
+| **Instance Create** | Instances > Create | `POST /instances` | `iranti instance create <name>` | Instance env | ✅ TEST-COVERED — route behavior covered in server unit tests |
+| **Instance Configure** | Instances > Configure | `PATCH /instances/:name` | `iranti configure instance <name>` | Instance env | ✅ TEST-COVERED — route behavior covered in server unit tests |
+| **Instance Start** | Instances > Start | `POST /instances/:name/start` | `iranti run --instance <n>` | Runtime | ✅ TEST-COVERED — lifecycle route behavior is covered in server unit tests |
+| **Instance Stop** | Instances > Stop | `POST /instances/:name/stop` | `iranti stop --instance <n>` | Runtime | ✅ TEST-COVERED — lifecycle route behavior is covered in server unit tests |
+| **Instance Doctor** | Instances > Doctor | `POST /instances/:id/doctor` | `iranti doctor --instance <n>` | Live runtime | ✅ TEST-COVERED — doctor + repair action wiring covered in server unit tests |
+| **Repair MCP** | Instances > Repair | `POST /instances/:id/repair/mcp-json` | `iranti claude-setup [path]` / `iranti codex-setup --project-env <path>` | Project binding | ✅ TEST-COVERED — repair route behavior covered in server unit tests |
+| **Repair CLAUDE.md** | Instances > Repair | `POST /instances/:id/repair/claude-md` | Manual | Project dir | ✅ TEST-COVERED — repair route behavior covered in server unit tests |
+| **Project Binding** | Instances > Projects | `GET/POST/PATCH /instances/:id/projects` | `iranti project init [path]` / `iranti configure project [path]` | Project binding | ✅ TEST-COVERED — bind, rebind, list, and unbind route behavior are covered in server unit tests |
 | **Provider Setup** | Providers | `GET /providers` | `iranti add api-key <p>` | Instance env | ✅ READ WORKING |
 | **Provider Key Add** | Providers > Add Key | `PUT /providers/:id/key` | `iranti add api-key <p>` | Instance env | ⚠️ UNTESTED LIVE |
 | **Provider Key Remove** | Providers > Remove | `DELETE /providers/:id/key` | `iranti remove api-key <p>` | Instance env | ⚠️ UNTESTED LIVE |
-| **Default Provider** | Providers | `PUT /providers/default` | `iranti config set LLM_PROVIDER <p>` | Instance env | ⚠️ UNTESTED LIVE |
-| **Fallback Chain** | Providers | `PUT /providers/fallback` | `iranti config set LLM_PROVIDER_FALLBACK` | Instance env | ⚠️ UNTESTED LIVE |
-| **Task Routing** | Providers > Routing | `PUT /providers/task-routing` | `iranti config set IRANTI_TASK_ROUTING_*` | Instance env | ⚠️ UNTESTED LIVE |
+| **Default Provider** | Providers | `PUT /providers/default` | `iranti configure instance <name> --provider <name>` | Instance env | ⚠️ UNTESTED LIVE |
+| **Fallback Chain** | Providers | `PUT /providers/fallback` | `iranti configure instance <name> --interactive` | Instance env | ⚠️ UNTESTED LIVE |
+| **Task Routing** | Providers > Routing | `PUT /providers/task-routing` | Manual instance env edit / `iranti configure instance <name> --interactive` | Instance env | ⚠️ UNTESTED LIVE |
 | **Health Check** | Health | `GET /health` | `iranti doctor` | Live runtime | ✅ WORKING |
 | **Diagnostics** | Health > Run | `POST /diagnostics/run` | `iranti doctor --instance <n>` | Live runtime | ✅ WORKING |
 | **Memory Browse** | Memory | `GET /kb` | — | Knowledge base | ✅ WORKING |
@@ -50,9 +50,9 @@
 | **Metrics** | Metrics | `GET /metrics/summary` | — | Knowledge base | ✅ IMPROVED (KB fallback) |
 | **Overview** | Overview | `GET /overview` | — | Knowledge base | ✅ IMPROVED (KB fallback) |
 | **Upgrade** | Instances > Upgrade | `POST /instances/:name/upgrade` | `npm install -g iranti-control-plane` | System | ⚠️ UNTESTED LIVE |
-| **Auth Keys** | Instances > API Keys | `GET/POST/DELETE /auth-keys` | `iranti add api-key` | Iranti registry | ⚠️ NEW — UNTESTED |
-| **Claude Integration** | Instances > Projects | `GET/POST .../claude-integration` | `iranti claude-setup` | Project dir | ⚠️ NEW — UNTESTED |
-| **Codex Integration** | Integrations | `GET/POST/DELETE /integrations/codex` | `iranti codex-setup` | Codex config | ⚠️ NEW — UNTESTED |
+| **Auth Keys** | Instances > API Keys | `GET/POST/DELETE /auth-keys` | `iranti add api-key` | Iranti registry | ✅ TEST-COVERED — GET/POST/DELETE route behavior is covered in server unit tests |
+| **Claude Integration** | Instances > Projects | `GET/POST .../claude-integration` | `iranti claude-setup` | Project dir | ✅ TEST-COVERED — status, scaffold, and summary route behavior are covered in server unit tests |
+| **Codex Integration** | Integrations | `GET/POST/DELETE /integrations/codex` | `iranti codex-setup` | Codex config | ✅ TEST-COVERED — GET/POST/DELETE route behavior is covered in server unit tests |
 
 ---
 

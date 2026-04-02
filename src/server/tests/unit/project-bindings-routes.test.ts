@@ -21,6 +21,7 @@ describe('project bindings routes', () => {
     projectPath = join(tempRoot, 'repo')
 
     await mkdir(join(runtimeRoot, 'instances', 'alpha'), { recursive: true })
+    await mkdir(join(runtimeRoot, 'instances', 'beta'), { recursive: true })
     await mkdir(projectPath, { recursive: true })
 
     await writeFile(
@@ -28,6 +29,14 @@ describe('project bindings routes', () => {
       [
         'IRANTI_PORT=3501',
         'IRANTI_API_KEY=test_key',
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    await writeFile(
+      join(runtimeRoot, 'instances', 'beta', '.env'),
+      [
+        'IRANTI_PORT=3601',
+        'IRANTI_API_KEY=beta_key',
       ].join('\n') + '\n',
       'utf8',
     )
@@ -156,5 +165,127 @@ describe('project bindings routes', () => {
     expect(body.integrationCleanup.updated).toEqual([])
     expect(existsSync(join(projectPath, '.env.iranti'))).toBe(false)
     expect(existsSync(join(projectPath, '.mcp.json'))).toBe(true)
+  })
+
+  it('binds a project by writing .env.iranti, updating .gitignore, and recording the registry entry', async () => {
+    const res = await fetch(`${baseUrl}/alpha/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectPath,
+        mode: 'shared',
+        agentId: 'alpha_main',
+        memoryEntity: 'project/repo',
+        personalMemoryEntity: 'user/tester',
+        autoRemember: true,
+      }),
+    })
+
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      instanceName: 'alpha',
+      projectPath,
+      agentId: 'alpha_main',
+      memoryEntity: 'project/repo',
+      personalMemoryEntity: 'user/tester',
+      mode: 'shared',
+      autoRemember: true,
+    })
+
+    const binding = await readFile(join(projectPath, '.env.iranti'), 'utf8')
+    expect(binding).toContain('IRANTI_URL=http://localhost:3501')
+    expect(binding).toContain('IRANTI_API_KEY=test_key')
+    expect(binding).toContain('IRANTI_INSTANCE=alpha')
+    expect(binding).toContain('IRANTI_PROJECT_MODE=shared')
+    expect(binding).toContain('IRANTI_AUTO_REMEMBER=true')
+
+    const gitignore = await readFile(join(projectPath, '.gitignore'), 'utf8')
+    expect(gitignore.split('\n')).toContain('.env.iranti')
+
+    const registry = JSON.parse(await readFile(join(runtimeRoot, 'instances', 'alpha', 'projects.json'), 'utf8')) as {
+      projects: Array<{ projectPath: string; agentId: string; memoryEntity: string; mode: string; boundAt: string }>
+    }
+    expect(registry.projects).toHaveLength(1)
+    expect(registry.projects[0]).toMatchObject({
+      projectPath,
+      agentId: 'alpha_main',
+      memoryEntity: 'project/repo',
+      mode: 'shared',
+    })
+    expect(new Date(registry.projects[0].boundAt).getTime()).toBeGreaterThan(0)
+  })
+
+  it('rebinds a project to another instance and updates both registries plus the binding file', async () => {
+    await writeFile(
+      join(projectPath, '.env.iranti'),
+      [
+        'IRANTI_URL=http://localhost:3501',
+        'IRANTI_API_KEY=test_key',
+        'IRANTI_AGENT_ID=alpha_main',
+        'IRANTI_MEMORY_ENTITY=project/repo',
+        'IRANTI_PERSONAL_MEMORY_ENTITY=user/main',
+        'IRANTI_PROJECT_MODE=isolated',
+        'IRANTI_INSTANCE=alpha',
+        `IRANTI_INSTANCE_ENV=${join(runtimeRoot, 'instances', 'alpha', '.env')}`,
+        'IRANTI_AUTO_REMEMBER=false',
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    await writeFile(
+      join(runtimeRoot, 'instances', 'alpha', 'projects.json'),
+      JSON.stringify({
+        projects: [{
+          projectPath,
+          agentId: 'alpha_main',
+          memoryEntity: 'project/repo',
+          mode: 'isolated',
+          boundAt: '2026-04-02T00:00:00.000Z',
+        }],
+      }, null, 2) + '\n',
+      'utf8',
+    )
+
+    const res = await fetch(`${baseUrl}/alpha/projects?projectPath=${encodeURIComponent(projectPath)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetInstanceName: 'beta',
+        mode: 'shared',
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      projectPath,
+      changed: ['IRANTI_URL', 'IRANTI_API_KEY', 'IRANTI_INSTANCE', 'IRANTI_INSTANCE_ENV', 'IRANTI_PROJECT_MODE'],
+    })
+
+    const binding = await readFile(join(projectPath, '.env.iranti'), 'utf8')
+    expect(binding).toContain('IRANTI_URL=http://localhost:3601')
+    expect(binding).toContain('IRANTI_API_KEY=beta_key')
+    expect(binding).toContain('IRANTI_INSTANCE=beta')
+    expect(binding).toContain(`IRANTI_INSTANCE_ENV=${join(runtimeRoot, 'instances', 'beta', '.env')}`)
+    expect(binding).toContain('IRANTI_PROJECT_MODE=shared')
+    expect(binding.indexOf('IRANTI_INSTANCE=beta')).toBeGreaterThan(binding.indexOf('IRANTI_PROJECT_MODE=shared'))
+
+    const alphaRegistry = JSON.parse(await readFile(join(runtimeRoot, 'instances', 'alpha', 'projects.json'), 'utf8')) as {
+      projects: Array<{ projectPath: string }>
+    }
+    expect(alphaRegistry.projects).toEqual([])
+
+    const betaRegistry = JSON.parse(await readFile(join(runtimeRoot, 'instances', 'beta', 'projects.json'), 'utf8')) as {
+      projects: Array<{ projectPath: string; agentId: string; memoryEntity: string; mode: string; boundAt: string }>
+    }
+    expect(betaRegistry.projects).toEqual([
+      {
+        projectPath,
+        agentId: 'alpha_main',
+        memoryEntity: 'project/repo',
+        mode: 'shared',
+        boundAt: '2026-04-02T00:00:00.000Z',
+      },
+    ])
   })
 })

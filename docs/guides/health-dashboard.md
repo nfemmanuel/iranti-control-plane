@@ -151,9 +151,17 @@ The Attendant card is informational. It does not perform a live health probe —
 
 **What the Attendant does:** The Attendant manages per-agent working memory. It handles session start (`iranti_handshake`), context retrieval (`iranti_observe`), per-turn injection decisions (`iranti_attend`), and session resumption (`iranti_reconvene`). It runs one instance per agent.
 
-**Known limitation:** The automatic injection classifier used by `iranti_attend` (when called without `forceInject: true`) has a known parse failure in the current Iranti release. The classifier returns `classification_parse_failed_default_false`, which causes the Attendant to skip injection. This means automatic context injection does not work reliably without `forceInject`.
+**Current limitation:** The control plane can only probe `iranti_attend` with a short synthetic prompt. If that probe falls back to a conservative "no memory needed" decision, treat it as a bounded warning about probe clarity or retrieval confidence — not automatic proof that Attendant is down for real workloads.
 
-**Workaround:** Call `iranti_attend` with `forceInject: true` in all agents that depend on per-turn memory injection:
+**When the card warns:** The current server logic marks the card `warn` when the Attendant responds but the synthetic probe lands on the conservative no-memory fallback. The operator message is:
+
+> "Attendant responded, but the diagnostic probe fell back to a conservative no-memory decision."
+
+This is intentionally narrower than the older "classifier is broken" framing. Current Iranti releases already cover many previously broken cases, including relationship-read MCP tools and safer parse-failure handling.
+
+**When to use `forceInject`:** Use `forceInject: true` for controlled recovery or debugging when you already know the turn should inject memory. It is not the documented default for every agent in every workflow.
+
+Example:
 
 ```json
 {
@@ -163,9 +171,9 @@ The Attendant card is informational. It does not perform a live health probe —
 }
 ```
 
-This bypasses the classifier and always injects the working memory brief before the turn. This is the recommended approach until the upstream fix (CP-T025) ships.
+This bypasses the normal per-turn filter and is useful when you want a deterministic recovery pass.
 
-The card surfaces this limitation so operators know the status, not as a warning requiring action — the system is operational with the workaround in place.
+The card exists so operators can distinguish "Attendant route is unreachable" from "Attendant responded, but this specific probe was weak." For an active probe, use the Interactive Diagnostics panel's `attend_check`.
 
 ---
 

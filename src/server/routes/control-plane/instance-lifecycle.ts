@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { randomBytes } from 'crypto'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { rm, rename, mkdir, readFile, writeFile, cp } from 'fs/promises'
 import { join, resolve, dirname } from 'path'
@@ -405,6 +406,28 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     const failure = classifyCommandFailure(message)
     res.status(failure.status).json({ error: message, code: failure.code })
     return
+  }
+
+  // Generate and write IRANTI_API_KEY_PEPPER if the CLI did not already include one.
+  // Required for HMAC-hardened API key storage — without it the server falls back to an
+  // insecure default. Pattern mirrors the generate-pepper repair action: randomBytes(32)
+  // produces a 64-char hex secret that is appended to the instance .env file.
+  try {
+    let envContent: string
+    try {
+      envContent = await readFile(envFile, 'utf8')
+    } catch {
+      envContent = ''
+    }
+    if (!/^IRANTI_API_KEY_PEPPER\s*=/m.test(envContent)) {
+      const pepper = randomBytes(32).toString('hex')
+      const pepperLine = `IRANTI_API_KEY_PEPPER=${pepper}`
+      envContent = envContent.endsWith('\n') ? envContent + pepperLine + '\n' : envContent + '\n' + pepperLine + '\n'
+      await writeFile(envFile, envContent, 'utf8')
+    }
+  } catch {
+    // Non-fatal: if writing fails the user can generate it via the setup-status panel.
+    console.warn(`[instance-lifecycle] Failed to write IRANTI_API_KEY_PEPPER to ${envFile}`)
   }
 
   const instanceEnv = parseEnvFile(envFile)

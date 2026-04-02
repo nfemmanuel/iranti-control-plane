@@ -860,7 +860,7 @@ Returns the first-run and setup completion status for a specific Iranti instance
       "label": "Claude / Codex integration",
       "status": "incomplete",
       "message": ".mcp.json not found for myapp.",
-      "actionRequired": "Run `iranti setup --mcp /Users/nf/projects/myapp` or use the Repair button.",
+      "actionRequired": "Run `iranti claude-setup /Users/nf/projects/myapp` or `iranti codex-setup --project-env /Users/nf/projects/myapp/.env.iranti`, or use the Repair button.",
       "repairAction": "/api/control-plane/instances/a1b2c3d4/projects/b5c6d7e8/repair/mcp-json"
     }
   ],
@@ -1138,7 +1138,7 @@ None.
       "label": ".mcp.json — myapp",
       "status": "fail",
       "message": ".mcp.json not found at /Users/nf/projects/myapp/.mcp.json",
-      "suggestedFix": "Use the Repair button or run: iranti setup --mcp /Users/nf/projects/myapp",
+      "suggestedFix": "Use the Repair button or run `iranti claude-setup /Users/nf/projects/myapp` or `iranti codex-setup --project-env /Users/nf/projects/myapp/.env.iranti`.",
       "repairAction": "/api/control-plane/instances/a1b2c3d4/projects/b5c6d7e8/repair/mcp-json"
     }
   ]

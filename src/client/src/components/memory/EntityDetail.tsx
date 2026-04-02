@@ -553,8 +553,10 @@ export function EntityDetail() {
   const activeInstanceId = activeInstance?.id
   const [activeTab, setActiveTab] = useState<Tab>('facts')
 
-  const decodedType = entityType ? decodeURIComponent(entityType) : ''
-  const decodedId = entityId ? decodeURIComponent(entityId) : ''
+  // React Router already decodes matched path params. Decoding again can throw
+  // on valid entity IDs that contain a literal "%" after the first decode.
+  const decodedType = entityType ?? ''
+  const decodedId = entityId ?? ''
 
   const { data, isLoading, error, refetch } = useQuery<EntityDetailResponse, Error>({
     queryKey: ['entity-detail', activeInstanceId ?? 'binding', decodedType, decodedId],

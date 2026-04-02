@@ -115,9 +115,23 @@ function validateScopeList(scopes: string[]): void {
       throw new Error(`scope "${scope}" must include both resource and action`)
     }
     if (parts.length === 3) {
-      const ns = parts[2].split('/')
-      if (ns.length !== 2 || !ns[0] || !ns[1]) {
+      const namespace = parts[2].trim()
+      if (!namespace) {
+        throw new Error(`scope "${scope}" namespace cannot be empty`)
+      }
+
+      const ns = namespace.split('/')
+      if (ns.length !== 2) {
         throw new Error(`scope "${scope}" namespace must be "entityType/entityId" or "entityType/*"`)
+      }
+
+      const [entityType, entityId] = ns
+      if (!entityType || !entityId) {
+        throw new Error(`scope "${scope}" namespace must include both entityType and entityId`)
+      }
+
+      if (entityType === '*' && entityId !== '*') {
+        throw new Error(`scope "${scope}" namespace cannot use wildcard entityType with a specific entityId`)
       }
     }
   }
@@ -418,4 +432,3 @@ authKeysRouter.delete('/:keyId', async (req: Request, res: Response) => {
     res.status(500).json({ error: message })
   }
 })
-
