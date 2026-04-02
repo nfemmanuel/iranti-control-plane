@@ -183,6 +183,90 @@
   color: var(--color-text-secondary);
 }
 
+.chartHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chartTabs {
+  display: flex;
+  gap: 2px;
+}
+
+.chartTab {
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.1s, color 0.1s;
+}
+
+.chartTab:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.chartTabActive {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Insights bar — appears at the bottom of the chart card when data exists
+   ────────────────────────────────────────────────────────────────── */
+
+.insightsBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-app);
+}
+
+.insightChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+}
+
+.insightIcon {
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.insightUp {
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}
+
+.insightDown {
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+}
+
+.insightNeutral {
+  /* uses default .insightChip styles */
+}
+
 .chartLoadingState {
   display: flex;
   align-items: center;

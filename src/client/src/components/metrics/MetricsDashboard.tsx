@@ -564,108 +564,141 @@ function AgentActivityChart({ agents }: AgentActivityChartProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  KB Growth chart section — wraps query + period toggle (AC-6)       */
+/*  Combined chart section — KB Growth + Agent Activity in one card    */
 /* ------------------------------------------------------------------ */
 
-function KbGrowthSection({ summary }: { summary: MetricsSummaryResponse | undefined }) {
-  const [period, setPeriod] = useState<Period>('30d')
+type ChartTab = 'kb-growth' | 'agent-activity'
 
-  const { data, isLoading, error } = useQuery<KbGrowthResponse, Error>({
-    queryKey: ['metrics', 'kb-growth', period],
-    queryFn: () => apiFetch<KbGrowthResponse>('/metrics/kb-growth', { period }),
+function CombinedChartsSection({ summary }: { summary: MetricsSummaryResponse | undefined }) {
+  const [activeTab, setActiveTab] = useState<ChartTab>('kb-growth')
+  const [kbPeriod, setKbPeriod] = useState<Period>('30d')
+  const [activityPeriod, setActivityPeriod] = useState<Period>('30d')
+
+  // Both queries run in parallel — tab switches are instant
+  const { data: kbData, isLoading: kbLoading, error: kbError } = useQuery<KbGrowthResponse, Error>({
+    queryKey: ['metrics', 'kb-growth', kbPeriod],
+    queryFn: () => apiFetch<KbGrowthResponse>('/metrics/kb-growth', { period: kbPeriod }),
     staleTime: 5 * 60_000,
   })
 
-  const isEmpty = !data || data.truncated || data.data.length < 2
-  const emptyTitle = (summary?.totalFacts ?? 0) > 0
-    ? 'History is still warming up'
-    : 'Not enough history yet'
-  const emptyBody = (summary?.totalFacts ?? 0) > 0
-    ? 'This instance has KB data, but not enough write events have been recorded yet to plot growth over time.'
-    : 'Metrics will appear after the instance records enough event history.'
+  const { data: activityData, isLoading: activityLoading, error: activityError } = useQuery<AgentActivityResponse, Error>({
+    queryKey: ['metrics', 'agent-activity', activityPeriod],
+    queryFn: () => apiFetch<AgentActivityResponse>('/metrics/agent-activity', { period: activityPeriod }),
+    staleTime: 5 * 60_000,
+  })
+
+  const period = activeTab === 'kb-growth' ? kbPeriod : activityPeriod
+  const setPeriod = activeTab === 'kb-growth' ? setKbPeriod : setActivityPeriod
+
+  const subtitle = activeTab === 'kb-growth'
+    ? 'New and archived facts over time'
+    : 'Writes per agent over time (top 5)'
+
+  const kbIsEmpty = !kbData || kbData.truncated || kbData.data.length < 2
+  const activityIsEmpty = !activityData || activityData.agents.length === 0
+
+  // Insights derived from already-fetched data — no extra API calls
+  const kbInsights = useMemo(() => {
+    if (!kbData || kbIsEmpty) return null
+    const data = kbData.data
+    const totalNew = data.reduce((s, d) => s + d.newFacts, 0)
+    const totalArchived = data.reduce((s, d) => s + d.archivedFacts, 0)
+    const net = totalNew - totalArchived
+    const mid = Math.floor(data.length / 2)
+    const firstAvg = mid > 0 ? data.slice(0, mid).reduce((s, d) => s + d.newFacts, 0) / mid : 0
+    const secondAvg = (data.length - mid) > 0 ? data.slice(mid).reduce((s, d) => s + d.newFacts, 0) / (data.length - mid) : 0
+    const trend = secondAvg > firstAvg * 1.15 ? 'up' : secondAvg < firstAvg * 0.85 ? 'down' : 'neutral'
+    return [
+      { icon: trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→', text: trend === 'up' ? 'New facts trending up' : trend === 'down' ? 'New facts trending down' : 'Write activity stable', kind: trend as 'up' | 'down' | 'neutral' },
+      { icon: net >= 0 ? '+' : '−', text: `Net ${net >= 0 ? '+' : ''}${net} facts this period`, kind: (net > 0 ? 'up' : net < 0 ? 'down' : 'neutral') as 'up' | 'down' | 'neutral' },
+      { icon: '▣', text: `${totalNew} new · ${totalArchived} archived`, kind: 'neutral' as const },
+    ]
+  }, [kbData, kbIsEmpty])
+
+  const activityInsights = useMemo(() => {
+    if (!activityData || activityIsEmpty) return null
+    const sorted = activityData.agents
+      .map(a => ({ agentId: a.agentId, total: a.data.reduce((s, d) => s + d.writes, 0) }))
+      .sort((a, b) => b.total - a.total)
+    const top = sorted[0]
+    const totalWrites = sorted.reduce((s, a) => s + a.total, 0)
+    return [
+      { icon: '◉', text: `Most active: ${top?.agentId ?? '—'} (${top?.total ?? 0} writes)`, kind: 'neutral' as const },
+      { icon: '✦', text: `${totalWrites} total writes · ${activityData.agents.length} agents`, kind: 'neutral' as const },
+    ]
+  }, [activityData, activityIsEmpty])
+
+  const insights = activeTab === 'kb-growth' ? kbInsights : activityInsights
+
+  const kbContent = (() => {
+    if (kbLoading) return <div className={styles.chartLoadingState}><Spinner size="sm" label="Loading KB growth data" /></div>
+    if (kbError) return <div className={styles.chartError} role="alert">Failed to load KB growth data: {kbError.message}</div>
+    if (kbIsEmpty) {
+      const title = (summary?.totalFacts ?? 0) > 0 ? 'History is still warming up' : 'Not enough history yet'
+      const body = (summary?.totalFacts ?? 0) > 0
+        ? 'This instance has KB data, but not enough write events have been recorded yet to plot growth over time.'
+        : 'Metrics will appear after the instance records enough event history.'
+      return <MetricsEmptyState title={title} body={body} />
+    }
+    return <KbGrowthChart data={kbData!.data} />
+  })()
+
+  const activityContent = (() => {
+    if (activityLoading) return <div className={styles.chartLoadingState}><Spinner size="sm" label="Loading agent activity data" /></div>
+    if (activityError) return <div className={styles.chartError} role="alert">Failed to load agent activity data: {activityError.message}</div>
+    if (activityIsEmpty) {
+      const title = (summary?.activeAgentsLast7d ?? 0) > 0 ? 'Recent history is sparse' : 'No recent agent history yet'
+      const body = (summary?.activeAgentsLast7d ?? 0) > 0
+        ? 'Agents are active, but no write events have been recorded in this time window yet.'
+        : 'Agent activity charts appear when recent write history is available for this instance.'
+      return <MetricsEmptyState title={title} body={body} />
+    }
+    return <AgentActivityChart agents={activityData!.agents} />
+  })()
 
   return (
     <section className={styles.chartSection}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitleGroup}>
-          <h2 className={styles.chartTitle}>KB Growth</h2>
-          <span className={styles.chartSubtitle}>New and archived facts over time</span>
+        <div className={styles.chartHeaderLeft}>
+          <div className={styles.chartTabs} role="tablist">
+            <button
+              className={`${styles.chartTab} ${activeTab === 'kb-growth' ? styles.chartTabActive : ''}`}
+              role="tab"
+              aria-selected={activeTab === 'kb-growth'}
+              type="button"
+              onClick={() => setActiveTab('kb-growth')}
+            >
+              KB Growth
+            </button>
+            <button
+              className={`${styles.chartTab} ${activeTab === 'agent-activity' ? styles.chartTabActive : ''}`}
+              role="tab"
+              aria-selected={activeTab === 'agent-activity'}
+              type="button"
+              onClick={() => setActiveTab('agent-activity')}
+            >
+              Agent Activity
+            </button>
+          </div>
+          <span className={styles.chartSubtitle}>{subtitle}</span>
         </div>
         <PeriodToggle period={period} onChange={setPeriod} />
       </div>
 
-      {isLoading && (
-        <div className={styles.chartLoadingState}>
-          <Spinner size="sm" label="Loading KB growth data" />
+      {activeTab === 'kb-growth' ? kbContent : activityContent}
+
+      {insights && (
+        <div className={styles.insightsBar} aria-label="Chart insights">
+          {insights.map((item, i) => {
+            const kindClass = item.kind === 'up' ? styles.insightUp : item.kind === 'down' ? styles.insightDown : styles.insightNeutral
+            return (
+              <span key={i} className={`${styles.insightChip} ${kindClass}`}>
+                <span className={styles.insightIcon} aria-hidden="true">{item.icon}</span>
+                {item.text}
+              </span>
+            )
+          })}
         </div>
-      )}
-
-      {!isLoading && error && (
-        <div className={styles.chartError} role="alert">
-          Failed to load KB growth data: {error.message}
-        </div>
-      )}
-
-      {!isLoading && !error && isEmpty && (
-        <MetricsEmptyState title={emptyTitle} body={emptyBody} />
-      )}
-
-      {!isLoading && !error && data && !isEmpty && (
-        <KbGrowthChart data={data.data} />
-      )}
-    </section>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Agent Activity chart section — wraps query + period toggle (AC-7)  */
-/* ------------------------------------------------------------------ */
-
-function AgentActivitySection({ summary }: { summary: MetricsSummaryResponse | undefined }) {
-  const [period, setPeriod] = useState<Period>('30d')
-
-  const { data, isLoading, error } = useQuery<AgentActivityResponse, Error>({
-    queryKey: ['metrics', 'agent-activity', period],
-    queryFn: () => apiFetch<AgentActivityResponse>('/metrics/agent-activity', { period }),
-    staleTime: 5 * 60_000,
-  })
-
-  const isEmpty = !data || data.agents.length === 0
-  const emptyTitle = (summary?.activeAgentsLast7d ?? 0) > 0
-    ? 'Recent history is sparse'
-    : 'No recent agent history yet'
-  const emptyBody = (summary?.activeAgentsLast7d ?? 0) > 0
-    ? 'Agents are active, but no write events have been recorded in this time window yet.'
-    : 'Agent activity charts appear when recent write history is available for this instance.'
-
-  return (
-    <section className={styles.chartSection}>
-      <div className={styles.chartHeader}>
-        <div className={styles.chartTitleGroup}>
-          <h2 className={styles.chartTitle}>Agent Activity</h2>
-          <span className={styles.chartSubtitle}>Writes per agent over time (top 5)</span>
-        </div>
-        <PeriodToggle period={period} onChange={setPeriod} />
-      </div>
-
-      {isLoading && (
-        <div className={styles.chartLoadingState}>
-          <Spinner size="sm" label="Loading agent activity data" />
-        </div>
-      )}
-
-      {!isLoading && error && (
-        <div className={styles.chartError} role="alert">
-          Failed to load agent activity data: {error.message}
-        </div>
-      )}
-
-      {!isLoading && !error && isEmpty && (
-        <MetricsEmptyState title={emptyTitle} body={emptyBody} />
-      )}
-
-      {!isLoading && !error && data && !isEmpty && (
-        <AgentActivityChart agents={data.agents} />
       )}
     </section>
   )
@@ -714,8 +747,7 @@ export function MetricsDashboard() {
 
       {/* Charts */}
       <div className={styles.chartsArea}>
-        <KbGrowthSection summary={summary} />
-        <AgentActivitySection summary={summary} />
+        <CombinedChartsSection summary={summary} />
       </div>
     </div>
   )
