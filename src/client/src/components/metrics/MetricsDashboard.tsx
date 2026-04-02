@@ -576,7 +576,7 @@ function KbGrowthSection({ summary }: { summary: MetricsSummaryResponse | undefi
     staleTime: 5 * 60_000,
   })
 
-  const isEmpty = !data || (data.truncated && data.data.length === 0) || (!data.truncated && data.data.length < 2)
+  const isEmpty = !data || data.truncated || data.data.length < 2
   const emptyTitle = (summary?.totalFacts ?? 0) > 0
     ? 'History is still warming up'
     : 'Not enough history yet'

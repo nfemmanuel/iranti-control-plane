@@ -725,7 +725,26 @@ async function fetchKBSearch(query: string, instanceId?: string): Promise<KBSear
     throw err
   }
 
-  return res.json() as Promise<KBSearchResponse>
+  // Iranti /kb/search returns { entity: "type/id", summary, value, ... } — remap to KBSearchResult shape.
+  const raw = await res.json() as { results?: Record<string, unknown>[]; query?: string; total?: number }
+  const results: KBSearchResult[] = (raw.results ?? []).map((r) => {
+    const entityStr = String(r.entity ?? '')
+    const slashIdx = entityStr.indexOf('/')
+    const entityType = slashIdx >= 0 ? entityStr.slice(0, slashIdx) : entityStr
+    const entityId = slashIdx >= 0 ? entityStr.slice(slashIdx + 1) : ''
+    return {
+      entityType,
+      entityId,
+      key: String(r.key ?? ''),
+      valueSummary: (r.summary as string | null) ?? null,
+      confidence: Number(r.confidence ?? 0),
+      source: String(r.source ?? ''),
+      lexicalScore: Number(r.lexicalScore ?? 0),
+      vectorScore: Number(r.vectorScore ?? 0),
+      score: Number(r.score ?? 0),
+    }
+  })
+  return { results, query: raw.query ?? query, total: raw.total ?? results.length }
 }
 
 /* ------------------------------------------------------------------ */
@@ -741,6 +760,7 @@ function SearchResultsPanel({
   onClear: () => void
   instanceId?: string
 }) {
+  const navigate = useNavigate()
   const { data, isLoading, error } = useQuery<KBSearchResponse, SearchFetchError>({
     queryKey: ['kb-search', instanceId ?? 'binding', query],
     queryFn: () => fetchKBSearch(query, instanceId),
@@ -837,12 +857,20 @@ function SearchResultsPanel({
           const entityPath = `/memory/${encodeURIComponent(result.entityType)}/${encodeURIComponent(result.entityId)}`
 
           return (
-            <div key={`${result.entityType}/${result.entityId}/${result.key}/${i}`} className={styles.searchResultRow} role="listitem">
+            <div
+              key={`${result.entityType}/${result.entityId}/${result.key}/${i}`}
+              className={styles.searchResultRow}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(entityPath)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(entityPath) }}
+              title={`Open ${result.entityType}/${result.entityId}`}
+            >
               {/* Entity type + ID */}
               <div className={styles.searchResultEntity}>
-                <Link to={entityPath} className={styles.searchResultEntityLink} title={result.entityId}>
+                <span className={styles.searchResultEntityLink} title={result.entityId}>
                   {result.entityId}
-                </Link>
+                </span>
                 <span className={styles.searchResultEntityType}>{result.entityType}</span>
               </div>
 
