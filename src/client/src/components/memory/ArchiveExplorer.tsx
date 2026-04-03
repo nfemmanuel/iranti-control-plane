@@ -9,6 +9,8 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTime } from '../../lib/timeFormat'
 import type {
   ArchiveFact,
   ArchiveListResponse,
@@ -96,9 +98,6 @@ function formatRelativeTime(iso: string): string {
   return Math.floor(hours / 24) + 'd ago'
 }
 
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
 
 /* ------------------------------------------------------------------ */
 /*  ConflictLog helpers (CP-T053 — AC-2)                              */
@@ -259,6 +258,7 @@ function ConfidenceBar({ value }: { value: number }) {
 /* ------------------------------------------------------------------ */
 
 function ArchivistHistory({ archiveId, instanceId }: { archiveId: string; instanceId?: string }) {
+  const { settings } = useSettings()
   const [open, setOpen] = useState(false)
 
   const { data, isLoading } = useQuery<ArchiveEventsResponse, Error>({
@@ -312,7 +312,7 @@ function ArchivistHistory({ archiveId, instanceId }: { archiveId: string; instan
                     <div className={archiveStyles.historyTimelineHeader}>
                       <span className={archiveStyles.historyTimelineAction}>{ev.actionType}</span>
                       <span className={archiveStyles.historyTimelineTime} title={ev.timestamp}>
-                        {formatTimestamp(ev.timestamp)}
+                        {formatTime(ev.timestamp, settings.timezone)}
                       </span>
                     </div>
                     {ev.reason && (

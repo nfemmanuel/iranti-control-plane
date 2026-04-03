@@ -7,6 +7,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTimestamp } from '../../lib/timeFormat'
 import type { EntityDetailResponse, KBFact, ArchiveFact, WhoKnowsResponse, AgentsListResponse, EntityAlias, EntityAliasesResponse } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import { RelationshipGraphView } from './RelationshipGraphView'
@@ -16,10 +18,6 @@ import styles from './EntityDetail.module.css'
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString()
-}
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -212,6 +210,7 @@ function ContributorsPanel({
   entityId: string
   instanceId?: string
 }) {
+  const { settings } = useSettings()
   // Fetch WhoKnows data for this entity
   const {
     data: whoKnows,
@@ -321,7 +320,7 @@ function ContributorsPanel({
                 </div>
                 <div className={styles.contributorLastSeen}>
                   <span
-                    title={c.lastContributedAt ? new Date(c.lastContributedAt).toLocaleString() : undefined}
+                    title={c.lastContributedAt ? formatTimestamp(c.lastContributedAt, settings.timezone) : undefined}
                     className={styles.contributorRelativeTime}
                   >
                     {c.lastContributedAt ? formatRelativeTime(c.lastContributedAt) : '—'}
@@ -345,12 +344,13 @@ interface AliasRowProps {
 }
 
 function AliasRow({ alias }: AliasRowProps) {
+  const { settings } = useSettings()
   return (
     <div className={styles.aliasRow}>
       <code className={styles.aliasToken}>{alias.alias}</code>
       <span className={styles.aliasSource}>{alias.source}</span>
       <ConfidenceBar value={alias.confidence} />
-      <span className={styles.aliasCreatedAt} title={new Date(alias.createdAt).toLocaleString()}>
+      <span className={styles.aliasCreatedAt} title={formatTimestamp(alias.createdAt, settings.timezone)}>
         {formatRelativeTime(alias.createdAt)}
       </span>
     </div>
@@ -551,6 +551,7 @@ export function EntityDetail() {
   const { entityType, entityId } = useParams<{ entityType: string; entityId: string }>()
   const { activeInstance } = useInstanceContext()
   const activeInstanceId = activeInstance?.id
+  const { settings } = useSettings()
   const [activeTab, setActiveTab] = useState<Tab>('facts')
 
   // React Router already decodes matched path params. Decoding again can throw
@@ -652,7 +653,7 @@ export function EntityDetail() {
           {lastUpdated && (
             <div className={styles.entityMetaItem}>
               <span className={styles.metaLabel}>Last updated</span>
-              <span className={styles.metaValueMuted}>{formatDate(lastUpdated)}</span>
+              <span className={styles.metaValueMuted}>{formatTimestamp(lastUpdated, settings.timezone)}</span>
             </div>
           )}
         </div>

@@ -42,6 +42,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTimestamp } from '../../lib/timeFormat'
 import { Spinner } from '../ui/Spinner'
 import styles from './ConflictReview.module.css'
 
@@ -124,6 +126,7 @@ function FactColumn({
   fact: EscalationFact
   entityLink: string
 }) {
+  const { settings } = useSettings()
   return (
     <div className={styles.factColumn}>
       <div className={styles.factColumnHeader}>
@@ -167,13 +170,13 @@ function FactColumn({
 
       <div className={styles.factField}>
         <span className={styles.factFieldLabel}>Created at</span>
-        <span className={styles.factFieldMeta}>{new Date(fact.createdAt).toLocaleString()}</span>
+        <span className={styles.factFieldMeta}>{formatTimestamp(fact.createdAt, settings.timezone)}</span>
       </div>
 
       {fact.validFrom && (
         <div className={styles.factField}>
           <span className={styles.factFieldLabel}>Valid from</span>
-          <span className={styles.factFieldMeta}>{new Date(fact.validFrom).toLocaleString()}</span>
+          <span className={styles.factFieldMeta}>{formatTimestamp(fact.validFrom, settings.timezone)}</span>
         </div>
       )}
 
@@ -241,7 +244,7 @@ function ComparisonPanel({ escalation, onResolve, onClose }: ComparisonPanelProp
         pendingChoice,
         pendingChoice === 'custom' ? customValue : undefined
       )
-      setResolved(true)
+      onClose()
     } catch (err) {
       setResolveError(err instanceof Error ? err.message : 'Resolution failed')
     } finally {
@@ -459,6 +462,7 @@ function EscalationRow({
 /* ------------------------------------------------------------------ */
 
 function ResolvedList({ items }: { items: ResolvedEscalation[] }) {
+  const { settings } = useSettings()
   if (items.length === 0) {
     return (
       <div className={styles.emptyState}>
@@ -491,7 +495,7 @@ function ResolvedList({ items }: { items: ResolvedEscalation[] }) {
                   {e.resolutionState.replace(/^resolved_/, '').replace(/_/g, ' ')}
                 </span>
               </td>
-              <td className={styles.cellMeta}>{new Date(e.archivedAt).toLocaleString()}</td>
+              <td className={styles.cellMeta}>{formatTimestamp(e.archivedAt, settings.timezone)}</td>
               {e.resolutionNote && <td className={styles.cellText}>{e.resolutionNote}</td>}
             </tr>
           ))}

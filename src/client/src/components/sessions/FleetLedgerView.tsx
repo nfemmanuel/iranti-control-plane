@@ -12,36 +12,9 @@ import type {
   FleetLedgerFilters,
   IngestionHealthEntry,
 } from '../../api/fleet-ledger'
+import { useSettings } from '../../hooks/useSettings'
+import { formatAbsoluteTime, formatRelativeTime } from '../../lib/timeFormat'
 import styles from './FleetLedgerView.module.css'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
-  const secs = Math.floor(diff / 1000)
-  if (secs < 5) return 'just now'
-  if (secs < 60) return `${secs}s ago`
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-function formatAbsoluteTime(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
 
 type ActionCategory = 'inject' | 'checkpoint' | 'attend' | 'write' | 'conflict' | 'handshake' | 'error' | 'other'
 
@@ -249,10 +222,11 @@ function FiltersBar({ filters, onChange, onRefresh, isRefreshing }: FiltersBarPr
 // Event list (card-style, not raw table)
 // ---------------------------------------------------------------------------
 
-function EventRow({ event, isExpanded, onToggle }: {
+function EventRow({ event, isExpanded, onToggle, tz }: {
   event: FleetLedgerEvent
   isExpanded: boolean
   onToggle: () => void
+  tz: string
 }) {
   const cat = categorizeAction(event.actionType)
   const hasMetadata = event.metadata !== null && Object.keys(event.metadata).length > 0
@@ -268,7 +242,7 @@ function EventRow({ event, isExpanded, onToggle }: {
     >
       <div className={styles.eventMain}>
         <div className={styles.eventLeft}>
-          <span className={styles.eventTime} title={formatAbsoluteTime(event.timestamp)}>
+          <span className={styles.eventTime} title={formatAbsoluteTime(event.timestamp, tz)}>
             {formatRelativeTime(event.timestamp)}
           </span>
           <ActionPill actionType={event.actionType} />
@@ -348,6 +322,8 @@ function LedgerSummary({ events }: { events: FleetLedgerEvent[] }) {
 // ---------------------------------------------------------------------------
 
 export function FleetLedgerView(): JSX.Element {
+  const { settings } = useSettings()
+  const tz = settings.timezone
   const [filters, setFilters] = useState<FleetLedgerFilters>({ limit: 100 })
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
@@ -456,6 +432,7 @@ export function FleetLedgerView(): JSX.Element {
                 event={event}
                 isExpanded={expandedId === event.id}
                 onToggle={() => setExpandedId(prev => prev === event.id ? null : event.id)}
+                tz={tz}
               />
             ))}
           </div>

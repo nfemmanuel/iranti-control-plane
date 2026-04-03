@@ -10,6 +10,9 @@ export type CommandRunnerMode = 'copy_and_run' | 'copy_only'
 export type PollIntervalMs = 30000 | 60000 | 300000
 export type DatabaseMode = 'compose' | 'url'
 
+/** 'local' uses the browser's timezone; otherwise an IANA string like 'Africa/Lagos'. */
+export type TimezonePreference = 'local' | string
+
 export interface ControlPlaneSettings {
   theme: 'dark' | 'light'
   landingPage: LandingPage
@@ -17,6 +20,7 @@ export interface ControlPlaneSettings {
   showSetupBanner: boolean
   commandRunnerMode: CommandRunnerMode
   healthPollIntervalMs: PollIntervalMs
+  timezone: TimezonePreference
   createInstanceDefaults: {
     startPort: number
     provider: string
@@ -46,6 +50,7 @@ export const DEFAULT_SETTINGS: ControlPlaneSettings = {
   showSetupBanner: true,
   commandRunnerMode: 'copy_and_run',
   healthPollIntervalMs: 60000,
+  timezone: 'local',
   createInstanceDefaults: {
     startPort: 3001,
     provider: 'claude',
@@ -99,6 +104,17 @@ function sanitizeDatabaseMode(value: unknown): DatabaseMode {
   return value === 'url' ? 'url' : 'compose'
 }
 
+function sanitizeTimezone(value: unknown): TimezonePreference {
+  if (typeof value !== 'string' || !value.trim()) return 'local'
+  if (value === 'local' || value === 'UTC') return value
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value })
+    return value
+  } catch {
+    return 'local'
+  }
+}
+
 export function sanitizeSettings(raw: unknown): ControlPlaneSettings {
   const parsed = isRecord(raw) ? raw : {}
   const createDefaults = isRecord(parsed['createInstanceDefaults']) ? parsed['createInstanceDefaults'] : {}
@@ -110,6 +126,7 @@ export function sanitizeSettings(raw: unknown): ControlPlaneSettings {
     showSetupBanner: parsed['showSetupBanner'] !== false,
     commandRunnerMode: sanitizeCommandRunnerMode(parsed['commandRunnerMode']),
     healthPollIntervalMs: sanitizePollInterval(parsed['healthPollIntervalMs']),
+    timezone: sanitizeTimezone(parsed['timezone']),
     createInstanceDefaults: {
       startPort: sanitizePort(createDefaults['startPort']),
       provider: sanitizeString(createDefaults['provider'], DEFAULT_SETTINGS.createInstanceDefaults.provider),

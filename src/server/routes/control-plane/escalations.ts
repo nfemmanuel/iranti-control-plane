@@ -241,7 +241,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           "supersededBy"::text AS "supersededBy",
           "conflictLog"
         FROM archive
-        WHERE "archivedReason" = 'contradicted' AND "resolutionState" IS NULL
+        WHERE "archivedReason" = 'escalated' AND "resolutionState" = 'pending'
         ORDER BY "archivedAt" ASC`
       )
 
@@ -325,7 +325,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           "archivedAt",
           NULL::text AS "resolutionNote"
         FROM archive
-        WHERE "archivedReason" = 'contradicted' AND "resolutionState" IS NOT NULL
+        WHERE "archivedReason" = 'escalated' AND "resolutionState" = 'resolved'
         ORDER BY "archivedAt" DESC
         LIMIT 500`
       )
@@ -412,7 +412,7 @@ escalationsRouter.post(
           "resolutionState",
           "conflictLog"
         FROM archive
-        WHERE id = $1::uuid`,
+        WHERE id = $1::int`,
         [id]
       )
 
@@ -423,7 +423,7 @@ escalationsRouter.post(
       const archiveRow = archiveResult.rows[0] as Record<string, unknown>
 
       // 404 if already resolved
-      if (archiveRow.resolutionState != null) {
+      if (archiveRow.resolutionState != null && archiveRow.resolutionState !== 'pending') {
         throw createApiError(
           `Escalation ${id} is already resolved (resolutionState: ${archiveRow.resolutionState})`,
           'ALREADY_RESOLVED',
@@ -437,10 +437,10 @@ escalationsRouter.post(
       const resolvedAt = new Date().toISOString()
 
       if (resolution === 'keep_existing') {
-        // Mark archive row as resolved_keep_existing — no KB change
+        // Mark archive row as resolved — no KB change
         await query(
-          `UPDATE archive SET "resolutionState" = 'resolved_keep_existing' WHERE id = $1::uuid`,
-          [id]
+          `UPDATE archive SET "resolutionState" = 'resolved', "conflictLog" = COALESCE("conflictLog", '{}'::jsonb) || $2::jsonb WHERE id = $1::int`,
+          [id, JSON.stringify({ resolutionDetail: 'keep_existing', resolvedAt, resolvedBy: 'control_plane_operator' })]
         )
       } else if (resolution === 'accept_challenger') {
         // Write new KB fact from the archive row values, then mark resolved
@@ -470,8 +470,8 @@ escalationsRouter.post(
         )
 
         await query(
-          `UPDATE archive SET "resolutionState" = 'resolved_accept_challenger' WHERE id = $1::uuid`,
-          [id]
+          `UPDATE archive SET "resolutionState" = 'resolved', "conflictLog" = COALESCE("conflictLog", '{}'::jsonb) || $2::jsonb WHERE id = $1::int`,
+          [id, JSON.stringify({ resolutionDetail: 'accept_challenger', resolvedAt, resolvedBy: 'control_plane_operator' })]
         )
       } else {
         // custom — customValue already validated above
@@ -496,8 +496,8 @@ escalationsRouter.post(
         )
 
         await query(
-          `UPDATE archive SET "resolutionState" = 'resolved_custom' WHERE id = $1::uuid`,
-          [id]
+          `UPDATE archive SET "resolutionState" = 'resolved', "conflictLog" = COALESCE("conflictLog", '{}'::jsonb) || $2::jsonb WHERE id = $1::int`,
+          [id, JSON.stringify({ resolutionDetail: 'custom', resolvedAt, resolvedBy: 'control_plane_operator' })]
         )
       }
 

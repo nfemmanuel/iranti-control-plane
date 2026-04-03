@@ -11,6 +11,8 @@ import {
   useReducer,
 } from 'react'
 import type { StaffEvent } from '../../api/types'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTime } from '../../lib/timeFormat'
 import styles from './ActivityStream.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -351,9 +353,6 @@ function formatRelative(isoTimestamp: string, now: number): string {
   return new Date(isoTimestamp).toLocaleTimeString()
 }
 
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
 
 /* ------------------------------------------------------------------ */
 /*  Filter state                                                        */
@@ -419,6 +418,7 @@ function EventRow({
   event: StaffEvent
   now: number
 }) {
+  const { settings } = useSettings()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -432,7 +432,7 @@ function EventRow({
         aria-expanded={expanded}
       >
         <td className={styles.cellTime} title={event.timestamp}>
-          {formatTimestamp(event.timestamp)}
+          {formatTime(event.timestamp, settings.timezone)}
         </td>
         <td className={styles.cellComponent}>
           <ComponentBadge component={event.staffComponent} />

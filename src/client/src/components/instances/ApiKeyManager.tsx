@@ -7,6 +7,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAuthKeys, createAuthKey, revokeAuthKey } from '../../api/client'
 import type { AuthKey, AuthKeyCreateResult } from '../../api/types'
 import type { InstanceMetadata } from '../../api/types'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTimestamp } from '../../lib/timeFormat'
 import styles from './ApiKeyManager.module.css'
 
 // ---------------------------------------------------------------------------
@@ -27,16 +29,6 @@ const STANDARD_SCOPES = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    })
-  } catch {
-    return iso
-  }
-}
 
 function maskToken(token: string): string {
   const dotIdx = token.indexOf('.')
@@ -422,6 +414,7 @@ interface ApiKeyManagerProps {
 }
 
 export function ApiKeyManager({ instances, activeInstanceId }: ApiKeyManagerProps) {
+  const { settings } = useSettings()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [createdResult, setCreatedResult] = useState<AuthKeyCreateResult | null>(null)
@@ -595,8 +588,8 @@ export function ApiKeyManager({ instances, activeInstanceId }: ApiKeyManagerProp
                       </div>
                     )}
                   </td>
-                  <td className={styles.timestampCell}>{formatDate(key.createdAt)}</td>
-                  <td className={styles.timestampCell}>{formatDate(key.updatedAt)}</td>
+                  <td className={styles.timestampCell}>{formatTimestamp(key.createdAt, settings.timezone)}</td>
+                  <td className={styles.timestampCell}>{formatTimestamp(key.updatedAt, settings.timezone)}</td>
                   <td>
                     {key.revoked ? (
                       <span className={styles.badgeRevoked}>Revoked</span>

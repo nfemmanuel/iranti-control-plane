@@ -15,33 +15,10 @@ import type {
   SessionRecord,
   SessionsResponse,
 } from '../../api/types'
+import { useSettings } from '../../hooks/useSettings'
+import { formatAbsoluteTime, formatRelativeTime } from '../../lib/timeFormat'
 import { Spinner } from '../ui/Spinner'
 import styles from './SessionsView.module.css'
-
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
-  const secs = Math.floor(diff / 1000)
-  if (secs < 5) return 'just now'
-  if (secs < 60) return `${secs}s ago`
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-function formatAbsoluteTime(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
 
 function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text).catch(() => {})
@@ -334,6 +311,7 @@ function SessionActions({
 }
 
 function SessionLedgerPanel({ session }: { session: SessionRecord }) {
+  const { settings } = useSettings()
   const { data, isLoading, error, refetch, isFetching } = useQuery<SessionLedgerResponse, Error>({
     queryKey: ['session-ledger', session.sessionId, session.agentId],
     queryFn: () => apiFetch<SessionLedgerResponse>(
@@ -414,7 +392,7 @@ function SessionLedgerPanel({ session }: { session: SessionRecord }) {
                   className={`${styles.ledgerEvent} ${ledgerActionTone(event.actionType)}`}
                 >
                   <div className={styles.ledgerEventMeta}>
-                    <span className={styles.ledgerEventTime}>{formatAbsoluteTime(event.timestamp)}</span>
+                    <span className={styles.ledgerEventTime}>{formatAbsoluteTime(event.timestamp, settings.timezone)}</span>
                     <span className={styles.ledgerEventRelative}>{formatRelativeTime(event.timestamp)}</span>
                   </div>
                   <div className={styles.ledgerEventBody}>

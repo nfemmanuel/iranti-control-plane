@@ -11,6 +11,7 @@ import {
   type LandingPage,
   type PollIntervalMs,
 } from '../../lib/settings'
+import { TIMEZONE_OPTIONS, timezoneLabel } from '../../lib/timeFormat'
 import styles from './SettingsPage.module.css'
 
 const LANDING_OPTIONS: Array<{ value: LandingPage; label: string; detail: string }> = [
@@ -207,6 +208,20 @@ export function SettingsPage() {
             >
               <option value="dark">Dark</option>
               <option value="light">Light</option>
+            </select>
+          </Field>
+
+          <Field label="Timezone" hint={`Currently: ${timezoneLabel(draft.timezone)}`}>
+            <select
+              className={styles.select}
+              value={draft.timezone}
+              onChange={e => updateDraft('timezone', e.target.value)}
+            >
+              {TIMEZONE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </Field>
 

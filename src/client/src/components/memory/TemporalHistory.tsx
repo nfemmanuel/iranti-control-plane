@@ -8,6 +8,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import { useInstanceContext } from '../../hooks/useInstanceContext'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTimestamp } from '../../lib/timeFormat'
 import type { TemporalHistoryResponse, HistoryInterval, AsOfQueryResult } from '../../api/types'
 import { Spinner } from '../ui/Spinner'
 import styles from './TemporalHistory.module.css'
@@ -16,10 +18,6 @@ import styles from './TemporalHistory.module.css'
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString()
-}
 
 /**
  * Convert a datetime-local string (e.g. "2026-03-15T14:30") to an ISO 8601
@@ -78,11 +76,13 @@ function AsOfCallout({
   error: Error | null
   asOf: string
 }) {
+  const { settings } = useSettings()
+  const tz = settings.timezone
   if (isLoading) {
     return (
       <div className={styles.asOfCallout} role="status" aria-live="polite">
         <Spinner size="sm" label="Querying point in time…" />
-        <span className={styles.asOfCalloutText}>Querying {formatDate(asOf)}…</span>
+        <span className={styles.asOfCalloutText}>Querying {formatTimestamp(asOf, tz)}…</span>
       </div>
     )
   }
@@ -103,7 +103,7 @@ function AsOfCallout({
       <div className={`${styles.asOfCallout} ${styles.asOfCalloutEmpty}`} role="status" aria-live="polite">
         <span className={styles.asOfCalloutLabel}>Point in time</span>
         <p className={styles.asOfCalloutText}>No fact existed at this time.</p>
-        <span className={styles.asOfCalloutTimestamp}>{formatDate(result.asOf)}</span>
+        <span className={styles.asOfCalloutTimestamp}>{formatTimestamp(result.asOf, tz)}</span>
       </div>
     )
   }
@@ -121,7 +121,7 @@ function AsOfCallout({
     <div className={`${styles.asOfCallout} ${styles.asOfCalloutResult}`} role="status" aria-live="polite">
       <div className={styles.asOfCalloutHeader}>
         <span className={styles.asOfCalloutLabel}>Fact at point in time</span>
-        <span className={styles.asOfCalloutTimestamp}>{formatDate(result.asOf)}</span>
+        <span className={styles.asOfCalloutTimestamp}>{formatTimestamp(result.asOf, tz)}</span>
       </div>
 
       <div className={styles.asOfCalloutGrid}>
@@ -155,9 +155,9 @@ function AsOfCallout({
         {/* Interval */}
         <span className={styles.asOfCalloutFieldLabel}>Interval</span>
         <span className={`${styles.asOfCalloutFieldValue} ${styles.asOfMono}`}>
-          {formatDate(fact.validFrom)}
+          {formatTimestamp(fact.validFrom, tz)}
           <span className={styles.asOfIntervalArrow} aria-hidden="true"> → </span>
-          {fact.validUntil ? formatDate(fact.validUntil) : <span className={styles.asOfStillActive}>still active</span>}
+          {fact.validUntil ? formatTimestamp(fact.validUntil, tz) : <span className={styles.asOfStillActive}>still active</span>}
         </span>
       </div>
 
@@ -184,6 +184,8 @@ function IntervalCard({
   isCurrent: boolean
   isAsOfMatch: boolean
 }) {
+  const { settings } = useSettings()
+  const tz = settings.timezone
   const [expanded, setExpanded] = useState(false)
 
   const parsedRaw = (() => {
@@ -260,7 +262,7 @@ function IntervalCard({
             <div className={styles.intervalDates}>
               <span className={styles.dateItem}>
                 <span className={styles.dateLabel}>Valid from</span>
-                <span className={styles.dateValue}>{formatDate(interval.validFrom)}</span>
+                <span className={styles.dateValue}>{formatTimestamp(interval.validFrom, tz)}</span>
               </span>
               <span className={styles.dateSep} aria-hidden="true">→</span>
               <span className={styles.dateItem}>
@@ -269,7 +271,7 @@ function IntervalCard({
                   {isCurrent ? (
                     <span className={styles.stillActive}>still active</span>
                   ) : (
-                    formatDate(interval.validUntil)
+                    formatTimestamp(interval.validUntil, tz)
                   )}
                 </span>
               </span>
@@ -280,7 +282,7 @@ function IntervalCard({
                 <span className={styles.archivedReasonLabel}>Archived reason:</span>
                 <span className={styles.archivedReason}>{interval.archivedReason}</span>
                 {interval.archivedAt && (
-                  <span className={styles.archivedAt}>{formatDate(interval.archivedAt)}</span>
+                  <span className={styles.archivedAt}>{formatTimestamp(interval.archivedAt, tz)}</span>
                 )}
               </div>
             )}

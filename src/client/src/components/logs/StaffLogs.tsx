@@ -8,6 +8,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
 import type { StaffEvent, EventListResponse } from '../../api/types'
+import { useSettings } from '../../hooks/useSettings'
+import { formatTime } from '../../lib/timeFormat'
 import styles from './StaffLogs.module.css'
 import { Spinner } from '../ui/Spinner'
 
@@ -226,10 +228,6 @@ function useNow(intervalMs: number): number {
   return now
 }
 
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
 
 function formatRelative(isoTimestamp: string, now: number): string {
   const diff = now - new Date(isoTimestamp).getTime()
@@ -377,6 +375,7 @@ function LogRow({
   onToggle: () => void
   now: number
 }) {
+  const { settings } = useSettings()
   const derivedLevel = classifyEventLevel(event)
 
   const entityDisplay = event.entityType && event.entityId
@@ -401,7 +400,7 @@ function LogRow({
       >
         {/* Timestamp */}
         <td className={styles.cellTimestamp} title={formatRelative(event.timestamp, now)}>
-          {formatTimestamp(event.timestamp)}
+          {formatTime(event.timestamp, settings.timezone)}
         </td>
 
         {/* Component badge */}
