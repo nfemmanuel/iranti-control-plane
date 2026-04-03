@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../../api/client'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
 import type { OverviewResponse, OverviewRecentEvent, OverviewActiveAgent, OverviewHealthCheck } from '../../api/types'
 import styles from './OverviewDashboard.module.css'
 
@@ -371,10 +372,11 @@ function QuickActionsRow() {
 
 export function OverviewDashboard() {
   const [alertDismissed, setAlertDismissed] = useState(false)
+  const { activeInstance } = useInstanceContext()
 
   const { data, isLoading } = useQuery<OverviewResponse>({
-    queryKey: ['overview'],
-    queryFn: () => apiFetch<OverviewResponse>('/overview'),
+    queryKey: ['overview', activeInstance?.id],
+    queryFn: () => apiFetch<OverviewResponse>('/overview', { instanceId: activeInstance?.id }),
     refetchInterval: 30_000,
     // Never throw — the backend always returns 200 with partial data
     retry: false,

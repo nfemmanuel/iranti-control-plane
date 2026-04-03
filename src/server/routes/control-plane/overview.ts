@@ -16,8 +16,12 @@
  */
 
 import { Router, Request, Response } from 'express'
+import pg from 'pg'
 import { query, env } from '../../db.js'
 import { runAllHealthChecks } from './health.js'
+import { resolveInstanceAuthority, type ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
+
+const { Pool } = pg
 
 export const overviewRouter = Router()
 
@@ -67,6 +71,44 @@ interface OverviewResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Instance-scoped DB pool
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a short-lived pg.Pool for a specific instance's DATABASE_URL.
+ * The pool is torn down after `fn` completes. If databaseUrl is null,
+ * `fn` receives null and should return fallback data.
+ */
+async function withScopedPool<T>(
+  databaseUrl: string | null,
+  fn: (pool: pg.Pool | null) => Promise<T>
+): Promise<T> {
+  if (!databaseUrl) return fn(null)
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 2,
+    idleTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000,
+  })
+  try {
+    return await fn(pool)
+  } finally {
+    await pool.end().catch(() => {})
+  }
+}
+
+/**
+ * Build a query function scoped to a specific pg.Pool, matching the
+ * signature of the singleton `query()` from db.ts.
+ */
+function scopedQuery(pool: pg.Pool) {
+  return <T extends pg.QueryResultRow = pg.QueryResultRow>(
+    text: string,
+    params?: unknown[]
+  ): Promise<pg.QueryResult<T>> => pool.query<T>(text, params)
+}
+
+// ---------------------------------------------------------------------------
 // Health check fallback
 // ---------------------------------------------------------------------------
 
@@ -96,11 +138,16 @@ interface KnowledgeBaseSummaryRow {
   active_agents_last_7d: string
 }
 
-export async function fetchKBSummary(): Promise<OverviewKBSummary> {
+type QueryFn = <T extends pg.QueryResultRow = pg.QueryResultRow>(
+  text: string,
+  params?: unknown[]
+) => Promise<pg.QueryResult<T>>
+
+export async function fetchKBSummary(queryFn: QueryFn = query): Promise<OverviewKBSummary> {
   const fetchedAt = new Date().toISOString()
   const fallbackFromKnowledgeBase = async (truncated: boolean): Promise<OverviewKBSummary> => {
     try {
-      const result = await query<KnowledgeBaseSummaryRow>(
+      const result = await queryFn<KnowledgeBaseSummaryRow>(
         `SELECT
            COUNT(*)::text AS total_facts,
            COUNT(*) FILTER (WHERE "createdAt" >= NOW() - INTERVAL '24 hours')::text AS facts_last_24h,
@@ -125,7 +172,7 @@ export async function fetchKBSummary(): Promise<OverviewKBSummary> {
 
   // Check table exists first
   try {
-    const existsResult = await query<{ exists: boolean }>(
+    const existsResult = await queryFn<{ exists: boolean }>(
       `SELECT EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'staff_events'
@@ -137,7 +184,7 @@ export async function fetchKBSummary(): Promise<OverviewKBSummary> {
       return await fallbackFromKnowledgeBase(true)
     }
 
-    const result = await query<KBSummaryRow>(
+    const result = await queryFn<KBSummaryRow>(
       `SELECT
          COUNT(*) FILTER (WHERE action_type = ANY($1)) AS total_writes_all_time,
          COUNT(*) FILTER (WHERE action_type = ANY($2)) AS total_archived_all_time,
@@ -185,9 +232,9 @@ interface StaffEventRow {
 
 const PG_UNDEFINED_TABLE = '42P01'
 
-async function fetchRecentEvents(): Promise<OverviewRecentEvent[]> {
+async function fetchRecentEvents(queryFn: QueryFn = query): Promise<OverviewRecentEvent[]> {
   try {
-    const result = await query<StaffEventRow>(
+    const result = await queryFn<StaffEventRow>(
       `SELECT id, staff_component, action_type, agent_id, entity_type, entity_id, key, reason, timestamp
        FROM staff_events
        ORDER BY timestamp DESC
@@ -285,10 +332,10 @@ function getIrantiApiKey(): string {
   return env['IRANTI_API_KEY'] ?? process.env['IRANTI_API_KEY'] ?? ''
 }
 
-async function fetchActiveAgents(): Promise<OverviewActiveAgent[]> {
+async function fetchActiveAgents(instanceBaseUrl?: string, instanceApiKey?: string): Promise<OverviewActiveAgent[]> {
   try {
-    const baseUrl = getIrantiUrl()
-    const apiKey = getIrantiApiKey()
+    const baseUrl = instanceBaseUrl ?? getIrantiUrl()
+    const apiKey = instanceApiKey ?? getIrantiApiKey()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (apiKey) headers['X-Iranti-Key'] = apiKey
 
@@ -359,39 +406,64 @@ async function fetchActiveAgents(): Promise<OverviewActiveAgent[]> {
 // GET /overview
 // ---------------------------------------------------------------------------
 
-overviewRouter.get('/', async (_req: Request, res: Response) => {
+overviewRouter.get('/', async (req: Request, res: Response) => {
   const fetchedAt = new Date().toISOString()
+  const instanceId = typeof req.query['instanceId'] === 'string' ? req.query['instanceId'] : undefined
 
-  const [healthResult, kbResult, eventsResult, agentsResult] = await Promise.allSettled([
-    (async (): Promise<OverviewHealthSummary> => {
-      const full = await runAllHealthChecks()
-      return {
-        overall: full.overall,
-        checks: full.checks.map((c) => ({ name: c.name, status: c.status })),
-        fetchedAt: full.checkedAt,
-      }
-    })(),
-    fetchKBSummary(),
-    fetchRecentEvents(),
-    fetchActiveAgents(),
-  ])
+  // If an instanceId is provided, resolve the instance's DB and API details.
+  // Otherwise fall back to the singleton pool (backwards compatible).
+  let scope: ResolvedInstanceAuthority | null = null
+  if (instanceId) {
+    scope = await resolveInstanceAuthority(instanceId).catch(() => null)
+  }
 
-  const health: OverviewHealthSummary =
-    healthResult.status === 'fulfilled'
-      ? healthResult.value
-      : { ...HEALTH_FALLBACK, fetchedAt }
+  /**
+   * When we have a resolved instance scope, create a short-lived DB pool
+   * for that instance and run all four data sources against it.
+   * Otherwise use the default singleton pool (original behaviour).
+   */
+  const buildResponse = async (pool: pg.Pool | null): Promise<OverviewResponse> => {
+    const qFn: QueryFn = pool ? scopedQuery(pool) : query
+    const instanceBaseUrl = scope?.apiBaseUrl
+    const instanceApiKey = scope?.apiKey ?? undefined
 
-  const kb: OverviewKBSummary =
-    kbResult.status === 'fulfilled'
-      ? kbResult.value
-      : { totalFacts: 0, factsLast24h: 0, activeAgentsLast7d: 0, truncated: true, fetchedAt }
+    const [healthResult, kbResult, eventsResult, agentsResult] = await Promise.allSettled([
+      (async (): Promise<OverviewHealthSummary> => {
+        const full = await runAllHealthChecks(instanceId)
+        return {
+          overall: full.overall,
+          checks: full.checks.map((c) => ({ name: c.name, status: c.status })),
+          fetchedAt: full.checkedAt,
+        }
+      })(),
+      fetchKBSummary(qFn),
+      fetchRecentEvents(qFn),
+      fetchActiveAgents(instanceBaseUrl, instanceApiKey),
+    ])
 
-  const recentEvents: OverviewRecentEvent[] =
-    eventsResult.status === 'fulfilled' ? eventsResult.value : []
+    const health: OverviewHealthSummary =
+      healthResult.status === 'fulfilled'
+        ? healthResult.value
+        : { ...HEALTH_FALLBACK, fetchedAt }
 
-  const activeAgents: OverviewActiveAgent[] =
-    agentsResult.status === 'fulfilled' ? agentsResult.value : []
+    const kb: OverviewKBSummary =
+      kbResult.status === 'fulfilled'
+        ? kbResult.value
+        : { totalFacts: 0, factsLast24h: 0, activeAgentsLast7d: 0, truncated: true, fetchedAt }
 
-  const response: OverviewResponse = { health, kb, recentEvents, activeAgents, fetchedAt }
+    const recentEvents: OverviewRecentEvent[] =
+      eventsResult.status === 'fulfilled' ? eventsResult.value : []
+
+    const activeAgents: OverviewActiveAgent[] =
+      agentsResult.status === 'fulfilled' ? agentsResult.value : []
+
+    return { health, kb, recentEvents, activeAgents, fetchedAt }
+  }
+
+  const databaseUrl = scope?.databaseUrl ?? null
+  const response = scope
+    ? await withScopedPool(databaseUrl, (pool) => buildResponse(pool))
+    : await buildResponse(null) // null pool → default singleton query()
+
   res.status(200).json(response)
 })

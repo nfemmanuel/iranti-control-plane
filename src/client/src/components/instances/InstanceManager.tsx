@@ -1410,6 +1410,7 @@ function ProjectsSection({
   onBindSuccess: () => void
   autoOpenBind?: boolean
 }) {
+  const queryClient = useQueryClient()
   const [showBindForm, setShowBindForm] = useState(false)
   const [rebindTarget, setRebindTarget] = useState<string | null>(null)
   const [unbindTarget, setUnbindTarget] = useState<string | null>(null)
@@ -1441,6 +1442,11 @@ function ProjectsSection({
     setShowBindForm(false)
     setRebindTarget(null)
     setUnbindTarget(null)
+    // BUG-012: Invalidate project and integration caches so the page reflects the new binding
+    // without requiring a manual reload. The instance-projects query is shared with DetailPanel's
+    // DO THIS NOW section, and integration-summary feeds the Claude Code Integration overview.
+    void queryClient.invalidateQueries({ queryKey: ['instance-projects', instance.name] })
+    void queryClient.invalidateQueries({ queryKey: ['integration-summary', instance.name] })
     onBindSuccess()
   }
 
@@ -1630,9 +1636,11 @@ function getProjectWiringState(instance: InstanceMetadata, boundProjectCount?: n
   for (const project of instance.projects) {
     const hasClaude = project.integration.claudeMdPresent && project.integration.mcpConfigHasIranti
     const hasCodex = project.integration.codexIntegration.configPresent
-    if (hasClaude && hasCodex) {
+    // A project is fully wired when at least one primary integration is complete.
+    // Matches getProjectReadiness — Claude-only or Codex-only counts as fully wired.
+    if (hasClaude || hasCodex) {
       fullyWired += 1
-    } else if (hasClaude || hasCodex || project.integration.mcpConfigPresent) {
+    } else if (project.integration.mcpConfigPresent || project.integration.claudeMdPresent) {
       partiallyWired += 1
     }
   }
@@ -1654,8 +1662,10 @@ type ProjectReadiness = 'ready' | 'partial' | 'missing'
 function getProjectReadiness(project: ProjectBinding): ProjectReadiness {
   const hasClaude = project.integration.claudeMdPresent && project.integration.mcpConfigHasIranti
   const hasCodex = project.integration.codexIntegration.configPresent
-  if (hasClaude && hasCodex) return 'ready'
-  if (hasClaude || hasCodex || project.integration.mcpConfigPresent) return 'partial'
+  // A project is 'ready' when at least one primary integration (Claude or Codex) is fully wired.
+  // Previously required BOTH, which contradicted the Claude Integration panel that only checks Claude files.
+  if (hasClaude || hasCodex) return 'ready'
+  if (project.integration.mcpConfigPresent || project.integration.claudeMdPresent) return 'partial'
   return 'missing'
 }
 
@@ -1740,7 +1750,7 @@ function getOperatorPriorities(instance: InstanceMetadata, boundProjectCount?: n
             tone: 'warning',
             summary: `${projectState.fullyWired}/${projectState.total} project${projectState.total === 1 ? '' : 's'} fully wired.`,
             detail: 'Some projects are only partially ready. Fix the project wiring before testing client memory behavior.',
-            action: { label: 'Fix project wiring', type: 'scroll', target: 'claude-integration-section' },
+            action: { label: 'Fix project wiring', type: 'scroll', target: 'projects-section' },
           }
 
   const clientsPriority: PriorityCardDescriptor =
