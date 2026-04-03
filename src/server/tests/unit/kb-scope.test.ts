@@ -13,10 +13,7 @@ const {
   const resolveInstanceAuthorityMock = vi.fn()
   const poolQueryMock = vi.fn()
   const poolEndMock = vi.fn()
-  const poolCtorMock = vi.fn(() => ({
-    query: poolQueryMock,
-    end: poolEndMock,
-  }))
+  const poolCtorMock = vi.fn(function () { return { query: poolQueryMock, end: poolEndMock } })
   return {
     globalQueryMock,
     resolveInstanceAuthorityMock,

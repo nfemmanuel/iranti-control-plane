@@ -203,10 +203,12 @@ const EMPTY_FORM: CreateFormState = {
 
 function CreateKeyForm({
   instances,
+  activeInstanceId,
   onCreated,
   onCancel,
 }: {
   instances: InstanceMetadata[]
+  activeInstanceId?: string
   onCreated: (result: AuthKeyCreateResult, syncedProject: string | null) => void
   onCancel: () => void
 }) {
@@ -255,6 +257,7 @@ function CreateKeyForm({
         scopes,
         description: form.description.trim() || undefined,
         syncToProject: form.syncToProject || undefined,
+        instanceId: activeInstanceId,
       })
       onCreated(result, form.syncToProject || null)
     } catch (err) {
@@ -262,7 +265,7 @@ function CreateKeyForm({
     } finally {
       setInFlight(false)
     }
-  }, [form, inFlight, onCreated])
+  }, [activeInstanceId, form, inFlight, onCreated])
 
   // Project options: extract all project roots from all instances
   const projectRoots = Array.from(
@@ -413,11 +416,12 @@ function CreateKeyForm({
 // ---------------------------------------------------------------------------
 
 interface ApiKeyManagerProps {
-  /** All discovered instances — used to populate the syncToProject dropdown */
+  /** All discovered instances, used to populate the syncToProject dropdown. */
   instances: InstanceMetadata[]
+  activeInstanceId?: string
 }
 
-export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
+export function ApiKeyManager({ instances, activeInstanceId }: ApiKeyManagerProps) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [createdResult, setCreatedResult] = useState<AuthKeyCreateResult | null>(null)
@@ -432,8 +436,8 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
     error: loadError,
     refetch,
   } = useQuery({
-    queryKey: ['auth-keys'],
-    queryFn: fetchAuthKeys,
+    queryKey: ['auth-keys', activeInstanceId ?? 'binding'],
+    queryFn: () => fetchAuthKeys(activeInstanceId),
     staleTime: 0,
   })
 
@@ -450,7 +454,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
       setShowForm(false)
       setCreatedResult(result)
       setCreatedSyncProject(syncedProject)
-      void queryClient.invalidateQueries({ queryKey: ['auth-keys'] })
+      void queryClient.invalidateQueries({ queryKey: ['auth-keys', activeInstanceId ?? 'binding'] })
     },
     [queryClient]
   )
@@ -460,15 +464,15 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
     setRevokeInFlight(true)
     setRevokeError(null)
     try {
-      await revokeAuthKey(revokeTarget.keyId)
+      await revokeAuthKey(revokeTarget.keyId, activeInstanceId)
       setRevokeTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['auth-keys'] })
+      void queryClient.invalidateQueries({ queryKey: ['auth-keys', activeInstanceId ?? 'binding'] })
     } catch (err) {
       setRevokeError(err instanceof Error ? err.message : String(err))
     } finally {
       setRevokeInFlight(false)
     }
-  }, [revokeTarget, revokeInFlight, queryClient])
+  }, [activeInstanceId, revokeTarget, revokeInFlight, queryClient])
 
   // Reset revoke error when modal closes
   useEffect(() => {
@@ -509,6 +513,7 @@ export function ApiKeyManager({ instances }: ApiKeyManagerProps) {
       {showForm && (
         <CreateKeyForm
           instances={instances}
+          activeInstanceId={activeInstanceId}
           onCreated={handleCreated}
           onCancel={() => setShowForm(false)}
         />

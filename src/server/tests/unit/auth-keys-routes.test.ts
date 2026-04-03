@@ -7,13 +7,28 @@ import type { AddressInfo } from 'net'
 
 const {
   queryMock,
+  endMock,
   randomBytesMock,
-  dbEnv,
+  resolveInstanceAuthorityMock,
 } = vi.hoisted(() => {
   const queryMock = vi.fn()
+  const endMock = vi.fn()
   const randomBytesMock = vi.fn(() => Buffer.from('0123456789abcdef0123456789abcdef'))
-  const dbEnv = { DATABASE_URL: 'postgresql://test-db' }
-  return { queryMock, randomBytesMock, dbEnv }
+  const resolveInstanceAuthorityMock = vi.fn(async () => ({
+    instanceId: 'alpha-id',
+    instanceName: 'alpha',
+    instanceDir: '/runtime/instances/alpha',
+    instanceEnvPath: '/runtime/instances/alpha/.env',
+    runtimeRoot: '/runtime',
+    apiBaseUrl: 'http://localhost:4301',
+    apiKey: 'alpha.legacy',
+    databaseUrl: 'postgresql://alpha-db',
+    databaseIntent: null,
+    env: { IRANTI_API_KEY_PEPPER: 'pepper-secret-123456789012345678901234' },
+    boundProjects: [],
+    source: 'query',
+  }))
+  return { queryMock, endMock, randomBytesMock, resolveInstanceAuthorityMock }
 })
 
 vi.mock('crypto', async () => {
@@ -24,12 +39,22 @@ vi.mock('crypto', async () => {
   }
 })
 
-vi.mock('../../db.js', () => ({
-  env: dbEnv,
-  query: queryMock,
+vi.mock('../../lib/instance-authority.js', () => ({
+  resolveInstanceAuthority: resolveInstanceAuthorityMock,
 }))
 
+vi.mock('pg', () => {
+  const Pool = vi.fn(function () { return { query: queryMock, end: endMock } })
+  return {
+    default: { Pool },
+    Pool,
+  }
+})
+
+import pg from 'pg'
 import { authKeysRouter } from '../../routes/control-plane/auth-keys.js'
+
+const PoolMock = vi.mocked(pg.Pool)
 
 describe('auth-keys routes', () => {
   let server: ReturnType<typeof express.application.listen>
@@ -39,7 +64,11 @@ describe('auth-keys routes', () => {
 
   beforeEach(async () => {
     queryMock.mockReset()
+    endMock.mockReset()
     randomBytesMock.mockClear()
+    resolveInstanceAuthorityMock.mockClear()
+    PoolMock.mockClear()
+
     tempRoot = await mkdtemp(join(tmpdir(), 'iranti-cp-auth-keys-'))
     projectRoot = join(tempRoot, 'project-a')
     await mkdir(projectRoot, { recursive: true })
@@ -58,7 +87,7 @@ describe('auth-keys routes', () => {
     await rm(tempRoot, { recursive: true, force: true })
   })
 
-  it('GET returns registry metadata without exposing raw token material', async () => {
+  it('GET returns registry metadata for the selected instance without exposing raw token material', async () => {
     queryMock.mockResolvedValueOnce({
       rows: [{
         valueRaw: {
@@ -77,10 +106,12 @@ describe('auth-keys routes', () => {
       }],
     })
 
-    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys`)
+    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys?instanceId=alpha-id`)
     const body = await res.json() as { keys: Array<Record<string, unknown>> }
 
     expect(res.status).toBe(200)
+    expect(resolveInstanceAuthorityMock).toHaveBeenCalledWith('alpha-id')
+    expect(PoolMock).toHaveBeenCalledWith(expect.objectContaining({ connectionString: 'postgresql://alpha-db' }))
     expect(queryMock).toHaveBeenCalledWith(
       expect.stringContaining('SELECT "valueRaw" FROM knowledge_base'),
       ['system', 'auth', 'api_keys']
@@ -96,14 +127,15 @@ describe('auth-keys routes', () => {
       revokedAt: null,
     }])
     expect(body.keys[0]).not.toHaveProperty('secretHash')
+    expect(endMock).toHaveBeenCalledOnce()
   })
 
-  it('POST creates a key, persists it, and syncs the token into a project .env.iranti file', async () => {
+  it('POST creates a key in the selected instance registry and syncs the token into a project .env.iranti file', async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
 
-    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys`, {
+    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys?instanceId=alpha-id`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -127,6 +159,8 @@ describe('auth-keys routes', () => {
     expect(body.keyId).toBe('agent_key')
     expect(body.scopes).toEqual(['kb:read', 'memory:write:project/*'])
     expect(body.token).toMatch(/^agent_key\.[A-Za-z0-9_-]+$/)
+    expect(resolveInstanceAuthorityMock).toHaveBeenCalledWith('alpha-id')
+    expect(PoolMock).toHaveBeenCalledWith(expect.objectContaining({ connectionString: 'postgresql://alpha-db' }))
     expect(randomBytesMock).toHaveBeenCalledOnce()
     expect(queryMock).toHaveBeenCalledTimes(2)
 
@@ -149,7 +183,7 @@ describe('auth-keys routes', () => {
   })
 
   it('POST rejects wildcard entity types with specific entity IDs before touching the registry', async () => {
-    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys`, {
+    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys?instanceId=alpha-id`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -165,7 +199,7 @@ describe('auth-keys routes', () => {
     expect(queryMock).not.toHaveBeenCalled()
   })
 
-  it('DELETE revokes an existing key and keeps the registry row in place', async () => {
+  it('DELETE revokes an existing key in the selected instance registry and keeps the row in place', async () => {
     queryMock
       .mockResolvedValueOnce({
         rows: [{
@@ -185,7 +219,7 @@ describe('auth-keys routes', () => {
       })
       .mockResolvedValueOnce({ rows: [] })
 
-    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys/agent_1`, {
+    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys/agent_1?instanceId=alpha-id`, {
       method: 'DELETE',
     })
     const body = await res.json() as { ok: boolean; keyId: string }
@@ -203,5 +237,30 @@ describe('auth-keys routes', () => {
     })
     expect(typeof persisted.keys[0]?.revokedAt).toBe('string')
     expect(String(persisted.keys[0]?.revokedAt)).not.toBe('')
+  })
+
+  it('returns a scoped database error when the selected instance has no DATABASE_URL', async () => {
+    resolveInstanceAuthorityMock.mockResolvedValueOnce({
+      instanceId: 'alpha-id',
+      instanceName: 'alpha',
+      instanceDir: '/runtime/instances/alpha',
+      instanceEnvPath: '/runtime/instances/alpha/.env',
+      runtimeRoot: '/runtime',
+      apiBaseUrl: 'http://localhost:4301',
+      apiKey: 'alpha.legacy',
+      databaseUrl: null,
+      databaseIntent: null,
+      env: {},
+      boundProjects: [],
+      source: 'query',
+    })
+
+    const res = await fetch(`${baseUrl}/api/control-plane/auth-keys?instanceId=alpha-id`)
+    const body = await res.json() as { error: string; code: string }
+
+    expect(res.status).toBe(503)
+    expect(body.code).toBe('NO_DATABASE_URL')
+    expect(body.error).toContain('instance alpha')
+    expect(queryMock).not.toHaveBeenCalled()
   })
 })

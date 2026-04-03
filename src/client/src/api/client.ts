@@ -1,4 +1,4 @@
-/* Iranti Control Plane — Shared API client */
+/* Iranti Control Plane - Shared API client */
 /* All control-plane API calls go through this module. */
 
 import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ControlPlaneSelfActionResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, UnbindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
@@ -24,7 +24,7 @@ export async function apiFetch<T>(
 }
 
 /**
- * Fetch the version sync status — compares locally installed Iranti
+ * Fetch the version sync status - compares locally installed Iranti
  * version against the latest published version on npm.
  * CP-T078
  */
@@ -33,7 +33,7 @@ export function fetchVersionSync(instanceId?: string): Promise<VersionSyncResult
 }
 
 /**
- * Fetch the iranti CLI install state — detects whether the CLI is on PATH
+ * Fetch the iranti CLI install state - detects whether the CLI is on PATH
  * and extracts its version.
  * CP-T079
  */
@@ -50,7 +50,7 @@ export async function startInstance(name: string): Promise<StartInstanceResult> 
   const url = new URL(`${BASE}/instances/${encodeURIComponent(name)}/start`, window.location.origin)
   const res = await fetch(url.toString(), { method: 'POST' })
   const body = await res.json().catch(() => ({ error: res.statusText })) as StartInstanceResult & { error?: string }
-  // 409 = already running — treat as soft info so the UI shows a helpful
+  // 409 = already running - treat as soft info so the UI shows a helpful
   // message rather than throwing and potentially crashing the component
   if (res.status === 409) {
     return { started: false, instance: name, reason: body.error ?? 'Already running' }
@@ -100,7 +100,7 @@ export async function restartInstance(name: string): Promise<RestartInstanceResu
 
 /**
  * Request the control plane server to open a whitelisted local config file
- * in the user's default system editor. Always resolves — never rejects —
+ * in the user's default system editor. Always resolves - never rejects -
  * because the server returns HTTP 200 for both success and "file not found".
  * CP-T084
  */
@@ -247,7 +247,7 @@ export function clearFallbackChain(instanceId?: string): Promise<ProviderFallbac
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch routing defaults for a given provider — what model each task would use
+ * Fetch routing defaults for a given provider - what model each task would use
  * with no overrides set. CP-T087.
  */
 export function fetchRoutingDefaults(provider: string, instanceId?: string): Promise<RoutingDefaultsResponse> {
@@ -304,15 +304,15 @@ export async function triggerUpgrade(instanceName: string): Promise<{ jobId: str
 
 /**
  * List all registry-backed API keys for the active Iranti instance.
- * Never includes raw token values — only metadata and masked status.
+ * Never includes raw token values - only metadata and masked status.
  */
-export function fetchAuthKeys(): Promise<AuthKeysListResponse> {
-  return apiFetch<AuthKeysListResponse>('/auth-keys')
+export function fetchAuthKeys(instanceId?: string): Promise<AuthKeysListResponse> {
+  return apiFetch<AuthKeysListResponse>('/auth-keys', { instanceId })
 }
 
 /**
  * Create or rotate an API key.
- * Returns the full token exactly once — the caller must copy it immediately.
+ * Returns the full token exactly once - the caller must copy it immediately.
  */
 export async function createAuthKey(params: {
   keyId:           string
@@ -320,12 +320,15 @@ export async function createAuthKey(params: {
   scopes:          string[]
   description?:    string
   syncToProject?:  string
+  instanceId?:     string
 }): Promise<AuthKeyCreateResult> {
   const url = new URL(`${BASE}/auth-keys`, window.location.origin)
+  if (params.instanceId) url.searchParams.set('instanceId', params.instanceId)
+  const { instanceId: _instanceId, ...body } = params
   const res = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+    body: JSON.stringify(body),
   })
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
@@ -336,8 +339,9 @@ export async function createAuthKey(params: {
  * Revoke a registry API key by keyId.
  * The key remains visible in the list with Revoked status for audit purposes.
  */
-export async function revokeAuthKey(keyId: string): Promise<AuthKeyRevokeResult> {
+export async function revokeAuthKey(keyId: string, instanceId?: string): Promise<AuthKeyRevokeResult> {
   const url = new URL(`${BASE}/auth-keys/${encodeURIComponent(keyId)}`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
   const res = await fetch(url.toString(), { method: 'DELETE' })
   const data = await res.json().catch(() => ({ error: res.statusText }))
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
@@ -424,6 +428,7 @@ export async function deleteInstance(
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as DeleteInstanceResult
 }
+
 
 // ---------------------------------------------------------------------------
 // Project Bindings (CP-T091)
@@ -653,3 +658,4 @@ export async function runDebugAttend(
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
   return data as AttendResult
 }
+

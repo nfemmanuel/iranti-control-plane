@@ -9,6 +9,7 @@ import { env as controlPlaneEnv } from '../../db.js'
 import { runIrantiCommand, runIrantiJson } from '../../lib/iranti-cli.js'
 import { deriveInstanceId, parseSimpleEnv, resolveInstanceAuthority } from '../../lib/instance-authority.js'
 import { classifyRuntimeRoot, runtimeRootCandidates } from '../../lib/runtime-roots.js'
+import { provisionDatabase } from '../../lib/db-provision.js'
 
 const INSTANCE_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/
 const ALLOWED_PROVIDERS = ['openai', 'claude', 'gemini', 'groq', 'mistral', 'ollama', 'mock'] as const
@@ -78,6 +79,15 @@ function validateDbUrl(dbUrl: string): string | null {
     }
   }
   return null
+}
+
+function sanitizeLegacyApiKeyId(input: string): string {
+  return input.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+function generateInstanceApiKey(name: string): string {
+  const keyId = sanitizeLegacyApiKeyId(name + '_control_plane') || 'iranti'
+  return keyId + '.' + randomBytes(32).toString('base64url')
 }
 
 function preferredRuntimeRoot(): string {
@@ -362,6 +372,7 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
   }
 
   const runtimeRoot = preferredRuntimeRoot()
+  const generatedApiKey = generateInstanceApiKey(name)
   const { instanceDir, envFile } = instancePaths(runtimeRoot, name)
   if (existsSync(instanceDir)) {
     res.status(409).json({
@@ -389,6 +400,8 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     String(port),
     '--db-url',
     dbUrl.trim(),
+    '--api-key',
+    generatedApiKey,
     '--provider',
     provider,
   ]
@@ -432,6 +445,22 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
 
   const instanceEnv = parseEnvFile(envFile)
 
+  // Auto-provision the database on create. Best effort only: the instance itself
+  // should still be usable even if the migration step needs a manual repair pass.
+  let note = 'Instance created. Open it in Control Plane to start the runtime, finish provider setup, and bind projects.'
+  try {
+    const prov = await provisionDatabase(dbUrl.trim(), instanceDir)
+    if (prov.migrated) {
+      note = prov.created
+        ? `Instance and database "${prov.databaseName}" created — ready to start.`
+        : `Instance created. Database "${prov.databaseName}" already existed — migrations applied.`
+    } else if (prov.created) {
+      note = `Instance and database "${prov.databaseName}" created. ${prov.migrationNote} Use the setup or repair flow if migrations are still needed.`
+    }
+  } catch {
+    // Non-fatal: instance files are created even if provisioning still needs repair.
+  }
+
   res.status(201).json({
     ok: true,
     name,
@@ -439,7 +468,7 @@ instanceLifecycleRouter.post('/instances', async (req: Request, res: Response): 
     envFile,
     port,
     provider: instanceEnv['LLM_PROVIDER'] ?? provider,
-    note: 'Instance created. Open it in Control Plane to start the runtime, finish provider setup, and bind projects.',
+    note,
   })
 })
 

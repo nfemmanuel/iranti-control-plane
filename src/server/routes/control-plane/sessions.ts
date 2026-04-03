@@ -63,6 +63,29 @@ export interface SessionsResponse {
   error?: string
 }
 
+export interface SessionLedgerRecord {
+  eventId: string
+  timestamp: string
+  staffComponent: 'Librarian' | 'Attendant' | 'Archivist' | 'Resolutionist'
+  actionType: string
+  agentId: string
+  source: string
+  entityType?: string | null
+  entityId?: string | null
+  key?: string | null
+  reason?: string | null
+  level: 'audit' | 'debug'
+  metadata?: Record<string, unknown> | null
+}
+
+export interface SessionLedgerResponse {
+  items: SessionLedgerRecord[]
+  total: number
+  fetchedAt: string
+  note?: string
+  error?: string
+}
+
 export interface LegacyKBSessionRow {
   entityId: string
   key: string
@@ -356,6 +379,57 @@ function normalizeSort(value: unknown): SessionListSort | undefined {
   }
 }
 
+function normalizeLedgerLevel(value: unknown): 'audit' | 'debug' | undefined {
+  switch (String(value ?? '').trim().toLowerCase()) {
+    case 'audit':
+      return 'audit'
+    case 'debug':
+      return 'debug'
+    default:
+      return undefined
+  }
+}
+
+function parseLedgerLimit(value: unknown): number {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return 50
+  }
+  const parsed = Number.parseInt(String(value), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new Error('limit must be an integer >= 1')
+  }
+  return Math.min(parsed, 200)
+}
+
+function normalizeLedgerEvent(raw: Record<string, unknown>): SessionLedgerRecord {
+  const level = normalizeLedgerLevel(raw['level']) ?? 'audit'
+  const metadata = raw['metadata']
+  return {
+    eventId: String(raw['eventId'] ?? raw['event_id'] ?? raw['id'] ?? ''),
+    timestamp: raw['timestamp'] instanceof Date ? raw['timestamp'].toISOString() : String(raw['timestamp'] ?? ''),
+    staffComponent: String(raw['staffComponent'] ?? raw['staff_component'] ?? 'Attendant') as SessionLedgerRecord['staffComponent'],
+    actionType: String(raw['actionType'] ?? raw['action_type'] ?? ''),
+    agentId: String(raw['agentId'] ?? raw['agent_id'] ?? ''),
+    source: String(raw['source'] ?? ''),
+    entityType: typeof raw['entityType'] === 'string'
+      ? raw['entityType']
+      : typeof raw['entity_type'] === 'string'
+        ? raw['entity_type']
+        : null,
+    entityId: typeof raw['entityId'] === 'string'
+      ? raw['entityId']
+      : typeof raw['entity_id'] === 'string'
+        ? raw['entity_id']
+        : null,
+    key: typeof raw['key'] === 'string' ? raw['key'] : null,
+    reason: typeof raw['reason'] === 'string' ? raw['reason'] : null,
+    level,
+    metadata: metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata as Record<string, unknown>
+      : null,
+  }
+}
+
 function applySessionFilters(
   sessions: SessionRecord[],
   options: { agentId?: string; operatorState?: SessionOperatorState; staleOnly?: boolean; sort?: SessionListSort; limit?: number },
@@ -439,6 +513,73 @@ async function fetchIrantiSessions(req: Request): Promise<{ sessions: SessionRec
   }
 }
 
+async function fetchIrantiSessionLedger(
+  req: Request,
+  sessionId: string,
+): Promise<SessionLedgerResponse> {
+  const url = new URL(`${getIrantiUrl()}/memory/ledger`)
+  const limit = parseLedgerLimit(req.query['limit'])
+  const agentId = typeof req.query['agentId'] === 'string' ? req.query['agentId'].trim() : ''
+  const actionType = typeof req.query['actionType'] === 'string' ? req.query['actionType'].trim() : ''
+  const host = typeof req.query['host'] === 'string' ? req.query['host'].trim() : ''
+  const level = normalizeLedgerLevel(req.query['level'])
+
+  url.searchParams.set('sessionId', sessionId)
+  url.searchParams.set('limit', String(limit))
+  if (agentId) url.searchParams.set('agentId', agentId)
+  if (actionType) url.searchParams.set('actionType', actionType)
+  if (host) url.searchParams.set('host', host)
+  if (level) url.searchParams.set('level', level)
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 4000)
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: buildHeaders(req),
+      signal: controller.signal,
+    })
+
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>
+
+    if (!response.ok) {
+      const upstreamError = typeof body['error'] === 'string' ? body['error'] : null
+      return {
+        items: [],
+        total: 0,
+        fetchedAt: new Date().toISOString(),
+        note: 'Source: Iranti /memory/ledger',
+        error: upstreamError
+          ? `Iranti /memory/ledger returned HTTP ${response.status}: ${upstreamError}`
+          : `Iranti /memory/ledger returned HTTP ${response.status}`,
+      }
+    }
+
+    const rawItems = Array.isArray(body['items']) ? body['items'] : []
+    const items = rawItems
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+      .map(normalizeLedgerEvent)
+
+    return {
+      items,
+      total: typeof body['total'] === 'number' ? body['total'] : items.length,
+      fetchedAt: new Date().toISOString(),
+      note: 'Source: Iranti /memory/ledger',
+    }
+  } catch (error) {
+    return {
+      items: [],
+      total: 0,
+      fetchedAt: new Date().toISOString(),
+      note: 'Source: Iranti /memory/ledger',
+      error: error instanceof Error ? error.message : String(error),
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 async function fetchLocalFallbackSessions(): Promise<SessionRecord[]> {
   const [legacyResult, attendantResult] = await Promise.all([
     query<LegacyKBSessionRow>(`
@@ -512,6 +653,31 @@ sessionsRouter.get('/', async (req: Request, res: Response) => {
       fetchedAt: new Date().toISOString(),
       error: error instanceof Error ? error.message : String(error),
     } satisfies SessionsResponse)
+  }
+})
+
+sessionsRouter.get('/:sessionId/ledger', async (req: Request, res: Response) => {
+  try {
+    const sessionId = typeof req.params['sessionId'] === 'string' ? req.params['sessionId'].trim() : ''
+    if (!sessionId) {
+      res.status(400).json({
+        items: [],
+        total: 0,
+        fetchedAt: new Date().toISOString(),
+        error: 'sessionId path parameter is required.',
+      } satisfies SessionLedgerResponse)
+      return
+    }
+
+    const ledger = await fetchIrantiSessionLedger(req, sessionId)
+    res.json(ledger)
+  } catch (error) {
+    res.status(400).json({
+      items: [],
+      total: 0,
+      fetchedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+    } satisfies SessionLedgerResponse)
   }
 })
 

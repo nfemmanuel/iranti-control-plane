@@ -28,7 +28,7 @@ vi.mock('../../db.js', () => ({
 vi.mock('pg', () => {
   const query = vi.fn()
   const end = vi.fn()
-  const Pool = vi.fn(() => ({ query, end }))
+  const Pool = vi.fn(function () { return { query, end } })
   return {
     default: { Pool },
     Pool,
@@ -80,10 +80,7 @@ describe('instance lifecycle routes', () => {
     await mkdir(join(runtimeRoot, 'instances'), { recursive: true })
 
     runtimeRootCandidatesMock.mockReturnValue([runtimeRoot])
-    PoolMock.mockImplementation(() => ({
-      query: vi.fn(),
-      end: vi.fn(),
-    }) as never)
+    PoolMock.mockImplementation(function () { return { query: vi.fn(), end: vi.fn() } } as never)
     delete process.env['IRANTI_HOME']
     delete process.env['IRANTI_INSTANCE_ENV']
 
@@ -105,7 +102,7 @@ describe('instance lifecycle routes', () => {
 
   it('normalizes legacy anthropic input to claude and passes the selected runtime root to the CLI', async () => {
     runIrantiCommandMock.mockImplementation(async (args) => {
-      expect(args).toEqual([
+      expect(args.slice(0, 8)).toEqual([
         'instance',
         'create',
         'alpha',
@@ -114,7 +111,12 @@ describe('instance lifecycle routes', () => {
         '--port',
         '4301',
         '--db-url',
-        'postgresql://postgres:postgres@localhost:5432/alpha',
+      ])
+      expect(args[8]).toBe('postgresql://postgres:postgres@localhost:5432/alpha')
+      expect(args[9]).toBe('--api-key')
+      const generatedApiKey = args[10]
+      expect(generatedApiKey).toMatch(/^alpha_control_plane\.[A-Za-z0-9_-]+$/)
+      expect(args.slice(11)).toEqual([
         '--provider',
         'claude',
         '--provider-key',
@@ -125,7 +127,7 @@ describe('instance lifecycle routes', () => {
         IRANTI_PORT: '4301',
         DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/alpha',
         LLM_PROVIDER: 'claude',
-        IRANTI_API_KEY: 'replace_me_with_api_key',
+        IRANTI_API_KEY: generatedApiKey,
         ANTHROPIC_API_KEY: 'sk-ant-real',
       }, 4301)
       return { resolution: null as never, stdout: '', stderr: '' }
@@ -150,6 +152,7 @@ describe('instance lifecycle routes', () => {
     const envRaw = await readFile(join(runtimeRoot, 'instances', 'alpha', '.env'), 'utf8')
     expect(envRaw).toContain('LLM_PROVIDER=claude')
     expect(envRaw).toContain('ANTHROPIC_API_KEY=sk-ant-real')
+    expect(envRaw).not.toContain('replace_me_with_api_key')
   })
 
   it('rejects providerKey for ollama to match current Iranti CLI semantics', async () => {

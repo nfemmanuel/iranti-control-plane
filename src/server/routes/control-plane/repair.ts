@@ -11,6 +11,7 @@ import {
 import { runIrantiJson } from '../../lib/iranti-cli.js'
 import { inspectProjectIntegration } from '../../lib/project-integration.js'
 import { buildPgvectorRemediation, type DoctorCommand } from '../../lib/doctor-remediation.js'
+import { provisionDatabase } from '../../lib/db-provision.js'
 
 export const repairRouter = Router()
 const { Pool } = pg
@@ -533,6 +534,35 @@ repairRouter.post('/:instanceId/doctor', async (req: Request, res: Response, nex
       checks,
       checkedAt: new Date().toISOString(),
     })
+  } catch (err) {
+    next(err)
+  }
+})
+
+repairRouter.post('/:instanceId/repair/provision-database', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const scope = await resolveScopeOr404(req.params['instanceId'], res)
+    if (!scope) return
+
+    if (!scope.databaseUrl) {
+      res.status(422).json({
+        error: 'No DATABASE_URL configured for this instance.',
+        code: 'NO_DATABASE_URL',
+      })
+      return
+    }
+
+    const result = await provisionDatabase(scope.databaseUrl, scope.instanceDir)
+
+    await writeAuditLog(scope, 'provision_database', {
+      instanceId: scope.instanceId,
+      instanceName: scope.instanceName,
+      databaseName: result.databaseName,
+      created: result.created,
+      migrated: result.migrated,
+    })
+
+    res.json({ ok: true, ...result })
   } catch (err) {
     next(err)
   }

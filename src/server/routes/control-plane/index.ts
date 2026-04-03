@@ -29,6 +29,7 @@ import { codexIntegrationRouter } from './codex-integration.js'
 import { attendantDebugRouter } from './attendant-debug.js'
 import { localToolsRouter } from './local-tools.js'
 import { controlPlaneSelfRouter } from './control-plane-self.js'
+import { sessionLedgerRouter } from './session-ledger.js'
 
 export const controlPlaneRouter = Router()
 
@@ -53,6 +54,7 @@ controlPlaneRouter.use('/diagnostics', diagnosticsRouter)
 controlPlaneRouter.use('/metrics', metricsRouter)
 controlPlaneRouter.use('/overview', overviewRouter)
 controlPlaneRouter.use('/sessions', sessionsRouter)
+controlPlaneRouter.use('/session-ledger', sessionLedgerRouter)
 controlPlaneRouter.use('/instances', upgradeRouter)
 controlPlaneRouter.use('/version-sync', versionSyncRouter)
 controlPlaneRouter.use('/install-state', installStateRouter)

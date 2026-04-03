@@ -2081,7 +2081,7 @@ function DetailPanel({ instance, instances, siblingConflictNames, autoOpenConfig
         </section>
         {/* CP-T088: API Key Manager — registry-backed keys for this instance */}
         <section className={styles.detailSection}>
-          <ApiKeyManager instances={instances} />
+          <ApiKeyManager instances={instances} activeInstanceId={instance.instanceId} />
         </section>
         <UpgradeSection
           instanceName={instance.name}

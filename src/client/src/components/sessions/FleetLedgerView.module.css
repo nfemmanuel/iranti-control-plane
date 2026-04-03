@@ -1,0 +1,568 @@
+/* Iranti Control Plane — Fleet Ledger View Styles */
+/* Terminals palette — token-only colors, consistent with SessionsView */
+
+/* ──────────────────────────────────────────────────────────────────
+   Page container
+   ────────────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-base);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Page header
+   ────────────────────────────────────────────────────────────────── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  gap: var(--space-4);
+}
+
+.pageHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pageIcon {
+  font-size: 20px;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.pageTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.pageSubtitle {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: 2px 0 0;
+}
+
+.eventCount {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Filters bar
+   ────────────────────────────────────────────────────────────────── */
+
+.filtersBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.filterInput {
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  padding: 4px var(--space-2);
+  height: 28px;
+  min-width: 0;
+  transition: border-color 0.1s;
+}
+
+.filterInput::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.filterInput:focus {
+  outline: none;
+  border-color: var(--color-accent-primary);
+}
+
+.filterInputWide {
+  width: 130px;
+}
+
+.filterInputNarrow {
+  width: 100px;
+}
+
+.filterSeparator {
+  flex: 1;
+}
+
+.refreshButton {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  padding: 4px var(--space-3);
+  height: 28px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.refreshButton:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.refreshButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Content region
+   ────────────────────────────────────────────────────────────────── */
+
+.contentRegion {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Section wrapper
+   ────────────────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  padding: var(--space-2) var(--section-padding);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sectionNoteInline {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-left: var(--space-2);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Tables (shared base)
+   ────────────────────────────────────────────────────────────────── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-font-size, 12px);
+  table-layout: fixed;
+}
+
+.headerCell {
+  background: var(--color-bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 var(--space-3);
+  height: var(--table-header-height, 32px);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell {
+  height: var(--table-row-height, 36px);
+  padding: 0 var(--space-3);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.cellMono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.cellPrimary {
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Ledger table column sizing
+   ────────────────────────────────────────────────────────────────── */
+
+.ledgerTable th:nth-child(1) { width: 11%; }  /* Time */
+.ledgerTable th:nth-child(2) { width: 10%; }  /* Instance */
+.ledgerTable th:nth-child(3) { width: 12%; }  /* Component */
+.ledgerTable th:nth-child(4) { width: 14%; }  /* Action Type */
+.ledgerTable th:nth-child(5) { width: 11%; }  /* Agent */
+.ledgerTable th:nth-child(6) { width: 10%; }  /* Host */
+.ledgerTable th:nth-child(7) { width: 9%;  }  /* Source */
+.ledgerTable th:nth-child(8) { width: 23%; }  /* Session */
+
+/* ──────────────────────────────────────────────────────────────────
+   Row states
+   ────────────────────────────────────────────────────────────────── */
+
+.row {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.row:hover {
+  background: var(--color-bg-elevated);
+}
+
+.rowExpanded {
+  background: var(--color-accent-subtle);
+}
+
+.rowExpanded:hover {
+  background: var(--color-accent-subtle);
+}
+
+/* Level badge — debug rows are visually quieter */
+.rowDebug {
+  opacity: 0.75;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Metadata expansion inline
+   ────────────────────────────────────────────────────────────────── */
+
+.metadataRow td {
+  padding: 0;
+  height: auto;
+}
+
+.metadataExpanded {
+  background: var(--color-bg-sunken);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: var(--space-3) var(--section-padding);
+}
+
+.metadataLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  margin: 0 0 var(--space-2);
+}
+
+.metadataPre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.metadataNull {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  font-style: italic;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Level badge (audit / debug)
+   ────────────────────────────────────────────────────────────────── */
+
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+.levelAudit {
+  color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 28%, transparent);
+}
+
+.levelDebug {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Status badges (ingestion health)
+   ────────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+}
+
+.badgeHealthy {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, transparent);
+}
+
+.badgeDegraded {
+  color: var(--color-status-warning);
+  background: var(--color-status-warning-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+}
+
+.badgeFailing {
+  color: var(--color-status-error);
+  background: var(--color-status-error-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+}
+
+.badgeNeverPolled {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Health table column sizing
+   ────────────────────────────────────────────────────────────────── */
+
+.healthTable th:nth-child(1) { width: 20%; }  /* Instance */
+.healthTable th:nth-child(2) { width: 10%; }  /* Status */
+.healthTable th:nth-child(3) { width: 15%; }  /* Last polled */
+.healthTable th:nth-child(4) { width: 10%; }  /* Failures */
+.healthTable th:nth-child(5) { width: 12%; }  /* Total events */
+.healthTable th:nth-child(6) { width: 33%; }  /* Last error */
+
+/* ──────────────────────────────────────────────────────────────────
+   Health section collapsible toggle
+   ────────────────────────────────────────────────────────────────── */
+
+.sectionToggleBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: color 0.1s;
+  margin-left: var(--space-2);
+}
+
+.sectionToggleBtn:hover {
+  color: var(--color-text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Empty state
+   ────────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--section-padding);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.emptyStateIcon {
+  font-size: 28px;
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.emptyStateTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.emptyStateBody {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+  margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Error state
+   ────────────────────────────────────────────────────────────────── */
+
+.errorState {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--section-padding);
+  background: var(--color-status-error-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-status-error) 30%, transparent);
+  font-size: 12px;
+  color: var(--color-status-error);
+  flex-shrink: 0;
+}
+
+.errorStateIcon {
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Loading spinner
+   ────────────────────────────────────────────────────────────────── */
+
+.spinnerWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--section-padding);
+  gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Skeleton rows
+   ────────────────────────────────────────────────────────────────── */
+
+.skeletonRow td {
+  padding: var(--space-2) var(--space-3);
+}
+
+.skeletonBar {
+  height: 12px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-elevated);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Last error cell
+   ────────────────────────────────────────────────────────────────── */
+
+.errorCell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-status-error);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--color-text-tertiary);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Responsive
+   ────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .ledgerTable th:nth-child(7),
+  .ledgerTable td:nth-child(7) {
+    display: none;
+  }
+  .ledgerTable th:nth-child(8),
+  .ledgerTable td:nth-child(8) {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .filtersBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterInputWide,
+  .filterInputNarrow {
+    width: 100%;
+  }
+
+  .filterSeparator {
+    display: none;
+  }
+}

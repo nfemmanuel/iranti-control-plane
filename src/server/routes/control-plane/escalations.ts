@@ -5,8 +5,12 @@
  * POST /escalations/:id/resolve — resolve a pending escalation
  *
  * Escalation data lives in the `archive` table.
- * Pending escalations: rows where "resolutionState" IS NULL AND "supersededBy" IS NOT NULL
- * Resolved escalations: rows where "resolutionState" IS NOT NULL
+ * Pending escalations: rows where "archivedReason" = 'contradicted' AND "resolutionState" IS NULL
+ * Resolved escalations: rows where "archivedReason" = 'contradicted' AND "resolutionState" IS NOT NULL
+ *
+ * Note: supersededBy is NULL on pending escalation rows — they are the rejected challenger
+ * fact, not the fact that was overwritten. Filtering by supersededBy IS NOT NULL was wrong
+ * and returned no results.
  *
  * PM decision (2026-03-20): escalation pathway is direct DB write with audit log.
  * No separate Resolutionist CLI pathway exists programmatically in Phase 2.
@@ -214,7 +218,10 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
     }
 
     if (status === 'pending') {
-      // Pending: resolutionState IS NULL AND supersededBy IS NOT NULL
+      // Pending: contradicted facts (challenger was held for operator review)
+      // archivedReason = 'contradicted' means the challenger was rejected and
+      // awaits resolution. supersededBy is NULL on these rows — they are the
+      // rejected challenger, not the fact that was superseded.
       const archiveResult = await query(
         `SELECT
           id::text            AS id,
@@ -234,7 +241,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           "supersededBy"::text AS "supersededBy",
           "conflictLog"
         FROM archive
-        WHERE "resolutionState" IS NULL AND "supersededBy" IS NOT NULL
+        WHERE "archivedReason" = 'contradicted' AND "resolutionState" IS NULL
         ORDER BY "archivedAt" ASC`
       )
 
@@ -307,7 +314,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
 
       res.json({ pending, total: pending.length })
     } else {
-      // Resolved: resolutionState IS NOT NULL
+      // Resolved: contradicted facts that have been operator-resolved
       const resolvedResult = await query(
         `SELECT
           id::text              AS id,
@@ -318,7 +325,7 @@ escalationsRouter.get('/', async (req: Request, res: Response, next: NextFunctio
           "archivedAt",
           NULL::text AS "resolutionNote"
         FROM archive
-        WHERE "resolutionState" IS NOT NULL
+        WHERE "archivedReason" = 'contradicted' AND "resolutionState" IS NOT NULL
         ORDER BY "archivedAt" DESC
         LIMIT 500`
       )

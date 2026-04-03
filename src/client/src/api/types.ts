@@ -851,6 +851,29 @@ export interface SessionRecord {
   recovery?: Record<string, unknown> | null
 }
 
+export interface SessionLedgerEvent {
+  eventId: string
+  timestamp: string
+  staffComponent: 'Librarian' | 'Attendant' | 'Archivist' | 'Resolutionist'
+  actionType: string
+  agentId: string
+  source: string
+  entityType?: string | null
+  entityId?: string | null
+  key?: string | null
+  reason?: string | null
+  level: 'audit' | 'debug'
+  metadata?: Record<string, unknown> | null
+}
+
+export interface SessionLedgerResponse {
+  items: SessionLedgerEvent[]
+  total: number
+  fetchedAt: string
+  error?: string
+  note?: string
+}
+
 export interface SessionsResponse {
   sessions: SessionRecord[]
   total: number
@@ -1053,6 +1076,7 @@ export interface DeleteInstanceResult {
   code?: string
 }
 
+
 /* ------------------------------------------------------------------ */
 /*  Project Bindings (CP-T091)                                         */
 /* ------------------------------------------------------------------ */
@@ -1195,4 +1219,3 @@ export interface HandshakeResult {
 export interface AttendResult {
   [key: string]: unknown
 }
-

@@ -1,39 +1,13 @@
-/**
- * Auth Key Manager routes — CP-T088
- *
- * Manages Iranti registry-backed API keys. These are distinct from upstream
- * provider keys (OpenAI, Anthropic, etc.) — they are the tokens that agents
- * and project bindings use to authenticate against the Iranti instance.
- *
- * The key registry is stored as a JSON blob in the knowledge_entries table:
- *   entityType = 'system', entityId = 'auth', key = 'api_keys'
- *
- * Routes:
- *   GET    /api/control-plane/auth-keys           — list all keys (no raw tokens)
- *   POST   /api/control-plane/auth-keys           — create/rotate a key
- *   DELETE /api/control-plane/auth-keys/:keyId    — revoke a key
- *
- * SECURITY: raw token values are NEVER returned by list/get endpoints.
- * The full token is returned exactly once on creation, matching the Iranti
- * CLI behaviour ("Copy this token now — it will not be shown again.").
- *
- * The backend connects directly to the Iranti instance PostgreSQL DB using
- * the DATABASE_URL resolved from the instance env by db.ts. We do NOT proxy
- * through the Iranti HTTP API because we are managing the auth tokens
- * themselves and cannot authenticate against an API that we are setting up.
- */
-
 import { Router, Request, Response } from 'express'
 import { createHash, randomBytes } from 'crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
-import { env, query } from '../../db.js'
+import pg from 'pg'
+import { resolveInstanceAuthority, type ResolvedInstanceAuthority } from '../../lib/instance-authority.js'
 
 export const authKeysRouter = Router()
 
-// ---------------------------------------------------------------------------
-// Constants — must match Iranti's src/security/apiKeys.ts
-// ---------------------------------------------------------------------------
+const { Pool } = pg
 
 const REGISTRY_ENTITY_TYPE = 'system'
 const REGISTRY_ENTITY_ID   = 'auth'
@@ -41,7 +15,6 @@ const REGISTRY_KEY         = 'api_keys'
 const REGISTRY_SOURCE      = 'system'
 const REGISTRY_CREATED_BY  = 'system'
 
-// Standard scopes surfaced in the UI scope selector
 export const STANDARD_SCOPES = [
   'kb:read',
   'kb:write',
@@ -51,10 +24,6 @@ export const STANDARD_SCOPES = [
   'agents:write',
   'metrics:read',
 ] as const
-
-// ---------------------------------------------------------------------------
-// Key record type (mirrors Iranti's internal ApiKeyRecord)
-// ---------------------------------------------------------------------------
 
 interface ApiKeyRecord {
   keyId:       string
@@ -73,16 +42,12 @@ interface ApiKeyRegistry {
   keys:    ApiKeyRecord[]
 }
 
-// ---------------------------------------------------------------------------
-// Crypto helpers — must match Iranti's src/security/apiKeys.ts
-// ---------------------------------------------------------------------------
-
-function keyPepper(): string {
-  return process.env.IRANTI_API_KEY_PEPPER ?? ''
+function keyPepper(scope: ResolvedInstanceAuthority): string {
+  return scope.env['IRANTI_API_KEY_PEPPER']?.trim() ?? ''
 }
 
-function hashSecret(secret: string): string {
-  return createHash('sha256').update(`${secret}${keyPepper()}`).digest('hex')
+function hashSecret(secret: string, scope: ResolvedInstanceAuthority): string {
+  return createHash('sha256').update(`${secret}${keyPepper(scope)}`).digest('hex')
 }
 
 function generateSecret(length = 32): string {
@@ -96,10 +61,6 @@ function sanitizeKeyId(input: string): string {
 function formatToken(keyId: string, secret: string): string {
   return `${sanitizeKeyId(keyId)}.${secret}`
 }
-
-// ---------------------------------------------------------------------------
-// Scope validation — subset of Iranti's src/security/scopes.ts
-// ---------------------------------------------------------------------------
 
 function validateScopeList(scopes: string[]): void {
   for (const scope of scopes) {
@@ -137,13 +98,23 @@ function validateScopeList(scopes: string[]): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Registry persistence — uses the CP's existing pg pool via query()
-// ---------------------------------------------------------------------------
+async function withScopedPool<T>(scope: ResolvedInstanceAuthority, fn: (pool: pg.Pool) => Promise<T>): Promise<T> {
+  const pool = new Pool({
+    connectionString: scope.databaseUrl!,
+    max: 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  })
 
-async function loadRegistry(): Promise<ApiKeyRegistry> {
-  // knowledge_base uses quoted camelCase column names (Prisma convention, table mapped via @@map)
-  const result = await query<{ valueRaw: unknown }>(
+  try {
+    return await fn(pool)
+  } finally {
+    await Promise.resolve(pool.end()).catch(() => undefined)
+  }
+}
+
+async function loadRegistry(pool: pg.Pool): Promise<ApiKeyRegistry> {
+  const result = await pool.query<{ valueRaw: unknown }>(
     `SELECT "valueRaw" FROM knowledge_base
      WHERE "entityType" = $1 AND "entityId" = $2 AND key = $3
      LIMIT 1`,
@@ -154,16 +125,14 @@ async function loadRegistry(): Promise<ApiKeyRegistry> {
     return { version: 1, keys: [] }
   }
 
-  const raw = result.rows[0].valueRaw
-  return normalizeRegistry(raw)
+  return normalizeRegistry(result.rows[0]?.valueRaw)
 }
 
-async function saveRegistry(registry: ApiKeyRegistry): Promise<void> {
+async function saveRegistry(pool: pg.Pool, registry: ApiKeyRegistry): Promise<void> {
   const normalized = normalizeRegistry(registry)
   const valueSummary = `API key registry (${normalized.keys.length} keys)`
 
-  // ON CONFLICT key is ("entityType", "entityId", key) per the Prisma @@unique constraint
-  await query(
+  await pool.query(
     `INSERT INTO knowledge_base
        ("entityType", "entityId", key, "valueRaw", "valueSummary",
         confidence, source, "createdBy", "isProtected", "conflictLog", "createdAt", "updatedAt")
@@ -216,10 +185,6 @@ function normalizeRegistry(raw: unknown): ApiKeyRegistry {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Sync token to project .env.iranti (optional, per syncToProject param)
-// ---------------------------------------------------------------------------
-
 function syncTokenToProject(projectRoot: string, token: string): void {
   const envPath = resolve(projectRoot, '.env.iranti')
   let lines: string[] = []
@@ -250,36 +215,37 @@ function syncTokenToProject(projectRoot: string, token: string): void {
   writeFileSync(envPath, updated.join('\n'), 'utf8')
 }
 
-// ---------------------------------------------------------------------------
-// Guard — ensures DATABASE_URL is configured before any DB op
-// ---------------------------------------------------------------------------
+async function resolveScopedInstance(req: Request, res: Response): Promise<ResolvedInstanceAuthority | null> {
+  const instanceId = typeof req.query.instanceId === 'string' ? req.query.instanceId.trim() : ''
+  const scope = await resolveInstanceAuthority(instanceId || undefined)
 
-function getDatabaseUrl(): string | null {
-  return env['DATABASE_URL'] ?? process.env.DATABASE_URL ?? null
-}
+  if (!scope) {
+    res.status(404).json({
+      error: instanceId
+        ? `Iranti instance not found: ${instanceId}`
+        : 'No Iranti instance could be resolved. Select an instance first.',
+      code: 'INSTANCE_NOT_FOUND',
+    })
+    return null
+  }
 
-function checkDbConfigured(res: Response): boolean {
-  if (!getDatabaseUrl()) {
+  if (!scope.databaseUrl) {
     res.status(503).json({
-      error: 'No DATABASE_URL configured. Start an Iranti instance first.',
+      error: `No DATABASE_URL configured for instance ${scope.instanceName}. Configure the instance database first.`,
       code: 'NO_DATABASE_URL',
     })
-    return false
+    return null
   }
-  return true
+
+  return scope
 }
 
-// ---------------------------------------------------------------------------
-// GET /api/control-plane/auth-keys
-// List all keys — never returns secretHash or raw token values
-// ---------------------------------------------------------------------------
-
-authKeysRouter.get('/', async (_req: Request, res: Response) => {
-  if (!checkDbConfigured(res)) return
+authKeysRouter.get('/', async (req: Request, res: Response) => {
+  const scope = await resolveScopedInstance(req, res)
+  if (!scope) return
 
   try {
-    const registry = await loadRegistry()
-
+    const registry = await withScopedPool(scope, (pool) => loadRegistry(pool))
     const keys = registry.keys.map((k) => ({
       keyId:       k.keyId,
       owner:       k.owner,
@@ -299,13 +265,9 @@ authKeysRouter.get('/', async (_req: Request, res: Response) => {
   }
 })
 
-// ---------------------------------------------------------------------------
-// POST /api/control-plane/auth-keys
-// Create or rotate a key. Returns the full token ONCE.
-// ---------------------------------------------------------------------------
-
 authKeysRouter.post('/', async (req: Request, res: Response) => {
-  if (!checkDbConfigured(res)) return
+  const scope = await resolveScopedInstance(req, res)
+  if (!scope) return
 
   const { keyId: keyIdRaw, owner, scopes, description, syncToProject } = req.body as {
     keyId?: unknown
@@ -315,14 +277,13 @@ authKeysRouter.post('/', async (req: Request, res: Response) => {
     syncToProject?: unknown
   }
 
-  // --- Validate inputs ---
   if (!keyIdRaw || typeof keyIdRaw !== 'string') {
     res.status(400).json({ error: 'keyId is required and must be a string.' })
     return
   }
   const keyId = sanitizeKeyId(keyIdRaw)
   if (!keyId) {
-    res.status(400).json({ error: 'keyId is invalid — only letters, numbers, "_" and "-" are allowed.' })
+    res.status(400).json({ error: 'keyId is invalid - only letters, numbers, "_" and "-" are allowed.' })
     return
   }
 
@@ -332,7 +293,7 @@ authKeysRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const scopeList: string[] = Array.isArray(scopes)
-    ? (scopes as unknown[]).map(String).map(s => s.trim()).filter(Boolean)
+    ? (scopes as unknown[]).map(String).map((s) => s.trim()).filter(Boolean)
     : []
 
   try {
@@ -343,39 +304,37 @@ authKeysRouter.post('/', async (req: Request, res: Response) => {
   }
 
   try {
-    const registry = await loadRegistry()
     const now = new Date().toISOString()
     const secret = generateSecret()
-    const secretHash = hashSecret(secret)
-
-    const record: ApiKeyRecord = {
-      keyId,
-      owner:      owner.trim(),
-      secretHash,
-      scopes:     scopeList,
-      isActive:   true,
-      createdAt:  now,
-      updatedAt:  now,
-      revokedAt:  null,
-      description: typeof description === 'string' ? description.trim() || undefined : undefined,
-    }
-
-    // Remove existing entry with same keyId (rotate)
-    const withoutExisting = registry.keys.filter(k => k.keyId !== keyId)
-    withoutExisting.push(record)
-    await saveRegistry({ ...registry, keys: withoutExisting })
-
+    const secretHash = hashSecret(secret, scope)
     const token = formatToken(keyId, secret)
 
-    // Optional: sync token into a bound project's .env.iranti
+    await withScopedPool(scope, async (pool) => {
+      const registry = await loadRegistry(pool)
+      const record: ApiKeyRecord = {
+        keyId,
+        owner: owner.trim(),
+        secretHash,
+        scopes: scopeList,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        revokedAt: null,
+        description: typeof description === 'string' ? description.trim() || undefined : undefined,
+      }
+
+      const withoutExisting = registry.keys.filter((key) => key.keyId !== keyId)
+      withoutExisting.push(record)
+      await saveRegistry(pool, { ...registry, keys: withoutExisting })
+    })
+
     if (typeof syncToProject === 'string' && syncToProject.trim()) {
       try {
         syncTokenToProject(syncToProject.trim(), token)
       } catch (syncErr) {
-        // Non-fatal — key was created; warn in response
         const syncWarn = syncErr instanceof Error ? syncErr.message : String(syncErr)
         res.status(201).json({
-          ok:     true,
+          ok: true,
           keyId,
           token,
           scopes: scopeList,
@@ -385,12 +344,7 @@ authKeysRouter.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    res.status(201).json({
-      ok:     true,
-      keyId,
-      token,
-      scopes: scopeList,
-    })
+    res.status(201).json({ ok: true, keyId, token, scopes: scopeList })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[auth-keys] POST failed:', message)
@@ -398,13 +352,9 @@ authKeysRouter.post('/', async (req: Request, res: Response) => {
   }
 })
 
-// ---------------------------------------------------------------------------
-// DELETE /api/control-plane/auth-keys/:keyId
-// Revoke a key — marks it inactive with revokedAt timestamp
-// ---------------------------------------------------------------------------
-
 authKeysRouter.delete('/:keyId', async (req: Request, res: Response) => {
-  if (!checkDbConfigured(res)) return
+  const scope = await resolveScopedInstance(req, res)
+  if (!scope) return
 
   const keyId = sanitizeKeyId(req.params.keyId ?? '')
   if (!keyId) {
@@ -413,17 +363,24 @@ authKeysRouter.delete('/:keyId', async (req: Request, res: Response) => {
   }
 
   try {
-    const registry = await loadRegistry()
-    const target = registry.keys.find(k => k.keyId === keyId)
+    const revoked = await withScopedPool(scope, async (pool) => {
+      const registry = await loadRegistry(pool)
+      const target = registry.keys.find((key) => key.keyId === keyId)
+      if (!target) {
+        return false
+      }
 
-    if (!target) {
+      target.isActive = false
+      target.revokedAt = new Date().toISOString()
+      target.updatedAt = target.revokedAt
+      await saveRegistry(pool, registry)
+      return true
+    })
+
+    if (!revoked) {
       res.status(404).json({ error: `API key not found: ${keyId}` })
       return
     }
-
-    target.isActive  = false
-    target.revokedAt = new Date().toISOString()
-    await saveRegistry(registry)
 
     res.json({ ok: true, keyId })
   } catch (err) {

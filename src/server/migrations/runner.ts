@@ -28,6 +28,7 @@ export async function run(): Promise<void> {
     '001_create_staff_events.sql',
     '002_create_archive_flags.sql',
     '003_staff_events_metrics_index.sql',
+    '004_create_fleet_ledger.sql',
   ]
 
   try {

@@ -38,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/providers', label: 'Providers', icon: '◈' },
   { to: '/agents', label: 'Agents', icon: '◉' },
   { to: '/sessions', label: 'Sessions', icon: '⊙' },
+  { to: '/fleet-ledger', label: 'Fleet Ledger', icon: '⊕' },
   { to: '/getting-started', label: 'Getting Started', icon: '◎' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ]
@@ -56,6 +57,7 @@ const SECTION_TITLES: Record<string, string> = {
   '/providers': 'Provider Manager',
   '/agents': 'Agent Registry',
   '/sessions': 'Sessions',
+  '/fleet-ledger': 'Fleet Ledger',
   '/getting-started': 'Getting Started',
   '/settings': 'Settings',
 }

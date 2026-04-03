@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { controlPlaneRouter } from './routes/control-plane/index.js'
 import { startAdapter, stopAdapter } from './lib/staff-event-adapter.js'
+import { startFleetLedgerPoller, stopFleetLedgerPoller } from './lib/fleet-ledger-poller.js'
 import { env } from './db.js'
 import { buildPortSelectionPlan } from './lib/portSelection.js'
 
@@ -211,6 +212,7 @@ async function main(): Promise<void> {
     startAdapter().catch((err: unknown) => {
       console.warn('[adapter] Failed to start:', (err as Error).message)
     })
+    startFleetLedgerPoller()
 
     // Auto-open browser unless suppressed via IRANTI_CP_NO_OPEN=1
     if (!process.env['IRANTI_CP_NO_OPEN']) {
@@ -229,6 +231,7 @@ async function main(): Promise<void> {
   function shutdown(signal: string): void {
     console.log(`[iranti-cp] Received ${signal} — shutting down gracefully.`)
     stopAdapter()
+    stopFleetLedgerPoller()
     server.close(() => {
       console.log('[iranti-cp] Server closed.')
       process.exit(0)

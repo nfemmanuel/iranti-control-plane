@@ -704,3 +704,248 @@
   border-radius: var(--border-radius-sm);
   color: var(--color-accent-primary);
 }
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.sectionHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sectionNote {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.refreshBtn {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.refreshBtn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.inlineWarning {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning) 30%, transparent);
+  background: var(--color-status-warning-bg);
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+
+.ledgerLoading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.ledgerStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--space-2);
+}
+
+.ledgerStatCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-base);
+}
+
+.ledgerStatValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.ledgerStatLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.ledgerTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ledgerEvent {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-base);
+}
+
+.ledgerEventInjected {
+  border-color: color-mix(in srgb, var(--color-accent-primary) 30%, var(--color-border-subtle));
+}
+
+.ledgerEventEvidence {
+  border-color: color-mix(in srgb, var(--color-status-warning) 25%, var(--color-border-subtle));
+}
+
+.ledgerEventScored {
+  border-color: color-mix(in srgb, var(--color-status-success) 32%, var(--color-border-subtle));
+}
+
+.ledgerEventPersistence {
+  border-color: color-mix(in srgb, var(--color-text-tertiary) 22%, var(--color-border-subtle));
+}
+
+.ledgerEventMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ledgerEventTime {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.ledgerEventRelative {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.ledgerEventBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ledgerEventHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ledgerEventAction {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.ledgerEventComponent,
+.ledgerEventSource {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+.ledgerEventSummary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.ledgerTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ledgerTag {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.ledgerContextRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ledgerContextItem {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.ledgerDetailBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.ledgerDetailRow {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.ledgerDetailLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+.ledgerDetailValue {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+.emptyLedger {
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  background: var(--color-bg-base);
+}
+
+@media (max-width: 880px) {
+  .ledgerEvent {
+    grid-template-columns: 1fr;
+  }
+
+  .ledgerDetailRow {
+    grid-template-columns: 1fr;
+  }
+}

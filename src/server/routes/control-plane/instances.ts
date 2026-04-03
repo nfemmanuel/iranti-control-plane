@@ -50,7 +50,7 @@ interface ProbeResult {
   checkedAt: string
 }
 
-interface InstanceMetadata {
+export interface InstanceMetadata {
   instanceId: string
   name: string
   setupState: 'running' | 'configured' | 'incomplete'
@@ -609,7 +609,7 @@ async function fallbackInstancesForRoot(runtimeRoot: string, errorMsg: string): 
   return Promise.all(instanceDirs.map((instanceDir) => aggregateFilesystemInstance(runtimeRoot, instanceDir, errorMsg)))
 }
 
-async function discoverAndAggregate(): Promise<{
+export async function discoverAndAggregate(): Promise<{
   instances: InstanceMetadata[]
   discoverySource: 'registry' | 'scan' | 'hybrid'
   discoveredAt: string

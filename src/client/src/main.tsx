@@ -16,6 +16,7 @@ import { ConflictReview } from './components/conflicts/ConflictReview'
 import { ProviderManager } from './components/providers/ProviderManager'
 import { AgentRegistry } from './components/agents/AgentRegistry'
 import { SessionsView } from './components/sessions/SessionsView'
+import { FleetLedgerView } from './components/sessions/FleetLedgerView'
 import { MetricsDashboard } from './components/metrics/MetricsDashboard'
 import { OverviewDashboard } from './components/overview/OverviewDashboard'
 import { SettingsPage } from './components/settings/SettingsPage'
@@ -74,6 +75,7 @@ createRoot(rootEl).render(
                   <Route path="providers" element={<ProviderManager />} />
                   <Route path="agents" element={<AgentRegistry />} />
                   <Route path="sessions" element={<SessionsView />} />
+                  <Route path="fleet-ledger" element={<FleetLedgerView />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Routes>
