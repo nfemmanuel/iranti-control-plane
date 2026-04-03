@@ -513,23 +513,17 @@ async function fetchIrantiSessions(req: Request): Promise<{ sessions: SessionRec
   }
 }
 
-async function fetchIrantiSessionLedger(
-  req: Request,
-  sessionId: string,
-): Promise<SessionLedgerResponse> {
-  const url = new URL(`${getIrantiUrl()}/memory/ledger`)
-  const limit = parseLedgerLimit(req.query['limit'])
-  const agentId = typeof req.query['agentId'] === 'string' ? req.query['agentId'].trim() : ''
-  const actionType = typeof req.query['actionType'] === 'string' ? req.query['actionType'].trim() : ''
-  const host = typeof req.query['host'] === 'string' ? req.query['host'].trim() : ''
-  const level = normalizeLedgerLevel(req.query['level'])
+interface LedgerFetchResult {
+  items: SessionLedgerRecord[]
+  error?: string
+}
 
-  url.searchParams.set('sessionId', sessionId)
-  url.searchParams.set('limit', String(limit))
-  if (agentId) url.searchParams.set('agentId', agentId)
-  if (actionType) url.searchParams.set('actionType', actionType)
-  if (host) url.searchParams.set('host', host)
-  if (level) url.searchParams.set('level', level)
+async function fetchLedgerByParams(
+  req: Request,
+  params: Record<string, string>,
+): Promise<LedgerFetchResult> {
+  const url = new URL(`${getIrantiUrl()}/memory/ledger`)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 4000)
@@ -540,30 +534,101 @@ async function fetchIrantiSessionLedger(
       headers: buildHeaders(req),
       signal: controller.signal,
     })
-
     const body = await response.json().catch(() => ({})) as Record<string, unknown>
-
     if (!response.ok) {
       const upstreamError = typeof body['error'] === 'string' ? body['error'] : null
       return {
         items: [],
-        total: 0,
-        fetchedAt: new Date().toISOString(),
-        note: 'Source: Iranti /memory/ledger',
         error: upstreamError
           ? `Iranti /memory/ledger returned HTTP ${response.status}: ${upstreamError}`
           : `Iranti /memory/ledger returned HTTP ${response.status}`,
       }
     }
-
     const rawItems = Array.isArray(body['items']) ? body['items'] : []
-    const items = rawItems
-      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-      .map(normalizeLedgerEvent)
+    return {
+      items: rawItems
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+        .map(normalizeLedgerEvent),
+    }
+  } catch (err) {
+    return { items: [], error: err instanceof Error ? err.message : String(err) }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function fetchIrantiSessionLedger(
+  req: Request,
+  sessionId: string,
+): Promise<SessionLedgerResponse> {
+  const limit = parseLedgerLimit(req.query['limit'])
+  const agentId = typeof req.query['agentId'] === 'string' ? req.query['agentId'].trim() : ''
+  const actionType = typeof req.query['actionType'] === 'string' ? req.query['actionType'].trim() : ''
+  const host = typeof req.query['host'] === 'string' ? req.query['host'].trim() : ''
+  const level = normalizeLedgerLevel(req.query['level'])
+  const startedAt = typeof req.query['startedAt'] === 'string' ? req.query['startedAt'].trim() : ''
+  const lastHeartbeatAt = typeof req.query['lastHeartbeatAt'] === 'string' ? req.query['lastHeartbeatAt'].trim() : ''
+
+  const sharedParams: Record<string, string> = { limit: String(limit) }
+  if (agentId) sharedParams['agentId'] = agentId
+  if (actionType) sharedParams['actionType'] = actionType
+  if (host) sharedParams['host'] = host
+  if (level) sharedParams['level'] = level
+
+  try {
+    // Query 1: by named sessionId (catches checkpoint events)
+    const bySessionId = fetchLedgerByParams(req, { ...sharedParams, sessionId })
+
+    // Query 2: by agentId + time range (catches attend/inject events that use a
+    // timestamp-based sessionId). Only possible when we have time bounds + agentId.
+    let byTimeRange: Promise<LedgerFetchResult> = Promise.resolve({ items: [] })
+    if (agentId && startedAt) {
+      const after = new Date(new Date(startedAt).getTime() - 10 * 60_000).toISOString()
+      const before = lastHeartbeatAt
+        ? new Date(new Date(lastHeartbeatAt).getTime() + 2 * 60_000).toISOString()
+        : new Date().toISOString()
+      byTimeRange = fetchLedgerByParams(req, {
+        ...sharedParams,
+        agentId,
+        after,
+        before,
+        limit: String(limit),
+      })
+    }
+
+    const [sessionResult, rangeResult] = await Promise.all([bySessionId, byTimeRange])
+
+    // If the primary query failed and the range query also returned nothing,
+    // propagate the primary error so the client knows why data is missing.
+    if (sessionResult.error && rangeResult.items.length === 0) {
+      return {
+        items: [],
+        total: 0,
+        fetchedAt: new Date().toISOString(),
+        note: 'Source: Iranti /memory/ledger',
+        error: sessionResult.error,
+      }
+    }
+
+    // Merge and deduplicate by eventId
+    const seen = new Set<string>()
+    const merged: SessionLedgerRecord[] = []
+    for (const item of [...sessionResult.items, ...rangeResult.items]) {
+      if (item.eventId && !seen.has(item.eventId)) {
+        seen.add(item.eventId)
+        merged.push(item)
+      }
+    }
+
+    // Sort by timestamp descending (newest first)
+    merged.sort((a, b) => (b.timestamp > a.timestamp ? 1 : b.timestamp < a.timestamp ? -1 : 0))
+
+    // Respect limit
+    const limited = merged.slice(0, limit)
 
     return {
-      items,
-      total: typeof body['total'] === 'number' ? body['total'] : items.length,
+      items: limited,
+      total: merged.length,
       fetchedAt: new Date().toISOString(),
       note: 'Source: Iranti /memory/ledger',
     }
@@ -575,8 +640,6 @@ async function fetchIrantiSessionLedger(
       note: 'Source: Iranti /memory/ledger',
       error: error instanceof Error ? error.message : String(error),
     }
-  } finally {
-    clearTimeout(timeout)
   }
 }
 

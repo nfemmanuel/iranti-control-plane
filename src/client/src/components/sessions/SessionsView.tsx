@@ -338,7 +338,12 @@ function SessionLedgerPanel({ session }: { session: SessionRecord }) {
     queryKey: ['session-ledger', session.sessionId, session.agentId],
     queryFn: () => apiFetch<SessionLedgerResponse>(
       `/sessions/${encodeURIComponent(session.sessionId)}/ledger`,
-      { agentId: session.agentId, limit: 40 },
+      {
+        agentId: session.agentId,
+        limit: 50,
+        ...(session.startedAt ? { startedAt: session.startedAt } : {}),
+        ...(session.lastHeartbeatAt ? { lastHeartbeatAt: session.lastHeartbeatAt } : {}),
+      },
     ),
     staleTime: 15_000,
   })

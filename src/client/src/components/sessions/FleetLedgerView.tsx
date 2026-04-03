@@ -1,7 +1,7 @@
 /* Iranti Control Plane — Fleet Ledger View */
-/* Minimum Operator UI slice: cross-instance event stream + ingestion health */
+/* Cross-instance event stream with human-readable descriptions */
 
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchFleetLedger,
@@ -18,17 +18,6 @@ import styles from './FleetLedgerView.module.css'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatAbsoluteTime(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
-
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
@@ -43,9 +32,97 @@ function formatRelativeTime(iso: string | null): string {
   return `${days}d ago`
 }
 
-function truncate(str: string | null | undefined, len: number): string {
-  if (!str) return '—'
-  return str.length > len ? `${str.slice(0, len)}…` : str
+function formatAbsoluteTime(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+type ActionCategory = 'inject' | 'checkpoint' | 'attend' | 'write' | 'conflict' | 'handshake' | 'error' | 'other'
+
+function categorizeAction(actionType: string): ActionCategory {
+  if (actionType.includes('memory_injected') || actionType.includes('memory_injection_scored')) return 'inject'
+  if (actionType.includes('checkpoint')) return 'checkpoint'
+  if (actionType.includes('attend') || actionType.includes('observe')) return 'attend'
+  if (actionType.includes('write') || actionType.includes('created') || actionType.includes('replaced') || actionType.includes('updated')) return 'write'
+  if (actionType.includes('conflict')) return 'conflict'
+  if (actionType.includes('handshake')) return 'handshake'
+  if (actionType.includes('error') || actionType.includes('fail')) return 'error'
+  return 'other'
+}
+
+function describeAction(event: FleetLedgerEvent): string {
+  const meta = event.metadata ?? {}
+  switch (event.actionType) {
+    case 'memory_injected': {
+      const keys = Array.isArray(meta['injectedKeys']) ? meta['injectedKeys'] as string[] : []
+      return keys.length > 0
+        ? `Injected ${keys.length} fact${keys.length === 1 ? '' : 's'} into context`
+        : 'Injected memory into context'
+    }
+    case 'memory_injection_scored': {
+      const used = meta['used'] === true ? 'used' : 'unused'
+      const helpful = meta['helpful'] === true ? 'helpful' : 'not helpful'
+      return `Scored injection as ${used}, ${helpful}`
+    }
+    case 'memory_not_injected':
+      return meta['attendReason'] === 'memory_needed_no_facts'
+        ? 'No matching facts found for this turn'
+        : 'Memory not needed for this turn'
+    case 'checkpoint_written': {
+      const step = typeof meta['currentStep'] === 'string' ? meta['currentStep'] : null
+      return step ? `Checkpoint: ${step.slice(0, 100)}` : 'Saved shared checkpoint'
+    }
+    case 'attend_completed': {
+      const reason = event.reason ?? String(meta['attendReason'] ?? '')
+      if (reason === 'memory_injected') return 'Attend completed — memory was injected'
+      if (reason === 'memory_not_injected') return 'Attend completed — no injection needed'
+      return 'Attend cycle completed'
+    }
+    case 'observe_completed': {
+      const type = typeof meta['observeType'] === 'string' ? meta['observeType'] : ''
+      if (type === 'facts_retrieved') return 'Retrieved facts from memory'
+      if (type === 'no_candidates') return 'No entities to observe'
+      return 'Observation cycle completed'
+    }
+    case 'handshake_completed':
+      return `Session started for ${event.agentId ?? 'unknown agent'}`
+    case 'write_created':
+      return `Created fact: ${typeof meta['key'] === 'string' ? meta['key'] : event.key ?? '?'}`
+    case 'write_replaced':
+      return `Updated fact: ${typeof meta['key'] === 'string' ? meta['key'] : event.key ?? '?'}`
+    case 'write_updated':
+      return `Updated fact: ${typeof meta['key'] === 'string' ? meta['key'] : event.key ?? '?'}`
+    case 'write_available':
+      return `Fact available: ${typeof meta['key'] === 'string' ? meta['key'] : event.key ?? '?'}`
+    case 'conflict_detected':
+      return `Conflict detected on ${event.entityType ?? '?'}/${event.entityId ?? '?'}`
+    default:
+      return event.actionType.replace(/_/g, ' ')
+  }
+}
+
+function actionLabel(actionType: string): string {
+  switch (actionType) {
+    case 'memory_injected': return 'Injected'
+    case 'memory_injection_scored': return 'Scored'
+    case 'memory_not_injected': return 'No inject'
+    case 'checkpoint_written': return 'Checkpoint'
+    case 'attend_completed': return 'Attend'
+    case 'observe_completed': return 'Observe'
+    case 'handshake_completed': return 'Handshake'
+    case 'write_created': return 'Write'
+    case 'write_replaced': return 'Update'
+    case 'write_updated': return 'Update'
+    case 'write_available': return 'Available'
+    case 'conflict_detected': return 'Conflict'
+    default: return actionType.replace(/_/g, ' ').slice(0, 16)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -55,67 +132,51 @@ function truncate(str: string | null | undefined, len: number): string {
 function StatusBadge({ status }: { status: IngestionHealthEntry['status'] }) {
   let cls = styles.badge
   switch (status) {
-    case 'healthy':
-      cls += ` ${styles.badgeHealthy}`
-      break
-    case 'degraded':
-      cls += ` ${styles.badgeDegraded}`
-      break
-    case 'failing':
-      cls += ` ${styles.badgeFailing}`
-      break
-    case 'never_polled':
-    default:
-      cls += ` ${styles.badgeNeverPolled}`
-      break
+    case 'healthy': cls += ` ${styles.badgeHealthy}`; break
+    case 'degraded': cls += ` ${styles.badgeDegraded}`; break
+    case 'failing': cls += ` ${styles.badgeFailing}`; break
+    default: cls += ` ${styles.badgeNeverPolled}`; break
   }
   return <span className={cls}>{status.replace('_', ' ')}</span>
 }
 
-function LedgerSkeletonRows({ cols }: { cols: number }) {
-  return (
-    <>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <tr key={i} className={styles.skeletonRow}>
-          {Array.from({ length: cols }).map((_, j) => (
-            <td key={j}>
-              <div className={styles.skeletonBar} style={{ width: `${55 + (j * 7) % 40}%` }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  )
+function ActionPill({ actionType }: { actionType: string }) {
+  const cat = categorizeAction(actionType)
+  const cls = [styles.actionPill, styles[`actionPill_${cat}`]].filter(Boolean).join(' ')
+  return <span className={cls}>{actionLabel(actionType)}</span>
 }
 
-interface ExpandedMetadataRowProps {
-  event: FleetLedgerEvent
-  colSpan: number
-}
+function HealthCards({ entries, isLoading }: { entries: IngestionHealthEntry[]; isLoading: boolean }) {
+  if (isLoading) return <div className={styles.healthCardsLoading}>Loading instance health...</div>
+  if (entries.length === 0) return null
 
-function ExpandedMetadataRow({ event, colSpan }: ExpandedMetadataRowProps) {
-  const hasMetadata = event.metadata !== null && Object.keys(event.metadata).length > 0
   return (
-    <tr className={styles.metadataRow}>
-      <td colSpan={colSpan}>
-        <div className={styles.metadataExpanded}>
-          <p className={styles.metadataLabel}>Event metadata</p>
-          {hasMetadata ? (
-            <pre className={styles.metadataPre}>
-              {JSON.stringify(event.metadata, null, 2)}
-            </pre>
-          ) : (
-            <span className={styles.metadataNull}>null</span>
+    <div className={styles.healthCards}>
+      {entries.map((entry) => (
+        <div
+          key={entry.instanceId}
+          className={`${styles.healthCard} ${
+            entry.status === 'healthy' ? styles.healthCardOk
+            : entry.status === 'failing' ? styles.healthCardBad
+            : styles.healthCardWarn
+          }`}
+        >
+          <div className={styles.healthCardHeader}>
+            <span className={styles.healthCardInstance}>{entry.instanceId.slice(0, 8)}</span>
+            <StatusBadge status={entry.status} />
+          </div>
+          <div className={styles.healthCardStats}>
+            <span>{entry.totalEventsIngested.toLocaleString()} events</span>
+            <span className={styles.muted}>{formatRelativeTime(entry.lastPolledAt)}</span>
+          </div>
+          {entry.lastPollError && (
+            <div className={styles.healthCardError}>{entry.lastPollError.slice(0, 50)}</div>
           )}
         </div>
-      </td>
-    </tr>
+      ))}
+    </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Filters bar
-// ---------------------------------------------------------------------------
 
 interface FiltersBarProps {
   filters: FleetLedgerFilters
@@ -132,15 +193,7 @@ function FiltersBar({ filters, onChange, onRefresh, isRefreshing }: FiltersBarPr
   return (
     <div className={styles.filtersBar}>
       <input
-        className={`${styles.filterInput} ${styles.filterInputWide}`}
-        type="text"
-        placeholder="Instance ID"
-        value={filters.instanceId ?? ''}
-        onChange={(e) => set('instanceId', e.target.value)}
-        aria-label="Filter by instance ID"
-      />
-      <input
-        className={`${styles.filterInput} ${styles.filterInputWide}`}
+        className={styles.filterInput}
         type="text"
         placeholder="Agent ID"
         value={filters.agentId ?? ''}
@@ -148,15 +201,7 @@ function FiltersBar({ filters, onChange, onRefresh, isRefreshing }: FiltersBarPr
         aria-label="Filter by agent ID"
       />
       <input
-        className={`${styles.filterInput} ${styles.filterInputWide}`}
-        type="text"
-        placeholder="Session ID"
-        value={filters.sessionId ?? ''}
-        onChange={(e) => set('sessionId', e.target.value)}
-        aria-label="Filter by session ID"
-      />
-      <input
-        className={`${styles.filterInput} ${styles.filterInputNarrow}`}
+        className={styles.filterInput}
         type="text"
         placeholder="Action type"
         value={filters.actionType ?? ''}
@@ -164,23 +209,15 @@ function FiltersBar({ filters, onChange, onRefresh, isRefreshing }: FiltersBarPr
         aria-label="Filter by action type"
       />
       <input
-        className={`${styles.filterInput} ${styles.filterInputNarrow}`}
+        className={styles.filterInput}
         type="text"
-        placeholder="Host"
-        value={filters.host ?? ''}
-        onChange={(e) => set('host', e.target.value)}
-        aria-label="Filter by host"
-      />
-      <input
-        className={`${styles.filterInput} ${styles.filterInputNarrow}`}
-        type="text"
-        placeholder="Source"
-        value={filters.source ?? ''}
-        onChange={(e) => set('source', e.target.value)}
-        aria-label="Filter by source"
+        placeholder="Instance ID"
+        value={filters.instanceId ?? ''}
+        onChange={(e) => set('instanceId', e.target.value)}
+        aria-label="Filter by instance ID"
       />
       <select
-        className={`${styles.filterInput} ${styles.filterInputNarrow}`}
+        className={styles.filterInput}
         value={filters.level ?? ''}
         onChange={(e) => {
           const v = e.target.value
@@ -195,175 +232,114 @@ function FiltersBar({ filters, onChange, onRefresh, isRefreshing }: FiltersBarPr
         <option value="audit">audit</option>
         <option value="debug">debug</option>
       </select>
-      <div className={styles.filterSeparator} />
+      <div style={{ flex: 1 }} />
       <button
         className={styles.refreshButton}
         onClick={onRefresh}
         disabled={isRefreshing}
         type="button"
       >
-        {isRefreshing ? 'Refreshing…' : 'Refresh'}
+        {isRefreshing ? 'Refreshing...' : 'Refresh'}
       </button>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Ledger stream table
+// Event list (card-style, not raw table)
 // ---------------------------------------------------------------------------
 
-interface LedgerTableProps {
-  events: FleetLedgerEvent[]
-  isLoading: boolean
-  expandedId: number | null
-  onToggle: (id: number) => void
-}
+function EventRow({ event, isExpanded, onToggle }: {
+  event: FleetLedgerEvent
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const cat = categorizeAction(event.actionType)
+  const hasMetadata = event.metadata !== null && Object.keys(event.metadata).length > 0
 
-const LEDGER_COLS = 8
-
-function LedgerTable({ events, isLoading, expandedId, onToggle }: LedgerTableProps) {
   return (
-    <table
-      className={`${styles.table} ${styles.ledgerTable}`}
-      aria-label="Fleet ledger events"
+    <div
+      className={`${styles.eventRow} ${styles[`eventRow_${cat}`] ?? ''} ${isExpanded ? styles.eventRowExpanded : ''}`}
+      onClick={onToggle}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
     >
-      <thead>
-        <tr>
-          <th className={styles.headerCell}>Time</th>
-          <th className={styles.headerCell}>Instance</th>
-          <th className={styles.headerCell}>Component</th>
-          <th className={styles.headerCell}>Action Type</th>
-          <th className={styles.headerCell}>Agent</th>
-          <th className={styles.headerCell}>Host</th>
-          <th className={styles.headerCell}>Source</th>
-          <th className={styles.headerCell}>Session</th>
-        </tr>
-      </thead>
-      <tbody>
-        {isLoading && <LedgerSkeletonRows cols={LEDGER_COLS} />}
-        {!isLoading && events.map((event) => {
-          const isExpanded = expandedId === event.id
-          const rowCls = [
-            styles.row,
-            isExpanded ? styles.rowExpanded : '',
-            event.level === 'debug' ? styles.rowDebug : '',
-          ].filter(Boolean).join(' ')
-
-          return (
-            <Fragment key={event.id}>
-              <tr
-                className={rowCls}
-                onClick={() => onToggle(event.id)}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onToggle(event.id)
-                  }
-                }}
-              >
-                <td className={`${styles.cell} ${styles.cellMono}`} title={event.timestamp}>
-                  {formatAbsoluteTime(event.timestamp)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`} title={event.instanceId}>
-                  {truncate(event.instanceId, 14)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono} ${styles.cellPrimary}`}>
-                  {truncate(event.staffComponent, 16)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`}>
-                  {truncate(event.actionType, 18)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`}>
-                  {truncate(event.agentId, 14)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`}>
-                  {truncate(event.host, 12)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`}>
-                  {truncate(event.source, 12)}
-                </td>
-                <td className={`${styles.cell} ${styles.cellMono}`} title={event.sessionId ?? ''}>
-                  {truncate(event.sessionId, 20)}
-                </td>
-              </tr>
-              {isExpanded && (
-                <ExpandedMetadataRow event={event} colSpan={LEDGER_COLS} />
-              )}
-            </Fragment>
-          )
-        })}
-      </tbody>
-    </table>
+      <div className={styles.eventMain}>
+        <div className={styles.eventLeft}>
+          <span className={styles.eventTime} title={formatAbsoluteTime(event.timestamp)}>
+            {formatRelativeTime(event.timestamp)}
+          </span>
+          <ActionPill actionType={event.actionType} />
+        </div>
+        <div className={styles.eventDescription}>
+          {describeAction(event)}
+        </div>
+        <div className={styles.eventMeta}>
+          {event.agentId && <span className={styles.eventAgent}>{event.agentId}</span>}
+          <span className={styles.eventInstance} title={event.instanceId}>{event.instanceId.slice(0, 8)}</span>
+        </div>
+      </div>
+      {isExpanded && hasMetadata && (
+        <div className={styles.eventExpanded}>
+          <div className={styles.eventExpandedGrid}>
+            {event.entityType && <div className={styles.expandedField}><span className={styles.expandedLabel}>Entity</span> {event.entityType}/{event.entityId}</div>}
+            {event.key && <div className={styles.expandedField}><span className={styles.expandedLabel}>Key</span> {event.key}</div>}
+            {event.reason && <div className={styles.expandedField}><span className={styles.expandedLabel}>Reason</span> {event.reason}</div>}
+            {event.sessionId && <div className={styles.expandedField}><span className={styles.expandedLabel}>Session</span> {event.sessionId}</div>}
+            {event.host && <div className={styles.expandedField}><span className={styles.expandedLabel}>Host</span> {event.host}</div>}
+            {event.source && <div className={styles.expandedField}><span className={styles.expandedLabel}>Source</span> {event.source}</div>}
+          </div>
+          <pre className={styles.metadataPre}>
+            {JSON.stringify(event.metadata, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Ingestion health table
+// Summary stats
 // ---------------------------------------------------------------------------
 
-interface HealthTableProps {
-  entries: IngestionHealthEntry[]
-  isLoading: boolean
-}
+function LedgerSummary({ events }: { events: FleetLedgerEvent[] }) {
+  const injections = events.filter(e => e.actionType === 'memory_injected').length
+  const checkpoints = events.filter(e => e.actionType === 'checkpoint_written').length
+  const writes = events.filter(e => e.actionType.startsWith('write_')).length
+  const conflicts = events.filter(e => e.actionType === 'conflict_detected').length
+  const handshakes = events.filter(e => e.actionType === 'handshake_completed').length
 
-function HealthTable({ entries, isLoading }: HealthTableProps) {
   return (
-    <table
-      className={`${styles.table} ${styles.healthTable}`}
-      aria-label="Ingestion health per instance"
-    >
-      <thead>
-        <tr>
-          <th className={styles.headerCell}>Instance</th>
-          <th className={styles.headerCell}>Status</th>
-          <th className={styles.headerCell}>Last Polled</th>
-          <th className={styles.headerCell}>Failures</th>
-          <th className={styles.headerCell}>Total Events</th>
-          <th className={styles.headerCell}>Last Error</th>
-        </tr>
-      </thead>
-      <tbody>
-        {isLoading && <LedgerSkeletonRows cols={6} />}
-        {!isLoading && entries.map((entry) => (
-          <tr key={entry.instanceId} className={styles.row}>
-            <td className={`${styles.cell} ${styles.cellMono} ${styles.cellPrimary}`}>
-              {entry.instanceId}
-            </td>
-            <td className={styles.cell}>
-              <StatusBadge status={entry.status} />
-            </td>
-            <td className={`${styles.cell} ${styles.cellMono}`} title={entry.lastPolledAt ?? ''}>
-              {formatRelativeTime(entry.lastPolledAt)}
-            </td>
-            <td className={`${styles.cell} ${styles.cellMono}`}>
-              {entry.consecutiveFailures > 0 ? (
-                <span style={{ color: 'var(--color-status-error)' }}>
-                  {entry.consecutiveFailures}
-                </span>
-              ) : (
-                <span className={styles.muted}>0</span>
-              )}
-            </td>
-            <td className={`${styles.cell} ${styles.cellMono}`}>
-              {entry.totalEventsIngested.toLocaleString()}
-            </td>
-            <td className={`${styles.cell} ${styles.errorCell}`} title={entry.lastPollError ?? ''}>
-              {entry.lastPollError ? truncate(entry.lastPollError, 60) : <span className={styles.muted}>—</span>}
-            </td>
-          </tr>
-        ))}
-        {!isLoading && entries.length === 0 && (
-          <tr>
-            <td colSpan={6} className={styles.cell}>
-              <span className={styles.muted}>No instances tracked yet.</span>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+    <div className={styles.summaryBar}>
+      <div className={styles.summaryStat}>
+        <span className={styles.summaryValue}>{events.length}</span>
+        <span className={styles.summaryLabel}>events</span>
+      </div>
+      <div className={styles.summaryStat}>
+        <span className={styles.summaryValue}>{injections}</span>
+        <span className={styles.summaryLabel}>injections</span>
+      </div>
+      <div className={styles.summaryStat}>
+        <span className={styles.summaryValue}>{checkpoints}</span>
+        <span className={styles.summaryLabel}>checkpoints</span>
+      </div>
+      <div className={styles.summaryStat}>
+        <span className={styles.summaryValue}>{writes}</span>
+        <span className={styles.summaryLabel}>writes</span>
+      </div>
+      {conflicts > 0 && (
+        <div className={`${styles.summaryStat} ${styles.summaryStatWarn}`}>
+          <span className={styles.summaryValue}>{conflicts}</span>
+          <span className={styles.summaryLabel}>conflicts</span>
+        </div>
+      )}
+      <div className={styles.summaryStat}>
+        <span className={styles.summaryValue}>{handshakes}</span>
+        <span className={styles.summaryLabel}>sessions</span>
+      </div>
+    </div>
   )
 }
 
@@ -374,7 +350,6 @@ function HealthTable({ entries, isLoading }: HealthTableProps) {
 export function FleetLedgerView(): JSX.Element {
   const [filters, setFilters] = useState<FleetLedgerFilters>({ limit: 100 })
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [healthExpanded, setHealthExpanded] = useState(true)
 
   const {
     data: ledger,
@@ -400,15 +375,10 @@ export function FleetLedgerView(): JSX.Element {
 
   const events = ledger?.items ?? []
   const healthEntries = health?.instances ?? []
-  const isRefreshing = ledgerFetching
 
   const handleRefresh = () => {
     void refetchLedger()
     void refetchHealth()
-  }
-
-  const handleToggleRow = (id: number) => {
-    setExpandedId((prev) => (prev === id ? null : id))
   }
 
   const handleFiltersChange = (next: FleetLedgerFilters) => {
@@ -418,14 +388,14 @@ export function FleetLedgerView(): JSX.Element {
 
   return (
     <div className={styles.page}>
-      {/* ── Page header ── */}
+      {/* Header */}
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderLeft}>
           <span className={styles.pageIcon} aria-hidden="true">⊛</span>
           <div>
             <h1 className={styles.pageTitle}>Fleet Ledger</h1>
             <p className={styles.pageSubtitle}>
-              Cross-instance event stream and ingestion health
+              What your Iranti instances are doing — memory operations across all connected instances
             </p>
           </div>
         </div>
@@ -436,93 +406,60 @@ export function FleetLedgerView(): JSX.Element {
         )}
       </div>
 
-      {/* ── Filters ── */}
+      {/* Instance health cards — always visible at top */}
+      <HealthCards entries={healthEntries} isLoading={healthLoading} />
+
+      {/* Filters */}
       <FiltersBar
         filters={filters}
         onChange={handleFiltersChange}
         onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
+        isRefreshing={ledgerFetching}
       />
 
-      {/* ── Error state ── */}
+      {/* Error */}
       {ledgerError && (
         <div className={styles.errorState} role="alert">
-          <span className={styles.errorStateIcon} aria-hidden="true">⚠</span>
-          <span>
-            Could not load fleet ledger events — {(ledgerError as Error).message}
-          </span>
+          Could not load fleet ledger — {(ledgerError as Error).message}
         </div>
       )}
 
-      {/* ── Content ── */}
+      {/* Summary stats */}
+      {!ledgerLoading && events.length > 0 && (
+        <LedgerSummary events={events} />
+      )}
+
+      {/* Event stream */}
       <div className={styles.contentRegion}>
+        {ledgerLoading && (
+          <div className={styles.spinnerWrapper} role="status">
+            <span className={styles.spinner} />
+            <span>Loading events...</span>
+          </div>
+        )}
 
-        {/* ── Ledger stream section ── */}
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Event stream
-            {ledger?.note && (
-              <span className={styles.sectionNoteInline}>{ledger.note}</span>
-            )}
-          </h2>
+        {!ledgerLoading && !ledgerError && events.length === 0 && (
+          <div className={styles.emptyState}>
+            <p className={styles.emptyStateTitle}>No events found</p>
+            <p className={styles.emptyStateBody}>
+              Events are ingested from connected Iranti instances.
+              Try adjusting filters or verify that at least one instance is being polled.
+            </p>
+          </div>
+        )}
 
-          {ledgerLoading && (
-            <div className={styles.spinnerWrapper} role="status" aria-label="Loading ledger events">
-              <span className={styles.spinner} />
-              <span>Loading ledger events…</span>
-            </div>
-          )}
-
-          {!ledgerLoading && !ledgerError && events.length === 0 && (
-            <div className={styles.emptyState}>
-              <span className={styles.emptyStateIcon} aria-hidden="true">⊛</span>
-              <p className={styles.emptyStateTitle}>No events found</p>
-              <p className={styles.emptyStateBody}>
-                Fleet ledger events are ingested from connected Iranti instances.
-                Try adjusting your filters or verify that at least one instance is actively polled.
-              </p>
-            </div>
-          )}
-
-          {!ledgerLoading && events.length > 0 && (
-            <LedgerTable
-              events={events}
-              isLoading={false}
-              expandedId={expandedId}
-              onToggle={handleToggleRow}
-            />
-          )}
-        </div>
-
-        {/* ── Ingestion health section ── */}
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Ingestion health
-            <button
-              className={styles.sectionToggleBtn}
-              onClick={() => setHealthExpanded((v) => !v)}
-              type="button"
-              aria-expanded={healthExpanded}
-            >
-              {healthExpanded ? '▾ collapse' : '▸ expand'}
-            </button>
-          </h2>
-
-          {healthExpanded && (
-            <>
-              {healthLoading && (
-                <div className={styles.spinnerWrapper} role="status" aria-label="Loading ingestion health">
-                  <span className={styles.spinner} />
-                  <span>Loading ingestion health…</span>
-                </div>
-              )}
-              {!healthLoading && (
-                <HealthTable entries={healthEntries} isLoading={false} />
-              )}
-            </>
-          )}
-        </div>
-
+        {!ledgerLoading && events.length > 0 && (
+          <div className={styles.eventList}>
+            {events.map((event) => (
+              <EventRow
+                key={event.id}
+                event={event}
+                isExpanded={expandedId === event.id}
+                onToggle={() => setExpandedId(prev => prev === event.id ? null : event.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
