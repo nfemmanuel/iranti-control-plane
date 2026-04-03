@@ -205,7 +205,6 @@ function ComparisonPanel({ escalation, onResolve, onClose }: ComparisonPanelProp
   const [customValue, setCustomValue] = useState('')
   const [customValueError, setCustomValueError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
-  const [resolved, setResolved] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
 
   const delta = escalation.existing
@@ -256,20 +255,6 @@ function ComparisonPanel({ escalation, onResolve, onClose }: ComparisonPanelProp
   const handleCancel = () => {
     setPendingChoice(null)
     setCustomValueError(null)
-  }
-
-  if (resolved) {
-    return (
-      <div className={styles.resolvedBanner}>
-        <span className={styles.resolvedBannerIcon} aria-hidden="true">✓</span>
-        <div>
-          <p className={styles.resolvedBannerTitle}>Resolution queued</p>
-          <p className={styles.resolvedBannerBody}>
-            Resolution queued for Archivist processing. The Archivist will consume this resolution on next cycle.
-          </p>
-        </div>
-      </div>
-    )
   }
 
   return (
