@@ -16,6 +16,7 @@ import { useViewNavigationShortcuts } from '../../hooks/useViewNavigationShortcu
 import { fetchInstallState } from '../../api/client'
 import type { InstallStateResult } from '../../api/types'
 import { SetupWizard, shouldShowWizard } from '../setup/SetupWizard'
+import { RouteErrorBoundary } from '../ui/ErrorBoundary'
 import styles from './AppShell.module.css'
 import { IrantiMark } from './IrantiMark'
 
@@ -421,7 +422,9 @@ export function AppShell() {
         </header>
 
         <main className={styles.content} id="main-content">
-          <Outlet />
+          <RouteErrorBoundary>
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
 
         <ActivityDrawerSlot />

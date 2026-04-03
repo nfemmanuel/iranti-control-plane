@@ -130,13 +130,18 @@ function parseConflictLog(raw: Record<string, unknown> | null): ConflictEntry[] 
   // The server serialises conflictLog as an array stored under a numeric-keyed object
   // when Prisma returns it, or it may arrive as a plain JSON array depending on the
   // serialisation path. We handle both shapes defensively.
-  if (Array.isArray(raw)) return raw as ConflictEntry[]
-  // Prisma Json fields sometimes come back as a plain object with numeric string keys
-  const maybeArray = Object.values(raw)
-  if (maybeArray.length > 0 && typeof maybeArray[0] === 'object' && maybeArray[0] !== null && 'type' in (maybeArray[0] as object)) {
-    return maybeArray as ConflictEntry[]
+  let candidates: unknown[]
+  if (Array.isArray(raw)) {
+    candidates = raw
+  } else {
+    candidates = Object.values(raw)
   }
-  return []
+  // Only keep entries that are objects with a 'type' field — resolution metadata
+  // or other non-ConflictEntry objects in conflictLog must not crash rendering.
+  return candidates.filter(
+    (item): item is ConflictEntry =>
+      typeof item === 'object' && item !== null && 'type' in item && typeof (item as Record<string, unknown>).type === 'string'
+  )
 }
 
 const CONFLICT_TYPE_LABELS: Record<ConflictEntry['type'], string> = {
@@ -155,6 +160,8 @@ function conflictTypeBadgeStyle(type: ConflictEntry['type']): CSSProperties {
     case 'CONFLICT_RESOLVED':
       return { color: 'var(--color-status-success)', background: 'var(--color-status-success-bg)', border: '1px solid var(--color-status-success)' }
     case 'IDEMPOTENT_SKIP':
+      return { color: 'var(--color-text-tertiary)', background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-subtle)' }
+    default:
       return { color: 'var(--color-text-tertiary)', background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-subtle)' }
   }
 }
