@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { stopControlPlane, uninstallControlPlane } from '../../api/client'
+import { stopControlPlane, uninstallControlPlane, getCpConfig, setCpConfig } from '../../api/client'
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 import { useSettings } from '../../hooks/useSettings'
 import {
@@ -84,6 +84,45 @@ export function SettingsPage() {
     message: string
   }>({ phase: 'idle', action: null, message: '' })
   const [confirmPending, setConfirmPending] = useState<'stop' | 'uninstall' | null>(null)
+
+  const activePort = window.location.port || '80'
+  const [defaultPortDraft, setDefaultPortDraft] = useState<string>('')
+  const [defaultPortSaveState, setDefaultPortSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [defaultPortError, setDefaultPortError] = useState<string>('')
+
+  useEffect(() => {
+    getCpConfig()
+      .then(config => {
+        setDefaultPortDraft(config.defaultPort != null ? String(config.defaultPort) : '')
+      })
+      .catch(() => {
+        // Non-fatal — leave draft empty
+      })
+  }, [])
+
+  useEffect(() => {
+    if (defaultPortSaveState !== 'saved') return
+    const id = setTimeout(() => setDefaultPortSaveState('idle'), 1800)
+    return () => clearTimeout(id)
+  }, [defaultPortSaveState])
+
+  const handleSaveDefaultPort = async () => {
+    const trimmed = defaultPortDraft.trim()
+    const portValue = trimmed === '' ? null : Number.parseInt(trimmed, 10)
+    if (trimmed !== '' && (!Number.isFinite(portValue) || (portValue as number) < 1024 || (portValue as number) > 65535)) {
+      setDefaultPortError('Port must be a number between 1024 and 65535.')
+      return
+    }
+    setDefaultPortError('')
+    setDefaultPortSaveState('saving')
+    try {
+      await setCpConfig(portValue)
+      setDefaultPortSaveState('saved')
+    } catch (err) {
+      setDefaultPortError(err instanceof Error ? err.message : 'Save failed.')
+      setDefaultPortSaveState('error')
+    }
+  }
 
   useEffect(() => {
     setDraft(settings)
@@ -315,6 +354,48 @@ export function SettingsPage() {
         title="Control Plane Lifecycle"
         description="Manage the control plane itself from inside the product when you are done with this session or want to remove the package."
       >
+        <div className={styles.gridTwo} style={{ marginBottom: '1.5rem' }}>
+          <Field
+            label="Active port"
+            hint="The port this Control Plane is currently listening on."
+          >
+            <input className={styles.input} type="text" value={activePort} readOnly />
+          </Field>
+
+          <Field
+            label="Default port"
+            hint="Persisted startup default. Takes effect on next iranti-cp start. Leave blank to use the 3000–3010 auto-range."
+          >
+            <input
+              className={styles.input}
+              type="number"
+              min={1024}
+              max={65535}
+              placeholder="e.g. 3000"
+              value={defaultPortDraft}
+              onChange={e => {
+                setDefaultPortDraft(e.target.value)
+                setDefaultPortError('')
+                setDefaultPortSaveState('idle')
+              }}
+            />
+            {defaultPortError && (
+              <span className={styles.fieldHint} style={{ color: 'var(--color-error, #e05252)' }}>
+                {defaultPortError}
+              </span>
+            )}
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              style={{ marginTop: '0.5rem' }}
+              onClick={handleSaveDefaultPort}
+              disabled={defaultPortSaveState === 'saving'}
+            >
+              {defaultPortSaveState === 'saving' ? 'Saving…' : defaultPortSaveState === 'saved' ? 'Saved' : 'Save Default Port'}
+            </button>
+          </Field>
+        </div>
+
         <div className={styles.lifecycleRow}>
           <div className={styles.lifecycleCard}>
             <h3 className={styles.lifecycleTitle}>Stop Control Plane</h3>

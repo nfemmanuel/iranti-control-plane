@@ -30,6 +30,7 @@ import { attendantDebugRouter } from './attendant-debug.js'
 import { localToolsRouter } from './local-tools.js'
 import { controlPlaneSelfRouter } from './control-plane-self.js'
 import { sessionLedgerRouter } from './session-ledger.js'
+import { cpConfigRouter } from './cp-config.js'
 
 export const controlPlaneRouter = Router()
 
@@ -66,3 +67,4 @@ controlPlaneRouter.use('/auth-keys', authKeysRouter)
 controlPlaneRouter.use('/', instanceLifecycleRouter)
 controlPlaneRouter.use('/integrations', codexIntegrationRouter)
 controlPlaneRouter.use('/debug', attendantDebugRouter)
+controlPlaneRouter.use('/', cpConfigRouter)

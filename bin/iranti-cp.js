@@ -31,6 +31,9 @@ Usage:
   iranti-cp doctor [iranti doctor args...]
   iranti-cp upgrade [self]
   iranti-cp upgrade iranti [iranti upgrade args...]
+  iranti-cp config [get]
+  iranti-cp config set port <n>
+  iranti-cp config unset port
 
 Commands:
   open      Open an existing Control Plane if one is running, otherwise start it in the background.
@@ -41,9 +44,13 @@ Commands:
   version   Print the installed iranti-control-plane version.
   doctor    Proxy to "iranti doctor".
   upgrade   Upgrade iranti-control-plane itself, or proxy to "iranti upgrade" for core Iranti.
+  config    Read or write persistent Control Plane configuration.
+            get            Show current config.
+            set port <n>   Set the default startup port (1024–65535).
+            unset port     Clear the default port, reverting to the 3000–3010 auto-range.
 
 Options:
-  --port <n>  Prefer a specific Control Plane port for open/start/status.
+  --port <n>  Prefer a specific Control Plane port for open/start/status (one-time override).
   --json      Emit machine-readable output for status.
   -h, --help  Show this help.
 `);
@@ -86,6 +93,26 @@ function parseArgs(argv) {
   return { help, port, json, positionals };
 }
 
+function getUserConfigPath() {
+  return path.join(require('os').homedir(), '.iranti-runtime', 'iranti-cp-config.json');
+}
+
+function readUserConfig() {
+  try {
+    const raw = fs.readFileSync(getUserConfigPath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeUserConfig(config) {
+  const configPath = getUserConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
 function preferredPorts(explicitPort) {
   const seen = new Set();
   const ordered = [];
@@ -100,9 +127,62 @@ function preferredPorts(explicitPort) {
 
   add(explicitPort);
   add(process.env.CONTROL_PLANE_PORT);
+  add(readUserConfig().defaultPort);
   for (let port = 3000; port <= 3010; port += 1) add(port);
   add(3002);
   return ordered;
+}
+
+async function handleConfig(subcommands) {
+  const sub = subcommands[0];
+
+  if (!sub || sub === 'get') {
+    const config = readUserConfig();
+    const portDisplay = config.defaultPort != null
+      ? String(config.defaultPort)
+      : '(not set — uses 3000–3010 auto-range)';
+    console.log(`defaultPort: ${portDisplay}`);
+    return 0;
+  }
+
+  if (sub === 'set') {
+    const key = subcommands[1];
+    const value = subcommands[2];
+    if (key === 'port') {
+      if (!value) {
+        console.error('iranti-cp config set port: missing port number');
+        return 1;
+      }
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed < 1024 || parsed > 65535) {
+        console.error(`iranti-cp config set port: "${value}" is not a valid port (1024–65535)`);
+        return 1;
+      }
+      const config = readUserConfig();
+      config.defaultPort = parsed;
+      writeUserConfig(config);
+      console.log(`Default port set to ${parsed}. Takes effect on next iranti-cp start.`);
+      return 0;
+    }
+    console.error(`iranti-cp config set: unknown key "${key !== undefined ? key : ''}". Supported: port`);
+    return 1;
+  }
+
+  if (sub === 'unset') {
+    const key = subcommands[1];
+    if (key === 'port') {
+      const config = readUserConfig();
+      delete config.defaultPort;
+      writeUserConfig(config);
+      console.log('Default port cleared. Will use 3000–3010 auto-range on next start.');
+      return 0;
+    }
+    console.error(`iranti-cp config unset: unknown key "${key !== undefined ? key : ''}". Supported: port`);
+    return 1;
+  }
+
+  console.error(`iranti-cp config: unknown subcommand "${sub}". Use get, set, or unset.`);
+  return 1;
 }
 
 async function fetchJson(url, timeoutMs = 1500) {
@@ -527,6 +607,8 @@ async function main() {
     exitCode = await runIrantiProxy(['doctor', ...rest]);
   } else if (command === 'upgrade') {
     exitCode = await handleUpgrade(rest[0] || 'self', rest.slice(1));
+  } else if (command === 'config') {
+    exitCode = await handleConfig(rest);
   } else {
     console.error(`iranti-cp: unknown command "${command}".`);
     printHelp();

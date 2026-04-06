@@ -659,3 +659,26 @@ export async function runDebugAttend(
   return data as AttendResult
 }
 
+/**
+ * Fetch the persisted Control Plane default port from server-side config.
+ * Returns null if no default has been set.
+ */
+export function getCpConfig(): Promise<{ defaultPort: number | null }> {
+  return apiFetch<{ defaultPort: number | null }>('/cp-config')
+}
+
+/**
+ * Persist a new Control Plane default port (or null to clear it).
+ * Takes effect on next iranti-cp start.
+ */
+export async function setCpConfig(defaultPort: number | null): Promise<{ ok: boolean; defaultPort: number | null }> {
+  const url = new URL(`${BASE}/cp-config`, window.location.origin)
+  const res = await fetch(url.toString(), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ defaultPort }),
+  })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as { ok: boolean; defaultPort: number | null }
+}
