@@ -1,5 +1,5 @@
 import pg from 'pg'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, readdirSync, existsSync } from 'fs'
 import { resolve } from 'path'
 import { homedir } from 'os'
 import { dirnamePortable, resolvePortable } from './lib/path-utils.js'
@@ -39,12 +39,38 @@ export function ancestorBindingCandidates(startDir: string): string[] {
   return candidates
 }
 
+function discoverInstanceEnvCandidates(homeDir: string): string[] {
+  // Check IRANTI_INSTANCE or IRANTI_INSTANCE_NAME from env for a specific instance.
+  const explicitName = (
+    process.env['IRANTI_INSTANCE'] ??
+    process.env['IRANTI_INSTANCE_NAME'] ??
+    ''
+  ).trim()
+
+  const instancesDir = resolvePortable(homeDir, '.iranti-runtime', 'instances')
+
+  if (explicitName) {
+    return [resolvePortable(instancesDir, explicitName, '.env')]
+  }
+
+  // No explicit instance — scan all instance directories so the CP can find
+  // whichever instance exists, rather than assuming it's named "local".
+  try {
+    return readdirSync(instancesDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => resolvePortable(instancesDir, entry.name, '.env'))
+  } catch {
+    // instances dir doesn't exist yet
+    return [resolvePortable(instancesDir, 'local', '.env')]
+  }
+}
+
 export function envFileCandidates(startDir: string, homeDir = homedir(), isSea = false, execPath = process.execPath): string[] {
   return [
     ...(isSea ? [resolvePortable(dirnamePortable(execPath), '.env.iranti')] : []),
     ...ancestorBindingCandidates(startDir),
     resolvePortable(homeDir, '.iranti-runtime', '.env.iranti'),
-    resolvePortable(homeDir, '.iranti-runtime', 'instances', 'local', '.env'),
+    ...discoverInstanceEnvCandidates(homeDir),
   ]
 }
 
