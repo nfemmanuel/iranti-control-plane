@@ -21,6 +21,46 @@ Every agent must:
 4. Record uncertainties and assumptions instead of inventing certainty.
 5. Check with the PM before changing product scope, UX intent, naming, roadmap, or acceptance criteria.
 
+## Iranti Attend Protocol (required every turn)
+
+Call `iranti_attend` in this sequence:
+1. `iranti_attend(phase='pre-response')` — before replying to any user message
+2. `iranti_attend` — before any Read, Grep, Glob, Bash, WebSearch, or WebFetch used as a factual basis
+3. `iranti_write` — after every Edit or Write tool call (see write standard below)
+4. `iranti_write` — after any Bash command that reveals system state (build results, errors, env facts)
+5. `iranti_write` — after any WebSearch or WebFetch (both findings AND dead ends — see below)
+6. `iranti_attend(phase='post-response')` — after every response without exception
+
+## Iranti Write Standard
+
+A write that says "file X was updated" is non-compliant. A compliant write includes:
+
+**For file edits:**
+```
+entity: project/[project]/file/[filename_no_ext]
+key:    [date]_[brief_change_label]
+value:  {
+  absolutePath: "C:/Users/.../src/components/Nav.tsx",
+  lines: "65-70",
+  before: "Link href='/get-started'",
+  after:  "anchor href='mailto:hello@iranti.dev'",
+  verify: "grep for 'mailto:hello@iranti.dev' in Nav.tsx lines 60-75 — should hit",
+  why:    "closed-beta framing — no public install path"
+}
+```
+
+**For web searches and fetches:**
+- Write what you found AND what you did not find
+- Include the URL, the search terms, and the result (including 404s, private repos, dead links)
+- Negative findings ("iranti-benchmarking repo is private — do not link publicly") are as valuable as positive ones
+
+**For system state discoveries (Bash):**
+- Port availability, process state, build results, env variable values, errors and their resolution
+- Include the command and the relevant output, not just a summary
+
+**Entity naming for file-level facts:**
+Use `project/[project_id]/file/[filename]` not the broad project entity. This keeps retrieval scoped — a lookup for Nav.tsx facts should not pull in facts about siteData.ts.
+
 ## Live Semantics Rule
 
 The control plane must be built against the live Iranti operator model, not guessed repo assumptions.
@@ -144,3 +184,13 @@ TypeScript success or local rendering is not enough.
 - `ticket/[ticket_id]` - ticket state, acceptance criteria, blockers, and outcomes
 - `research/[topic]` - user and market research findings
 - `blocker/[topic]` - active blockers
+
+<!-- iranti-rules -->
+# Iranti
+
+This project uses Iranti for shared memory. Read `IRANTI.md` for the full protocol.
+
+- Call `mcp__iranti__iranti_handshake` before responding to the first user message.
+- Call `mcp__iranti__iranti_handshake` after context compaction.
+- Follow the attend/write/checkpoint protocol in IRANTI.md.
+<!-- /iranti-rules -->
