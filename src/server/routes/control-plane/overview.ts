@@ -325,7 +325,10 @@ async function fetchOverviewAgentDetails(baseUrl: string, headers: Record<string
 }
 
 function getIrantiUrl(): string {
-  return (env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? 'http://localhost:3001').replace(/\/$/, '')
+  const explicit = env['IRANTI_URL'] ?? process.env['IRANTI_URL'] ?? ''
+  if (explicit.trim()) return explicit.trim().replace(/\/$/, '')
+  const port = env['IRANTI_PORT'] ?? process.env['IRANTI_PORT'] ?? '3001'
+  return `http://localhost:${port}`
 }
 
 function getIrantiApiKey(): string {
