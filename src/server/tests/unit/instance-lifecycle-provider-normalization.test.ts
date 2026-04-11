@@ -14,6 +14,21 @@ vi.mock('../../lib/runtime-roots.js', () => ({
     if (normalized.endsWith('/.iranti')) return 'legacy'
     return 'custom'
   },
+  // parseSimpleEnv was made a named export by the audit; keep the real implementation
+  // here so instance-authority.js (which re-exports it) resolves correctly under Vitest.
+  parseSimpleEnv: (content: string): Record<string, string> => {
+    const result: Record<string, string> = {}
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const idx = trimmed.indexOf('=')
+      if (idx === -1) continue
+      const key = trimmed.slice(0, idx).trim()
+      const value = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
+      if (key) result[key] = value
+    }
+    return result
+  },
 }))
 
 vi.mock('../../lib/iranti-cli.js', () => ({
