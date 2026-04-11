@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Toast Container */
-/* CP-T069 — Proactive Health Alert Toasts */
-/* Fixed bottom-right. Renders above chat panel and command palette (z-index 1100). */
+/**
+ * Iranti Control Plane — Toast Container
+ * CP-T069 — Proactive Health Alert Toasts
+ * Fixed bottom-right. Renders above chat panel and command palette (z-index 1100).
+ */
 
 import type { Toast as ToastData } from '../../hooks/useToasts'
 import { Toast } from './Toast'

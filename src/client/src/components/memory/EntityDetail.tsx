@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Entity Detail */
-/* Route: /memory/:entityType/:entityId */
-/* CP-T036 — Entity detail page with current facts, archived facts, and relationships */
+/**
+ * Iranti Control Plane — Entity Detail
+ * Route: /memory/:entityType/:entityId
+ * CP-T036 — Entity detail page with current facts, archived facts, and relationships
+ */
 
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'

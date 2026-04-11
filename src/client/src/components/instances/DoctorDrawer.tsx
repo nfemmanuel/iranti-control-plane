@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Doctor Results Drawer */
-/* CP-T033 — Right-side drawer showing per-instance doctor check results */
+/**
+ * Iranti Control Plane — Doctor Results Drawer
+ * CP-T033 — Right-side drawer showing per-instance doctor check results
+ */
 
 import { useState } from 'react'
 import type { DoctorCheck, DoctorResponse, RepairMcpJsonResponse, RepairClaudeMdResponse } from '../../api/types'

@@ -19,7 +19,13 @@ import { basenamePortable, dirnamePortable, joinPortable, resolvePortable } from
 
 export type RuntimeRootKind = 'primary' | 'legacy' | 'custom'
 
-function parseSimpleEnv(content: string): Record<string, string> {
+/**
+ * Parse a .env file content into a key→value map.
+ * Handles CRLF line endings, ignores blank lines and # comments,
+ * and strips leading/trailing single or double quotes from values.
+ * Exported so callers in instance-authority.ts can share one implementation.
+ */
+export function parseSimpleEnv(content: string): Record<string, string> {
   const result: Record<string, string> = {}
   for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim()

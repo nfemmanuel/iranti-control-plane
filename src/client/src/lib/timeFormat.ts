@@ -1,3 +1,11 @@
+/**
+ * timeFormat.ts — Date/time formatting utilities for the Control Plane UI.
+ *
+ * All formatters accept an ISO 8601 string (or null) and an optional
+ * `TimezonePreference` (from settings). Null inputs render '—'.
+ * `formatRelativeTime` is timezone-independent (relative to Date.now()).
+ */
+
 import type { TimezonePreference } from './settings'
 
 /** Resolve the timezone option for Intl formatters. undefined = browser local. */

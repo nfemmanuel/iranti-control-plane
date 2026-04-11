@@ -1,7 +1,9 @@
-﻿/* Iranti Control Plane — Instance & Project Manager */
-/* Route: /instances and /instances/:instanceId */
-/* CP-T015 — Two-column instance list + detail panel */
-/* CP-T029 — Last-checked timestamp, staleness indicator, precise status labels */
+/**
+ * Iranti Control Plane — Instance & Project Manager
+ * Route: /instances and /instances/:instanceId
+ * CP-T015 — Two-column instance list + detail panel
+ * CP-T029 — Last-checked timestamp, staleness indicator, precise status labels
+ */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'

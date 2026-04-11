@@ -20,7 +20,7 @@ import { access, readFile } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { join, basename, dirname, resolve } from 'path'
 import { env as controlPlaneEnv } from '../db.js'
-import { runtimeRootCandidates as discoverRuntimeRootCandidates } from './runtime-roots.js'
+import { runtimeRootCandidates as discoverRuntimeRootCandidates, parseSimpleEnv } from './runtime-roots.js'
 
 export interface BoundProjectRef {
   projectPath: string
@@ -64,19 +64,8 @@ export function deriveInstanceId(instanceDir: string): string {
   return createHash('sha256').update(normalized).digest('hex').slice(0, 8)
 }
 
-export function parseSimpleEnv(content: string): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const idx = trimmed.indexOf('=')
-    if (idx === -1) continue
-    const key = trimmed.slice(0, idx).trim()
-    const value = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
-    if (key) result[key] = value
-  }
-  return result
-}
+/** Re-exported from runtime-roots.ts; kept here for backwards-compatible imports. */
+export { parseSimpleEnv }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

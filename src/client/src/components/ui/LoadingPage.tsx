@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Full-page loading state */
-/* Used when the app is initializing or the instance context is loading */
+/**
+ * Iranti Control Plane — Full-page loading state
+ * Used when the app is initializing or the instance context is loading
+ */
 
 import { Spinner } from './Spinner'
 

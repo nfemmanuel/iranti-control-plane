@@ -1,5 +1,7 @@
-/* Iranti Control Plane — OpenFileButton component */
-/* CP-T084: Opens a whitelisted local config file in the user's system editor. */
+/**
+ * Iranti Control Plane — OpenFileButton component
+ * CP-T084: Opens a whitelisted local config file in the user's system editor.
+ */
 
 import { useState, useCallback } from 'react'
 import { openFile } from '../../api/client'

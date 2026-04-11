@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Provider Manager */
-/* Route: /providers */
-/* CP-T046: Standalone provider view, warning threshold, detail panel */
+/**
+ * Iranti Control Plane — Provider Manager
+ * Route: /providers
+ * CP-T046: Standalone provider view, warning threshold, detail panel
+ */
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'

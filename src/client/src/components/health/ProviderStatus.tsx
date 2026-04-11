@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Provider Status Section */
-/* Rendered inside HealthDashboard below system health checks */
-/* CP-T034: Read-only provider key presence + reachability + model list */
+/**
+ * Iranti Control Plane — Provider Status Section
+ * Rendered inside HealthDashboard below system health checks
+ * CP-T034: Read-only provider key presence + reachability + model list
+ */
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

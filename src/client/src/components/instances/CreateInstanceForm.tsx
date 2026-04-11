@@ -1,4 +1,6 @@
-﻿/* Iranti Control Plane - Create Instance Form */
+/**
+ * Iranti Control Plane - Create Instance Form
+ */
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { createInstance } from '../../api/client'
@@ -592,4 +594,4 @@ export function CreateInstanceForm({ suggestedPort, instances, onSuccess, onCanc
       </div>
     </div>
   )
-}
+}

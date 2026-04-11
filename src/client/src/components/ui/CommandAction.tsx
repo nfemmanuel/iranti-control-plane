@@ -1,3 +1,11 @@
+/**
+ * CommandAction.tsx — Inline command runner widget.
+ *
+ * Renders a shell command as a code snippet with a copy or run button,
+ * depending on the `commandRunnerMode` setting (copy_and_run | copy_only).
+ * Used throughout the UI wherever remediation commands are surfaced.
+ */
+
 import { useMemo, useRef, useState } from 'react'
 import { runCommand } from '../../api/client'
 import type { RunCommandResult } from '../../api/types'

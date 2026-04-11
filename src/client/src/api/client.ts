@@ -1,5 +1,9 @@
-/* Iranti Control Plane - Shared API client */
-/* All control-plane API calls go through this module. */
+/**
+ * client.ts — Shared API client for the Iranti Control Plane.
+ *
+ * All control-plane API calls go through this module. Provides `apiFetch`
+ * (generic fetch wrapper) and typed wrappers for every endpoint.
+ */
 
 import type { VersionSyncResult, InstallStateResult, StartInstanceResult, StopInstanceResult, ProcessStatusResult, RestartInstanceResult, OpenFileResult, PickPathResult, RunCommandResult, ControlPlaneSelfActionResult, ProviderWriteKeyResult, ProviderSetDefaultResult, ProviderFallbackResult, RoutingDefaultsResponse, TaskRoutingUpdateResult, AuthKeysListResponse, AuthKeyCreateResult, AuthKeyRevokeResult, CreateInstanceResult, ConfigureInstanceResult, MigrateInstanceRootResult, DeleteInstanceResult, ProjectsListResponse, BindProjectResult, RebindProjectResult, UnbindProjectResult, ClaudeIntegrationStatus, ScaffoldResult, IntegrationSummaryResponse, CodexIntegrationStatus, CodexSetupResult, CodexRemoveResult, HandshakeResult, AttendResult, DatabaseIntentChoice } from './types'
 

@@ -1,7 +1,9 @@
-/* Iranti Control Plane — Staff Activity Stream */
-/* Route: /activity */
-/* CP-T014 — Live SSE feed with filtering, pause/resume, auto-scroll */
-/* CP-T037 — Live mode UX: pulse indicator, velocity counter, hover-pause */
+/**
+ * Iranti Control Plane — Staff Activity Stream
+ * Route: /activity
+ * CP-T014 — Live SSE feed with filtering, pause/resume, auto-scroll
+ * CP-T037 — Live mode UX: pulse indicator, velocity counter, hover-pause
+ */
 
 import {
   useState,

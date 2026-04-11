@@ -1,6 +1,8 @@
-/* Iranti Control Plane — ConfirmationModal */
-/* Reusable modal for destructive / irreversible actions (CP-T033) */
-/* Accessible: focus trap, Escape to close, Terminals palette */
+/**
+ * Iranti Control Plane — ConfirmationModal
+ * Reusable modal for destructive / irreversible actions (CP-T033)
+ * Accessible: focus trap, Escape to close, Terminals palette
+ */
 
 import { useEffect, useRef } from 'react'
 import styles from './ConfirmationModal.module.css'

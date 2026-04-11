@@ -1,10 +1,11 @@
-/* Iranti Control Plane — View Navigation Keyboard Shortcuts */
-/* CP-T070 — Global G+<key> navigation shortcuts */
-/*                                                                     */
-/* Pattern: press G (no modifiers, no input focused), then within      */
-/* 1500ms press a letter key to navigate to the mapped route.          */
-/* Displays a "go mode" indicator chip while waiting for the second    */
-/* keypress.                                                            */
+/**
+ * useViewNavigationShortcuts.ts — Global G+<key> navigation keyboard shortcuts.
+ *
+ * CP-T070 — Global navigation shortcuts.
+ * Pattern: press G (no modifiers, no input focused), then within 1500ms
+ * press a letter key to navigate to the mapped route.
+ * Returns `goMode: boolean` so the caller can display a "go mode" indicator.
+ */
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

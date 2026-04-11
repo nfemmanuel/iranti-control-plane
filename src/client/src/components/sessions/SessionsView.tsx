@@ -1,6 +1,8 @@
-/* Iranti Control Plane - Sessions View */
-/* Route: /sessions */
-/* CP-T071 - Session Recovery visibility */
+/**
+ * Iranti Control Plane - Sessions View
+ * Route: /sessions
+ * CP-T071 - Session Recovery visibility
+ */
 
 import { Fragment, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'

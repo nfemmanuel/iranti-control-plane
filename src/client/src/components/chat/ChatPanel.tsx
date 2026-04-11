@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Embedded Chat Panel */
-/* CP-T020: Live chat wired to POST /api/control-plane/chat. */
-/* PM decisions applied:
+/**
+ * ChatPanel.tsx — Embedded Chat Panel.
+ *
+ * CP-T020: Live chat wired to POST /api/control-plane/chat.
+ * PM decisions applied:
  *   - Persistence: in-memory only (no server-side session storage)
  *   - Slash commands: static list of 13 confirmed commands from Iranti source
  *   - History: retained on view switch (per-tab, not per-view)

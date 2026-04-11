@@ -1,42 +1,18 @@
-/* Iranti Control Plane — Conflict and Escalation Review UI */
-/* Route: /conflicts */
-/* CP-T021 — Pending escalation list + side-by-side comparison + resolution actions */
-/*
+/**
+ * ConflictReview.tsx — Conflict and Escalation Review UI.
+ *
+ * Route: /conflicts
+ * CP-T021 — Pending escalation list + side-by-side comparison + resolution actions.
+ *
  * INVESTIGATION NOTE (2026-03-20 frontend_developer):
+ * No backend escalation endpoint exists yet. The component renders an
+ * "API not available" state until the backend is scaffolded.
+ * Switch `ESCALATIONS_API_AVAILABLE = true` when the backend route is live.
  *
- * No backend escalation endpoint exists in the current codebase.
- * - src/server/routes/control-plane/ contains: health, instances, kb, events, setup, repair
- * - No GET /escalations, POST /escalations/:id/resolve, or similar route found.
- * - The archive table has resolutionState / conflictLog columns but no dedicated
- *   escalation queue route to surface pending conflicts.
- *
- * The archive table does store resolutionState values ('resolved_keep_existing',
- * 'resolved_accept_challenger', etc.), but querying for pending escalations requires
- * knowing which rows are "pending" vs "already resolved". Without a dedicated API route
- * this component cannot list real escalations.
- *
- * FINDINGS written to Iranti: entity ticket/cp_t021, key frontend_investigation.
- *
- * WHAT IS BUILT:
- * - Full UI implementation with typed interfaces matching the expected API spec from the ticket.
- * - List view, side-by-side comparison panel, resolution actions with confirmation.
- * - Resolved escalation list (secondary tab).
- * - Pending count badge integration point.
- * - All acceptance criteria UX is implemented, wired to the API shape from the ticket.
- *
- * WHAT IS BLOCKED:
- * - GET /api/control-plane/escalations?status=pending — endpoint does not exist.
- * - POST /api/control-plane/escalations/:id/resolve — endpoint does not exist.
- * - The component renders an "API not available" state until the backend is scaffolded.
- *   Switch `ESCALATIONS_API_AVAILABLE = true` when the backend route is live.
- *
- * REQUIRED from backend_developer before this ticket completes:
- * 1. GET /api/control-plane/escalations?status=pending|resolved — returns EscalationList.
- * 2. GET /api/control-plane/escalations/:id — returns EscalationDetail.
- * 3. POST /api/control-plane/escalations/:id/resolve — body: ResolutionPayload.
- * 4. Confirm whether escalation data comes from the archive table, filesystem, or
- *    a separate escalation table. The Resolutionist's storage mechanism must be confirmed
- *    before the list endpoint can be implemented.
+ * REQUIRED from backend_developer:
+ * 1. GET /api/control-plane/escalations?status=pending|resolved
+ * 2. GET /api/control-plane/escalations/:id
+ * 3. POST /api/control-plane/escalations/:id/resolve
  */
 
 import { useState } from 'react'

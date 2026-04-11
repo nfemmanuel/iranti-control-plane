@@ -1,3 +1,16 @@
+/**
+ * instances.ts — Instance discovery, lifecycle, and process-status routes.
+ *
+ * Routes:
+ *   GET  /instances            — list all discovered Iranti instances with runtime status
+ *   GET  /instances/:id        — single instance detail with full runtime metadata
+ *   POST /instances/:id/start  — start a stopped instance via the iranti CLI
+ *   POST /instances/:id/stop   — stop a running instance process
+ *
+ * Runtime status is derived by running `iranti status --json` and classifying
+ * the response using `cliRuntimeStatus()`. Results are cached briefly for performance.
+ */
+
 import { Router, Request, Response, NextFunction } from 'express'
 import { access, constants, readFile, readdir } from 'fs/promises'
 import { basename, dirname, join, resolve } from 'path'

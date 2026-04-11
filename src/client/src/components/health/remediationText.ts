@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Health check remediation strings */
-/* Maintained as a separate constants file per CP-T016 design note */
-/* Update this file when health check definitions evolve. */
+/**
+ * Iranti Control Plane — Health check remediation strings
+ * Maintained as a separate constants file per CP-T016 design note
+ * Update this file when health check definitions evolve.
+ */
 
 export interface RemediationEntry {
   status: 'warn' | 'error'

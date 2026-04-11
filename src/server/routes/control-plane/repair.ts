@@ -1,3 +1,15 @@
+/**
+ * Repair / Doctor routes — CP-T014
+ *
+ * Routes:
+ *   GET  /repair/doctor                  — run full doctor checks (runtime, DB, pgvector, project integration)
+ *   POST /repair/provision-db            — provision a new database for an instance
+ *   POST /repair/apply-remediation       — apply a specific repair remediation step
+ *   GET  /repair/doctor/cli              — delegate doctor check to the iranti CLI
+ *
+ * Each doctor check returns a structured result with id, status, message,
+ * repairAction, and commands, so the UI can offer guided one-click repairs.
+ */
 import { Router, Request, Response, NextFunction } from 'express'
 import { access, readFile, writeFile, constants } from 'fs/promises'
 import { join, basename } from 'path'

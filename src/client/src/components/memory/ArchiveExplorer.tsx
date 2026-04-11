@@ -1,8 +1,10 @@
-/* Iranti Control Plane — Archive Explorer */
-/* Route: /archive */
-/* Displays archived facts with all KB filters plus archive-specific filters. */
-/* Queries GET /api/control-plane/archive (no temporal history jump — archive IS the history). */
-/* CP-T049: Archivist History, Flag for Review, Flagged filter, Flagged queue, Restore. */
+/**
+ * Iranti Control Plane — Archive Explorer
+ * Route: /archive
+ * Displays archived facts with all KB filters plus archive-specific filters.
+ * Queries GET /api/control-plane/archive (no temporal history jump — archive IS the history).
+ * CP-T049: Archivist History, Flag for Review, Flagged filter, Flagged queue, Restore.
+ */
 
 import { Fragment, useState, useReducer, useEffect, useRef, useCallback, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'

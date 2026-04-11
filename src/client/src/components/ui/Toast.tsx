@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Toast Notification Component */
-/* CP-T069 — Proactive Health Alert Toasts */
+/**
+ * Iranti Control Plane — Toast Notification Component
+ * CP-T069 — Proactive Health Alert Toasts
+ */
 
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'

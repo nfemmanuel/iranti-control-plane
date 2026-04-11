@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Bind / Rebind Project Form */
-/* CP-T091 — Two-tab form: Bind New | Rebind Existing */
+/**
+ * Iranti Control Plane — Bind / Rebind Project Form
+ * CP-T091 — Two-tab form: Bind New | Rebind Existing
+ */
 
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -504,5 +506,5 @@ export function BindProjectForm({
     </div>
   )
 }
-
-
+
+

@@ -1,4 +1,5 @@
-/* Iranti Control Plane — Database provisioning helper
+/**
+ * db-provision.ts — Database provisioning helper.
  *
  * Creates a PostgreSQL database and runs the bundled Iranti setup
  * script (prisma migrate deploy + seed) against it.
