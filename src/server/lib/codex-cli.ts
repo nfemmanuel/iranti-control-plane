@@ -1,3 +1,16 @@
+/**
+ * codex-cli.ts — Codex CLI resolution and invocation helpers.
+ *
+ * Mirrors the pattern in iranti-cli.ts, but targets the `codex` binary:
+ *   1. Explicit env override (CODEX_CLI_PATH or IRANTI_CP_CODEX_CLI)
+ *   2. PATH lookup via `which` / `where`
+ *
+ * Normalises the resolved path into a {command, args} pair that works on
+ * all platforms (Windows .cmd shims are unwrapped to the underlying JS entry).
+ *
+ * Exports: resolveCodexCli, runCodexCommand
+ */
+
 import { execFile, spawn } from 'child_process'
 import { access } from 'fs/promises'
 import { constants } from 'fs'

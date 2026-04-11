@@ -1,3 +1,12 @@
+/**
+ * index.ts — Control Plane router registry.
+ *
+ * Assembles all sub-routers under the /api/control-plane prefix that is
+ * applied in index.ts (server root). Each sub-router is mounted at the
+ * path segment(s) it owns; some share the same prefix (e.g., /instances)
+ * because they cover distinct concerns on the same resource.
+ */
+
 import { Router } from 'express'
 import { kbRouter } from './kb.js'
 import { instancesRouter } from './instances.js'

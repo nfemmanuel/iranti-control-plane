@@ -1,3 +1,18 @@
+/**
+ * sessions.ts — Iranti agent session query and management routes. (CP-T071)
+ *
+ * Provides a read/write interface to the sessions table in the Iranti database,
+ * plus operator overrides for session state and compliance review.
+ *
+ * Routes:
+ *   GET  /sessions             — Paginated, filterable list of session records.
+ *   GET  /sessions/:sessionId  — Single session detail with compliance info.
+ *   POST /sessions/:sessionId/abandon  — Operator-force-abandons an active session.
+ *
+ * Scoping: an optional instanceId query param routes requests to the correct
+ * instance database; falls back to the binding-configured instance.
+ */
+
 import { Router, Request, Response } from 'express'
 import { env, query } from '../../db.js'
 import { ApiError } from '../../types.js'

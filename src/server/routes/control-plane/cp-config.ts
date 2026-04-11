@@ -1,3 +1,15 @@
+/**
+ * cp-config.ts — Persistent user configuration for the Control Plane itself.
+ *
+ * Routes:
+ *   GET   /cp-config  — Return the persisted default port (or null).
+ *   PATCH /cp-config  — Set or clear the persisted default port.
+ *
+ * Config is stored in ~/.iranti-runtime/iranti-cp-config.json so it
+ * survives control-plane restarts and npm updates. The default port takes
+ * effect the next time `iranti-cp` starts.
+ */
+
 import { Router } from 'express'
 import { homedir } from 'os'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'

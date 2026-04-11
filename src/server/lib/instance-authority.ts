@@ -1,3 +1,20 @@
+/**
+ * instance-authority.ts — Instance resolution: the single source of truth for
+ *                         locating and describing a running Iranti instance.
+ *
+ * Given an optional instanceRef (name or derived ID), resolves the full
+ * ResolvedInstanceAuthority — the instance directory, env file, API base URL,
+ * API key, database URL, and list of bound projects.
+ *
+ * Resolution order:
+ *   1. Explicit query match: instanceRef matches an instance name or derived ID.
+ *   2. Binding match: IRANTI_INSTANCE / IRANTI_INSTANCE_NAME in the CP env
+ *      matches an instance name in the scanned runtime roots.
+ *
+ * The derived instanceId is a stable 8-hex-char SHA-256 of the lowercased,
+ * forward-slash-normalised instance directory path.
+ */
+
 import { createHash } from 'crypto'
 import { access, readFile } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'

@@ -1,3 +1,16 @@
+/**
+ * runtime-roots.ts — Discovery of Iranti runtime root directories.
+ *
+ * A "runtime root" is the directory that contains an `instances/` subdirectory
+ * (e.g. ~/.iranti-runtime or ~/.iranti). This module builds an ordered list of
+ * candidate roots from env vars, binding files, ancestor directories, and the
+ * user's home directory — with the most-specific candidates first.
+ *
+ * Exports:
+ *   runtimeRootCandidates() — returns existing roots only (non-existent paths filtered out)
+ *   classifyRuntimeRoot()   — labels a root as 'primary', 'legacy', or 'custom'
+ */
+
 import { existsSync, readFileSync } from 'fs'
 import { dirname } from 'path'
 import { homedir } from 'os'

@@ -1,3 +1,20 @@
+/**
+ * auth-keys.ts — API key management routes for Iranti instances. (CP-T088)
+ *
+ * Routes:
+ *   GET    /auth-keys            — List all keys (no raw tokens, metadata only).
+ *   POST   /auth-keys            — Create or rotate a key; returns the full token once.
+ *   DELETE /auth-keys/:keyId     — Revoke a key (remains visible for audit purposes).
+ *
+ * Storage: keys are stored in the instance's knowledge_base as a JSON blob
+ * under entity_type=system / entity_id=auth / key=api_keys. The raw token
+ * is hashed (SHA-256) before storage; the full token is returned to the caller
+ * exactly once at creation time.
+ *
+ * Scope: all routes require an instanceId query param or fall back to the
+ * binding-configured instance. 503 is returned if no instance is found.
+ */
+
 import { Router, Request, Response } from 'express'
 import { createHash, randomBytes } from 'crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'

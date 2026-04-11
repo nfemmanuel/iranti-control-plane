@@ -1,3 +1,17 @@
+/**
+ * control-plane-self.ts — Routes for stopping and uninstalling the Control Plane process.
+ *
+ * Routes:
+ *   GET  /self/shutdown-stream  — SSE channel; broadcasts a 'shutdown' event just before
+ *                                 the process exits so the UI can show a clean teardown.
+ *   POST /self/stop             — Sends SIGTERM to the current process after a short delay.
+ *   POST /self/uninstall        — Schedules a detached `npm uninstall -g` subprocess, then
+ *                                 stops the process as above.
+ *
+ * Security: these routes are intentionally unauthenticated because the control plane
+ * runs locally. The UI asks for confirmation before calling either mutating endpoint.
+ */
+
 import { spawn } from 'child_process'
 import { Router, Request, Response } from 'express'
 

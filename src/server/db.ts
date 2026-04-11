@@ -1,3 +1,18 @@
+/**
+ * db.ts — Database connection pool and env-file loader for the Control Plane.
+ *
+ * Owns two concerns:
+ *   1. Locating and parsing the .env.iranti binding file (and the instance env
+ *      it may point to) so DATABASE_URL and other runtime vars are available
+ *      before any route handler runs.
+ *   2. Exporting a shared pg.Pool (`pool`) and a typed `query` helper that all
+ *      server-side code uses for the control-plane's own database.
+ *
+ * The pool is constructed with a placeholder connection string when
+ * DATABASE_URL is absent so the server starts cleanly; individual routes
+ * will return graceful errors until the user configures credentials.
+ */
+
 import pg from 'pg'
 import { readFileSync, readdirSync, existsSync } from 'fs'
 import { resolve } from 'path'

@@ -1,3 +1,15 @@
+/**
+ * fleet-ledger-repo.ts — Data-access layer for the mirrored fleet ledger.
+ *
+ * Owns all reads and writes to:
+ *   - mirrored_staff_events      — audit events ingested from remote instances
+ *   - instance_ledger_watermarks — per-instance poll cursors and health metadata
+ *
+ * The fleet poller (fleet-ledger-poller.ts) calls these functions; route
+ * handlers query them via session-ledger.ts. Nothing else should touch
+ * these tables directly.
+ */
+
 import { query } from '../db.js'
 
 export interface MirroredEventInsert {
@@ -131,17 +143,20 @@ function mapRowToWatermark(row: Record<string, unknown>): WatermarkRow {
  * INSERT ... ON CONFLICT DO NOTHING for idempotency.
  *
  * Returns the count of rows actually inserted (new rows only).
+ *
+ * Column order (15 per row, excluding DB-generated id and ingested_at):
+ *   instance_id, remote_event_id, timestamp, staff_component, action_type,
+ *   agent_id, source, host, session_id, entity_type, entity_id, key, reason,
+ *   level, metadata
  */
 export async function upsertMirroredEvents(events: MirroredEventInsert[]): Promise<number> {
   if (events.length === 0) return 0
 
-  // 15 columns per row (excluding id and ingested_at which are DB-generated)
-  const COLS = 15
   const params: unknown[] = []
   const valueClauses: string[] = []
 
   for (const ev of events) {
-    // Resolve host: use ev.host if set, otherwise fall back to metadata.host
+    // Prefer ev.host; fall back to metadata.host if host was not set explicitly.
     const host =
       ev.host !== null && ev.host !== undefined
         ? ev.host
@@ -172,8 +187,6 @@ export async function upsertMirroredEvents(events: MirroredEventInsert[]): Promi
         ? JSON.stringify(ev.metadata)
         : null             // $base+14
     )
-
-    void COLS // referenced for documentation only
   }
 
   const sql = `

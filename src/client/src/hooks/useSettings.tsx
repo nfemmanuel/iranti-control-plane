@@ -1,3 +1,14 @@
+/**
+ * useSettings.tsx — Global settings context and hook for Control Plane user preferences.
+ *
+ * Persists settings to localStorage via lib/settings.ts. Theme changes are
+ * applied to the document root immediately as a side effect.
+ *
+ * Usage:
+ *   const { settings, updateSettings, resetSettings } = useSettings()
+ *   updateSettings(s => ({ ...s, theme: 'light' }))
+ */
+
 import {
   createContext,
   useCallback,

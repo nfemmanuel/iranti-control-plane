@@ -1,3 +1,16 @@
+/**
+ * project-integration.ts — Inspect a project directory for Iranti integration completeness.
+ *
+ * Checks three integration signals for a given project path:
+ *   - .mcp.json / .vscode/mcp.json  — MCP server registration
+ *   - CLAUDE.md                     — Iranti handshake/attend instructions
+ *   - MCP initialize probe           — live tool-list check (only when MCP is configured
+ *                                      and a .env.iranti binding exists)
+ *
+ * Used by the health checks (health.ts) and the Claude integration panel to give
+ * operators actionable feedback about which projects are fully wired up.
+ */
+
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { probeIrantiMcpInitialize, type McpInitializeProbeResult } from './mcp-initialize.js'

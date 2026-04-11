@@ -1,3 +1,20 @@
+/**
+ * index.ts — Iranti Control Plane HTTP server entry point.
+ *
+ * Responsibilities:
+ *   - Locates the built client dist directory (SEA-aware, with fallback candidates).
+ *   - Reads the package version from the nearest package.json.
+ *   - Finds an available port in the configured range (auto-increment, AC-12).
+ *   - Runs pending CP migrations.
+ *   - Starts the Express app with all API routes and static file serving.
+ *   - Starts the staff-events adapter and fleet-ledger poller.
+ *   - Opens the browser unless IRANTI_CP_NO_OPEN is set.
+ *   - Handles SIGTERM/SIGINT for graceful shutdown.
+ *
+ * SEA notes: Node SEA (Single Executable Application) embeds CJS only, so
+ * top-level await is not used — startup lives in main() called via main().catch().
+ */
+
 import express from 'express'
 import cors from 'cors'
 import net from 'net'

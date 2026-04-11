@@ -1,3 +1,17 @@
+/**
+ * local-tools.ts — Operator convenience routes for path picking and command running.
+ *
+ * Routes:
+ *   POST /pick-path    — Open the OS-native file/folder picker and return the
+ *                        selected path. kind must be 'directory' or 'file'.
+ *   POST /run-command  — Execute a whitelisted command on the local machine
+ *                        (iranti CLI, npm run migrate, npm install -g iranti).
+ *                        All other commands are rejected with 400.
+ *
+ * Input validation is performed before delegating to local-operator-tools.ts,
+ * which enforces the command whitelist and OS-specific invocation details.
+ */
+
 import { Router, Request, Response } from 'express'
 import { pickLocalPath, runLocalCommand } from '../../lib/local-operator-tools.js'
 import { isAbsolutePathPortable } from '../../lib/path-utils.js'
