@@ -117,6 +117,18 @@ function loadEnv(): Record<string, string> {
 }
 
 export const env = loadEnv()
+
+// Apply loaded env-file vars to process.env so every module that reads
+// process.env directly (e.g. iranti-cli.ts candidateFromEnv) sees the same
+// values as code that imports `env` from this module.
+// Only fills keys not already present — matches standard dotenv behaviour and
+// lets explicit shell env vars take precedence over the file.
+for (const [k, v] of Object.entries(env)) {
+    if (process.env[k] === undefined) {
+        process.env[k] = v
+    }
+}
+
 const databaseUrl = env.DATABASE_URL ?? process.env.DATABASE_URL
 
 if (!databaseUrl) {
