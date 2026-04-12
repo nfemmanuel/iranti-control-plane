@@ -20,6 +20,7 @@ import cors from 'cors'
 import net from 'net'
 import { resolve, dirname } from 'path'
 import { existsSync } from 'fs'
+import { spawn } from 'child_process'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { controlPlaneRouter } from './routes/control-plane/index.js'
@@ -231,13 +232,29 @@ async function main(): Promise<void> {
     })
     startFleetLedgerPoller()
 
-    // Auto-open browser unless suppressed via IRANTI_CP_NO_OPEN=1
+    // Auto-open browser unless suppressed via IRANTI_CP_NO_OPEN=1.
+    // Intentionally avoids the 'open' npm package on Windows: that package
+    // spawns powershell.exe without windowsHide:true, causing a visible
+    // console window (and a spurious Windows Terminal tab) on every start.
+    // Using spawn('cmd', ['/c', 'start', ...]) with windowsHide:true matches
+    // the same pattern already used in bin/iranti-cp.js openUrl().
     if (!process.env['IRANTI_CP_NO_OPEN']) {
-      import('open').then(({ default: open }) => {
-        void open(`http://localhost:${PORT}`)
-      }).catch(() => {
+      const url = `http://localhost:${PORT}`
+      try {
+        if (process.platform === 'win32') {
+          spawn('cmd', ['/c', 'start', '', url], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+          }).unref()
+        } else if (process.platform === 'darwin') {
+          spawn('open', [url], { detached: true, stdio: 'ignore' }).unref()
+        } else {
+          spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref()
+        }
+      } catch {
         // Non-fatal — browser open failure should not crash the server
-      })
+      }
     }
   })
 
