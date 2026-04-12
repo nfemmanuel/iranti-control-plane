@@ -319,11 +319,24 @@ function spawnControlPlane({ port, openBrowser, detached }) {
   // Windows Terminal never attaches.  This is only needed for the detached
   // (background) case; foreground start keeps stdio:inherit as usual.
   if (process.platform === 'win32' && detached) {
-    const child = spawn(
-      'cmd',
-      ['/d', '/s', '/c', 'start', '', '/b', process.execPath, BUNDLE],
-      { env, detached: true, stdio: 'ignore', windowsHide: true },
-    );
+    // On Windows, spawning node.exe directly causes Windows Terminal (wt.exe)
+    // to attach and flash a tab.  Routing through a hidden cmd process (via
+    // windowsHide:true + detached:true) prevents attachment because cmd gets
+    // CREATE_NO_WINDOW, and node.exe — run as cmd's synchronous child (no
+    // start /b) — inherits that no-console state.
+    //
+    // We also cannot pass env vars via spawn({env}) because the env block on
+    // the outer cmd is not forwarded to node by the OS process-creation chain.
+    // A temp batch file with explicit SET commands is the reliable workaround.
+    const batPath = require('path').join(require('os').tmpdir(), `iranti-cp-${Date.now()}.bat`);
+    const batLines = ['@echo off'];
+    if (port) batLines.push(`SET CONTROL_PLANE_PORT=${String(port)}`);
+    if (!openBrowser) batLines.push('SET IRANTI_CP_NO_OPEN=1');
+    batLines.push(`"${process.execPath}" "${BUNDLE}"`);
+    require('fs').writeFileSync(batPath, batLines.join('\r\n') + '\r\n');
+    const child = spawn('cmd', ['/d', '/s', '/c', batPath], {
+      detached: true, stdio: 'ignore', windowsHide: true,
+    });
     child.unref();
     return child;
   }
