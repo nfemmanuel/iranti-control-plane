@@ -4,7 +4,7 @@ Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti
 
 ## Status
 
-Current package version: `0.5.4`.
+Current package version: `0.5.5`.
 The operator surface is live and under active development.
 
 Available on npm and mirrored by jsDelivr:
