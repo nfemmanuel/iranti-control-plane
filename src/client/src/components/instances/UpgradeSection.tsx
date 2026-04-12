@@ -1,5 +1,7 @@
-/* Iranti Control Plane - UpgradeSection */
-/* CP-T073: Upgrade coordination UI - triggers iranti upgrade --yes --restart --instance <name> */
+/**
+ * Iranti Control Plane - UpgradeSection
+ * CP-T073: Upgrade coordination UI - triggers iranti upgrade --yes --restart --instance <name>
+ */
 
 import { useState, useRef, useEffect } from 'react'
 import type { UpgradeJobStarted, UpgradeJobStatus } from '../../api/types'

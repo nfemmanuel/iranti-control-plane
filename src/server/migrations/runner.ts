@@ -1,3 +1,11 @@
+/**
+ * runner.ts — Control Plane database migration runner.
+ *
+ * Applies pending SQL migrations from the migrations/ directory to the
+ * Control Plane's own SQLite/Postgres DB. Called during server startup
+ * (main() in index.ts) before the HTTP server begins accepting requests.
+ */
+
 import { existsSync, readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'

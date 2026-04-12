@@ -1,5 +1,10 @@
-/* Iranti Control Plane — Instances API client */
-/* Connects to CP-T011 API endpoint: GET /api/control-plane/instances */
+/**
+ * instances.ts — Instances API client.
+ *
+ * Connects to the CP-T011 API endpoint (GET /api/control-plane/instances)
+ * and related instance management endpoints. Provides typed wrappers used
+ * by the instance selector and InstanceManager UI.
+ */
 
 import type { InstanceListResponse, InstanceMetadata } from './types'
 import { apiFetch } from './client'

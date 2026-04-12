@@ -1,3 +1,11 @@
+/**
+ * doctor-remediation.ts — Remediation step builders for the Doctor endpoint.
+ *
+ * Exports typed `DoctorCommand` interfaces and builder functions (e.g.
+ * `buildPgvectorRemediation`) that the repair route uses to compose
+ * one-click repair steps surfaced in the DoctorDrawer UI.
+ */
+
 import type { ResolvedInstanceAuthority } from './instance-authority.js'
 
 export interface DoctorCommand {

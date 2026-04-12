@@ -1,8 +1,10 @@
-/* Iranti Control Plane — Home Overview Dashboard */
-/* Route: /overview */
-/* CP-T068 — Iranti Desktop landing page */
-/* Docker Desktop-style at-a-glance system picture: */
-/*   system state + recent activity + active agents + quick actions */
+/**
+ * Iranti Control Plane — Home Overview Dashboard
+ * Route: /overview
+ * CP-T068 — Iranti Desktop landing page
+ * Docker Desktop-style at-a-glance system picture:
+ * system state + recent activity + active agents + quick actions
+ */
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'

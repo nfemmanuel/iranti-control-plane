@@ -1,4 +1,15 @@
-// Shared types for the Iranti Control Plane API
+/**
+ * types.ts — Shared API types and serialization utilities for the Control Plane.
+ *
+ * Exports:
+ *   - Domain interfaces: KBFact, ArchiveFact, HistoryInterval, Relationship,
+ *     StaffEvent, HealthCheck, HealthResponse, and related types.
+ *   - Utility functions: snakeToCamel, serializeValueRaw, parsePagination,
+ *     createApiError.
+ *
+ * These types are shared between route handlers and the migration runner; they
+ * are intentionally server-side only (no React imports).
+ */
 
 export interface KBFact {
   id: string

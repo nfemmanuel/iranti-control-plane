@@ -1,3 +1,18 @@
+/**
+ * iranti-cli.ts — Iranti CLI resolution and invocation helpers.
+ *
+ * Locates the `iranti` binary using a three-step priority:
+ *   1. Explicit env override (IRANTI_CLI_PATH or IRANTI_CP_IRANTI_CLI)
+ *   2. PATH lookup via `which` / `where`
+ *   3. Repo-local sibling fallback for local development
+ *
+ * Normalises the resolved path into a {command, args} pair that works on
+ * all platforms: .js files run under the current Node binary; .cmd shims
+ * on Windows are unwrapped to their underlying .js entry point.
+ *
+ * Exports: resolveIrantiCli, runIrantiCommand, runIrantiJson
+ */
+
 import { execFile, spawn } from 'child_process'
 import { access } from 'fs/promises'
 import { constants } from 'fs'

@@ -1,7 +1,9 @@
-/* Iranti Control Plane — Temporal History */
-/* Route: /memory/:entityType/:entityId/:key */
-/* CP-T036 — Timeline of all intervals for an entity/key */
-/* CP-T056 — Point-in-time asOf query via date/time picker */
+/**
+ * Iranti Control Plane — Temporal History
+ * Route: /memory/:entityType/:entityId/:key
+ * CP-T036 — Timeline of all intervals for an entity/key
+ * CP-T056 — Point-in-time asOf query via date/time picker
+ */
 
 import { useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'

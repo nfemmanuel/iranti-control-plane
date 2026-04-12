@@ -1,3 +1,11 @@
+/**
+ * commandText.ts — Utilities for extracting shell commands from text.
+ *
+ * Parses remediation/instruction text from Iranti health checks to pull out
+ * the first shell command (backtick-fenced or $ prefixed) for the CommandAction
+ * widget to render as a runnable snippet.
+ */
+
 export function extractFirstCommand(text: string | null | undefined): string | null {
   if (!text) return null
 

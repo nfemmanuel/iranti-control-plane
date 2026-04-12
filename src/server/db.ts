@@ -1,3 +1,18 @@
+/**
+ * db.ts — Database connection pool and env-file loader for the Control Plane.
+ *
+ * Owns two concerns:
+ *   1. Locating and parsing the .env.iranti binding file (and the instance env
+ *      it may point to) so DATABASE_URL and other runtime vars are available
+ *      before any route handler runs.
+ *   2. Exporting a shared pg.Pool (`pool`) and a typed `query` helper that all
+ *      server-side code uses for the control-plane's own database.
+ *
+ * The pool is constructed with a placeholder connection string when
+ * DATABASE_URL is absent so the server starts cleanly; individual routes
+ * will return graceful errors until the user configures credentials.
+ */
+
 import pg from 'pg'
 import { readFileSync, readdirSync, existsSync } from 'fs'
 import { resolve } from 'path'
@@ -102,6 +117,18 @@ function loadEnv(): Record<string, string> {
 }
 
 export const env = loadEnv()
+
+// Apply loaded env-file vars to process.env so every module that reads
+// process.env directly (e.g. iranti-cli.ts candidateFromEnv) sees the same
+// values as code that imports `env` from this module.
+// Only fills keys not already present — matches standard dotenv behaviour and
+// lets explicit shell env vars take precedence over the file.
+for (const [k, v] of Object.entries(env)) {
+    if (process.env[k] === undefined) {
+        process.env[k] = v
+    }
+}
+
 const databaseUrl = env.DATABASE_URL ?? process.env.DATABASE_URL
 
 if (!databaseUrl) {

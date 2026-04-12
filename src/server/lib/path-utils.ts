@@ -1,3 +1,12 @@
+/**
+ * path-utils.ts — Portable path helpers for cross-platform path resolution.
+ *
+ * The control plane runs on Windows, macOS, and Linux. Paths received from
+ * instance env files may be Windows-style (C:\...) even when the host OS is
+ * POSIX (e.g., WSL or a mounted drive). These helpers detect the path style
+ * and delegate to the correct Node path module so resolution is always correct.
+ */
+
 import path, { win32 } from 'path'
 
 export function looksLikeWindowsAbsolutePath(value: string): boolean {
@@ -8,7 +17,7 @@ export function isAbsolutePathPortable(value: string): boolean {
   return path.isAbsolute(value) || looksLikeWindowsAbsolutePath(value)
 }
 
-function pickPathModule(value: string) {
+function pickPathModule(value: string): typeof path {
   return looksLikeWindowsAbsolutePath(value) ? win32 : path
 }
 

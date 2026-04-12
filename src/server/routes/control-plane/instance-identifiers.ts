@@ -1,3 +1,13 @@
+/**
+ * instance-identifiers.ts — Stable instance ID and directory helpers.
+ *
+ * Derives the instanceId, instanceDir, and instanceName from the control
+ * plane's own loaded env (IRANTI_INSTANCE_ENV / IRANTI_INSTANCE vars).
+ * Used by routes and health checks that need to match an incoming
+ * instanceId query param against the running instance without performing
+ * a full filesystem scan.
+ */
+
 import { basename, dirname, join, resolve } from 'path'
 import { env } from '../../db.js'
 import { deriveInstanceId } from '../../lib/instance-authority.js'

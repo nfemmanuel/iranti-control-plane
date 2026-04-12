@@ -1,3 +1,16 @@
+/**
+ * main.tsx — React application entry point for the Iranti Control Plane UI.
+ *
+ * Mounts the React tree inside <div id="root">. Wraps the app in:
+ *   - React StrictMode
+ *   - QueryClientProvider (React Query)
+ *   - SettingsProvider (localStorage user preferences)
+ *   - InstanceProvider (selected Iranti instance)
+ *   - BrowserRouter (basename /control-plane)
+ *
+ * Route layout: all views live under AppShell, which provides the nav sidebar.
+ */
+
 import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'

@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Command Palette */
-/* CP-T024 — Global Cmd+K / Ctrl+K command palette */
-/* CP-T042 — Inline help: descriptions + shortcuts section + "?" footer trigger */
+/**
+ * Iranti Control Plane — Command Palette
+ * CP-T024 — Global Cmd+K / Ctrl+K command palette
+ * CP-T042 — Inline help: descriptions + shortcuts section + "?" footer trigger
+ */
 
 import {
   useState,

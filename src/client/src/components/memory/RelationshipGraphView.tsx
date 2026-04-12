@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Relationship Graph View */
-/* CP-T032 — SVG radial graph for entity relationships, no external graph library */
+/**
+ * Iranti Control Plane — Relationship Graph View
+ * CP-T032 — SVG radial graph for entity relationships, no external graph library
+ */
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'

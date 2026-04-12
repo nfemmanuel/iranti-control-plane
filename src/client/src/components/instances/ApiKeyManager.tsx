@@ -1,6 +1,8 @@
-/* Iranti Control Plane — API Key Manager */
-/* CP-T088 — Registry-backed API key management for the active Iranti instance */
-/* Lets operators list, create, and revoke registry keys (distinct from provider keys). */
+/**
+ * Iranti Control Plane — API Key Manager
+ * CP-T088 — Registry-backed API key management for the active Iranti instance
+ * Lets operators list, create, and revoke registry keys (distinct from provider keys).
+ */
 
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'

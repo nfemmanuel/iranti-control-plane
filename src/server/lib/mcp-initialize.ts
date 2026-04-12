@@ -1,3 +1,14 @@
+/**
+ * mcp-initialize.ts — MCP initialize probe for project integration checks.
+ *
+ * Spawns `iranti mcp` as a stdio MCP server, connects a lightweight MCP
+ * client, and verifies that the server exposes all required Iranti tools.
+ * Used by project-integration.ts and setup.ts health checks.
+ *
+ * The probe is fire-and-forget: it always closes the client in a finally
+ * block and never throws — callers receive a structured result object.
+ */
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { resolveIrantiCli } from './iranti-cli.js'
@@ -66,9 +77,12 @@ export async function probeIrantiMcpInitialize(input: {
     })
   }
 
+  // The version string here is the MCP client identity sent during handshake.
+  // It does not need to match the iranti-control-plane package version; the
+  // server ignores it for compatibility purposes.
   const client = new Client({
     name: 'iranti-control-plane',
-    version: '0.4.3',
+    version: '1.0.0',
   })
 
   const timeoutMs = input.timeoutMs ?? 5000

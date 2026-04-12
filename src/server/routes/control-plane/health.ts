@@ -1,3 +1,16 @@
+/**
+ * health.ts — Health and Diagnostics routes for Iranti instances.
+ *
+ * Routes:
+ *   GET /health      — run all health checks and return structured results
+ *   GET /health/last — return cached result from the last health run
+ *
+ * Exports: IrantiRuntimeMetadata, RuntimeStatus, deriveRuntimeStatus
+ * (used by instances.ts and other route modules to avoid type duplication).
+ *
+ * Health check taxonomy (CP-T028): CRITICAL / WARNING / INFO / HEALTHY.
+ */
+
 import { Router, Request, Response, NextFunction } from 'express'
 import pg from 'pg'
 import { HealthCheck, HealthResponse, ApiError, InstanceScopeSummary } from '../../types.js'

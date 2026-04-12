@@ -1,6 +1,8 @@
-﻿/* Iranti Control Plane — App Shell */
-/* Root layout route. Renders once; only main content area re-renders on navigation. */
-/* Provides: sidebar nav, instance switcher, topbar, activity drawer slot. */
+/**
+ * Iranti Control Plane — App Shell
+ * Root layout route. Renders once; only main content area re-renders on navigation.
+ * Provides: sidebar nav, instance switcher, topbar, activity drawer slot.
+ */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'

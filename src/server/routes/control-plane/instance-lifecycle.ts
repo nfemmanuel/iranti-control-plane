@@ -1,3 +1,20 @@
+/**
+ * instance-lifecycle.ts — Create, configure, migrate, and delete Iranti instances. (CP-T089, CP-T090)
+ *
+ * Routes:
+ *   POST   /instances                 — Create a new instance directory, .env, and instance.json.
+ *   PATCH  /instances/:name           — Update port, dbUrl, provider, or provider key in the instance .env.
+ *   POST   /instances/:name/migrate-root — Move an instance from ~/.iranti (legacy) to ~/.iranti-runtime.
+ *   DELETE /instances/:name           — Delete instance directory, optionally drop the database and
+ *                                       remove project bindings.
+ *
+ * All mutating routes require a confirmName body parameter matching the instance name
+ * for the DELETE route. Destructive operations are logged to the console.
+ *
+ * The route also handles POST /instances/:name/repair/provision-database (delegated
+ * to db-provision.ts) for the repair flow.
+ */
+
 import { Router, Request, Response } from 'express'
 import { randomBytes } from 'crypto'
 import { existsSync, readFileSync, readdirSync } from 'fs'

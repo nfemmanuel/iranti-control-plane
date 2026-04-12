@@ -1,210 +1,212 @@
-﻿/* Iranti Control Plane â€” Health & Diagnostics Dashboard */
-/* Route: /health */
-/* CP-T016 â€” All 10 health checks, auto-refresh, remediation guidance */
-/* CP-T028 â€” Four-tier severity taxonomy: CRITICAL / WARNING / INFO / HEALTHY */
-
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import { apiFetch, fetchVersionSync, startInstance } from '../../api/client'
-import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult, VersionSyncResult } from '../../api/types'
-import { getRemediation } from './remediationText'
-import { ConfirmationModal } from '../ui/ConfirmationModal'
-import { ProviderStatusSection } from './ProviderStatus'
-import { AttendantDebugPanel } from './AttendantDebugPanel'
-import { useInstanceContext } from '../../hooks/useInstanceContext'
-import styles from './HealthDashboard.module.css'
-import { Spinner } from '../ui/Spinner'
-import { CommandAction } from '../ui/CommandAction'
-import { canRunCommand, extractFirstCommand } from '../ui/commandText'
-
-/* ------------------------------------------------------------------ */
-/*  Constants                                                           */
-/* ------------------------------------------------------------------ */
-
-const REFRESH_INTERVAL_MS = 30_000
-
-/* ------------------------------------------------------------------ */
-/*  Human-readable check name mapping                                  */
-/* ------------------------------------------------------------------ */
-
-const CHECK_LABELS: Record<string, string> = {
-  db_reachability: 'Database Connection',
-  db_schema_version: 'Schema Version',
-  vector_backend: 'Vector Backend (pgvector)',
-  anthropic_key: 'Claude API Key',
-  openai_key: 'OpenAI API Key',
-  default_provider_configured: 'Default Provider',
-  mcp_integration: 'MCP Integration',
-  claude_md_integration: 'CLAUDE.md',
-  runtime_version: 'Iranti Version',
-  staff_events_table: 'Staff Events Table',
-}
-
-function getCheckLabel(name: string): string {
-  return CHECK_LABELS[name] ?? name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T028: Four-tier severity taxonomy                               */
-/* ------------------------------------------------------------------ */
-
 /**
- * Severity levels in descending priority order.
- * Classification rules are explicit and testable â€” no implicit fallbacks.
- *
- * CRITICAL  â€” Iranti cannot function. User must act before Iranti works.
- * WARNING   â€” Iranti is functional but a specific capability is degraded.
- * INFO      â€” Expected state for a standard installation. No action required.
- * HEALTHY   â€” Check passed.
+ * Iranti Control Plane — Health & Diagnostics Dashboard
+ * Route: /health
+ * CP-T016 — All 10 health checks, auto-refresh, remediation guidance
+ * CP-T028 — Four-tier severity taxonomy: CRITICAL / WARNING / INFO / HEALTHY
  */
-export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'HEALTHY'
-
-/**
- * Classify a health check into the four-tier severity taxonomy.
- *
- * Rules for Phase 1 checks (CP-T028 spec, confirmed classifications):
- *
- * CRITICAL:
- *   - db_reachability:error
- *   - db_schema_version:error
- *   - vector_backend:error
- *   - default_provider_configured:error  (no provider = Iranti cannot process writes)
- *
- * WARNING:
- *   - db_reachability:warn
- *   - db_schema_version:warn
- *   - vector_backend:warn
- *   - anthropic_key:warn        (missing key AND Anthropic is the active provider)
- *   - openai_key:warn           (missing key AND OpenAI is the active provider)
- *   - default_provider_configured:warn
- *   - mcp_integration:warn
- *   - claude_md_integration:warn
- *   - staff_events_table:error
- *
- * INFO (explicitly expected states â€” do NOT show as warning):
- *   - runtime_version:warn      (version behind â€” non-breaking, expected)
- *   - staff_events_table:warn   (table not yet created â€” expected on clean install)
- *
- * Note: provider key checks (anthropic_key, openai_key) return status:ok when
- * the key is absent but the provider is not the active one â€” server-side logic
- * handles this so the frontend never needs to second-guess provider context.
- *
- * HEALTHY:
- *   - Any check with status:ok that isn't reclassified above
- *
- * When adding new checks: classify explicitly here. Do not rely on the
- * raw status field alone â€” backend status values may not match UX intent.
- */
-export function classifyCheckSeverity(check: HealthCheck): Severity {
-  const { name, status } = check
-
-  if (status === 'ok') return 'HEALTHY'
-
-  // CRITICAL: Iranti cannot function at all
-  if (
-    (name === 'db_reachability' && status === 'error') ||
-    (name === 'db_schema_version' && status === 'error') ||
-    (name === 'vector_backend' && status === 'error') ||
-    (name === 'default_provider_configured' && status === 'error')
-  ) {
-    return 'CRITICAL'
-  }
-
-  // INFO: project-level setup and non-blocking states.
-  // These must not appear as warnings â€” they do not affect Iranti runtime health.
-  if (
-    // Version behind latest (minor) â€” non-breaking, Iranti is fully operational
-    (name === 'runtime_version' && status === 'warn') ||
-    // staff_events_table not created â€” CP-specific migration, not a runtime blocker
-    (name === 'staff_events_table' && status === 'warn') ||
-    // MCP and CLAUDE.md are project-level integration setup, not runtime health
-    (name === 'mcp_integration' && status === 'warn') ||
-    (name === 'claude_md_integration' && status === 'warn')
-    // Note: provider key checks (anthropic_key, openai_key) return status:ok when
-    // the key is absent but that provider is not active â€” server-side logic handles this.
-    // A warn status here means the key IS absent AND the provider IS active â€” genuine warning.
-  ) {
-    return 'INFO'
-  }
-
-  // WARNING: Iranti is functional but something is degraded
-  // This covers all remaining warn/error states not classified above
-  return 'WARNING'
-}
-
-/**
- * Normalization copy for Informational items.
- * These explain why the state is expected â€” "this is not a problem because..."
- */
-export function getInfoNormalization(checkName: string): string | null {
-  switch (checkName) {
-    case 'runtime_version':
-      return 'A newer version is available, but this update is non-breaking. Iranti is fully operational on your current version.'
-    case 'staff_events_table':
-      return 'The staff_events table is created by the control plane migrations. Run `npm run migrate` to enable the Staff Activity Stream.'
-    case 'mcp_integration':
-      return 'MCP integration is a per-project setup step, not a runtime requirement. Iranti is fully operational without it.'
-    case 'claude_md_integration':
-      return 'CLAUDE.md integration is a per-project setup step. Iranti is fully operational without it in this directory.'
-    default:
-      return null
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T033: Repair action mapping per health check                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Maps health check names to their repair endpoints.
- * Uses 'local' as the Phase 1 instanceId. 'default' as projectId placeholder.
- * Only checks with actionable filesystem repair actions are listed here.
- */
-const REPAIR_ENDPOINTS: Partial<Record<string, { url: string; label: string; kind: 'mcp-json' | 'claude-md' }>> = {}
-
-type RepairKind = 'mcp-json' | 'claude-md'
-
-interface RepairResult {
-  kind: RepairKind
-  data: RepairMcpJsonResponse | RepairClaudeMdResponse
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T082: Contextual repair action map                              */
-/* ------------------------------------------------------------------ */
-
-interface RepairActionSpec {
-  label: string
-  action: 'navigate' | 'trigger'
-  target: string
-}
-
-const REPAIR_ACTIONS: Record<string, RepairActionSpec> = {
-  iranti_connectivity: { label: 'Start Iranti',          action: 'trigger',   target: 'start-iranti' },
-  iranti_auth:         { label: 'Configure API Key',     action: 'navigate',  target: '/providers' },
-  db_connectivity:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
-  db_reachability:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
-  vector_backend:      { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
-  ingest_roundtrip:    { label: 'Run diagnostics',       action: 'trigger',   target: 'run-diagnostics' },
-  attend_check:        { label: 'View Attendant logs',   action: 'navigate',  target: '/logs?component=attendant' },
-  vector_search_check: { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
-}
-
-/** Sort key: CRITICAL first, then WARNING, then INFO, then HEALTHY */
-function severitySortKey(severity: Severity): number {
-  switch (severity) {
-    case 'CRITICAL': return 0
-    case 'WARNING':  return 1
-    case 'INFO':     return 2
-    case 'HEALTHY':  return 3
-  }
-}
-
-/**
- * Summary header label based on the highest active severity.
- * CP-T028 spec: must reflect most severe active state.
- */
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from 'react-router-dom'
+import { apiFetch, fetchVersionSync, startInstance } from '../../api/client'
+import type { HealthResponse, HealthCheck, HealthDecay, HealthVectorBackend, HealthAttendant, RepairMcpJsonResponse, RepairClaudeMdResponse, DiagnosticCheckResult, DiagnosticRunResult, VersionSyncResult } from '../../api/types'
+import { getRemediation } from './remediationText'
+import { ConfirmationModal } from '../ui/ConfirmationModal'
+import { ProviderStatusSection } from './ProviderStatus'
+import { AttendantDebugPanel } from './AttendantDebugPanel'
+import { useInstanceContext } from '../../hooks/useInstanceContext'
+import styles from './HealthDashboard.module.css'
+import { Spinner } from '../ui/Spinner'
+import { CommandAction } from '../ui/CommandAction'
+import { canRunCommand, extractFirstCommand } from '../ui/commandText'
+
+/* ------------------------------------------------------------------ */
+/*  Constants                                                           */
+/* ------------------------------------------------------------------ */
+
+const REFRESH_INTERVAL_MS = 30_000
+
+/* ------------------------------------------------------------------ */
+/*  Human-readable check name mapping                                  */
+/* ------------------------------------------------------------------ */
+
+const CHECK_LABELS: Record<string, string> = {
+  db_reachability: 'Database Connection',
+  db_schema_version: 'Schema Version',
+  vector_backend: 'Vector Backend (pgvector)',
+  anthropic_key: 'Claude API Key',
+  openai_key: 'OpenAI API Key',
+  default_provider_configured: 'Default Provider',
+  mcp_integration: 'MCP Integration',
+  claude_md_integration: 'CLAUDE.md',
+  runtime_version: 'Iranti Version',
+  staff_events_table: 'Staff Events Table',
+}
+
+function getCheckLabel(name: string): string {
+  return CHECK_LABELS[name] ?? name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T028: Four-tier severity taxonomy                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Severity levels in descending priority order.
+ * Classification rules are explicit and testable — no implicit fallbacks.
+ *
+ * CRITICAL  — Iranti cannot function. User must act before Iranti works.
+ * WARNING   — Iranti is functional but a specific capability is degraded.
+ * INFO      — Expected state for a standard installation. No action required.
+ * HEALTHY   — Check passed.
+ */
+export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'HEALTHY'
+
+/**
+ * Classify a health check into the four-tier severity taxonomy.
+ *
+ * Rules for Phase 1 checks (CP-T028 spec, confirmed classifications):
+ *
+ * CRITICAL:
+ *   - db_reachability:error
+ *   - db_schema_version:error
+ *   - vector_backend:error
+ *   - default_provider_configured:error  (no provider = Iranti cannot process writes)
+ *
+ * WARNING:
+ *   - db_reachability:warn
+ *   - db_schema_version:warn
+ *   - vector_backend:warn
+ *   - anthropic_key:warn        (missing key AND Anthropic is the active provider)
+ *   - openai_key:warn           (missing key AND OpenAI is the active provider)
+ *   - default_provider_configured:warn
+ *   - mcp_integration:warn
+ *   - claude_md_integration:warn
+ *   - staff_events_table:error
+ *
+ * INFO (explicitly expected states — do NOT show as warning):
+ *   - runtime_version:warn      (version behind — non-breaking, expected)
+ *   - staff_events_table:warn   (table not yet created — expected on clean install)
+ *
+ * Note: provider key checks (anthropic_key, openai_key) return status:ok when
+ * the key is absent but the provider is not the active one — server-side logic
+ * handles this so the frontend never needs to second-guess provider context.
+ *
+ * HEALTHY:
+ *   - Any check with status:ok that isn't reclassified above
+ *
+ * When adding new checks: classify explicitly here. Do not rely on the
+ * raw status field alone — backend status values may not match UX intent.
+ */
+export function classifyCheckSeverity(check: HealthCheck): Severity {
+  const { name, status } = check
+
+  if (status === 'ok') return 'HEALTHY'
+
+  // CRITICAL: Iranti cannot function at all
+  if (
+    (name === 'db_reachability' && status === 'error') ||
+    (name === 'db_schema_version' && status === 'error') ||
+    (name === 'vector_backend' && status === 'error') ||
+    (name === 'default_provider_configured' && status === 'error')
+  ) {
+    return 'CRITICAL'
+  }
+
+  // INFO: project-level setup and non-blocking states.
+  // These must not appear as warnings — they do not affect Iranti runtime health.
+  if (
+    // Version behind latest (minor) — non-breaking, Iranti is fully operational
+    (name === 'runtime_version' && status === 'warn') ||
+    // staff_events_table not created — CP-specific migration, not a runtime blocker
+    (name === 'staff_events_table' && status === 'warn') ||
+    // MCP and CLAUDE.md are project-level integration setup, not runtime health
+    (name === 'mcp_integration' && status === 'warn') ||
+    (name === 'claude_md_integration' && status === 'warn')
+    // Note: provider key checks (anthropic_key, openai_key) return status:ok when
+    // the key is absent but that provider is not active — server-side logic handles this.
+    // A warn status here means the key IS absent AND the provider IS active — genuine warning.
+  ) {
+    return 'INFO'
+  }
+
+  // WARNING: Iranti is functional but something is degraded
+  // This covers all remaining warn/error states not classified above
+  return 'WARNING'
+}
+
+/**
+ * Normalization copy for Informational items.
+ * These explain why the state is expected — "this is not a problem because..."
+ */
+export function getInfoNormalization(checkName: string): string | null {
+  switch (checkName) {
+    case 'runtime_version':
+      return 'A newer version is available, but this update is non-breaking. Iranti is fully operational on your current version.'
+    case 'staff_events_table':
+      return 'The staff_events table is created by the control plane migrations. Run `npm run migrate` to enable the Staff Activity Stream.'
+    case 'mcp_integration':
+      return 'MCP integration is a per-project setup step, not a runtime requirement. Iranti is fully operational without it.'
+    case 'claude_md_integration':
+      return 'CLAUDE.md integration is a per-project setup step. Iranti is fully operational without it in this directory.'
+    default:
+      return null
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T033: Repair action mapping per health check                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maps health check names to their repair endpoints.
+ * Uses 'local' as the Phase 1 instanceId. 'default' as projectId placeholder.
+ * Only checks with actionable filesystem repair actions are listed here.
+ */
+const REPAIR_ENDPOINTS: Partial<Record<string, { url: string; label: string; kind: 'mcp-json' | 'claude-md' }>> = {}
+
+type RepairKind = 'mcp-json' | 'claude-md'
+
+interface RepairResult {
+  kind: RepairKind
+  data: RepairMcpJsonResponse | RepairClaudeMdResponse
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T082: Contextual repair action map                              */
+/* ------------------------------------------------------------------ */
+
+interface RepairActionSpec {
+  label: string
+  action: 'navigate' | 'trigger'
+  target: string
+}
+
+const REPAIR_ACTIONS: Record<string, RepairActionSpec> = {
+  iranti_connectivity: { label: 'Start Iranti',          action: 'trigger',   target: 'start-iranti' },
+  iranti_auth:         { label: 'Configure API Key',     action: 'navigate',  target: '/providers' },
+  db_connectivity:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  db_reachability:     { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  vector_backend:      { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+  ingest_roundtrip:    { label: 'Run diagnostics',       action: 'trigger',   target: 'run-diagnostics' },
+  attend_check:        { label: 'View Attendant logs',   action: 'navigate',  target: '/logs?component=attendant' },
+  vector_search_check: { label: 'View setup guide',      action: 'navigate',  target: '/getting-started' },
+}
+
+/** Sort key: CRITICAL first, then WARNING, then INFO, then HEALTHY */
+function severitySortKey(severity: Severity): number {
+  switch (severity) {
+    case 'CRITICAL': return 0
+    case 'WARNING':  return 1
+    case 'INFO':     return 2
+    case 'HEALTHY':  return 3
+  }
+}
+
+/**
+ * Summary header label based on the highest active severity.
+ * CP-T028 spec: must reflect most severe active state.
+ */
 function getSummaryStatus(checks: HealthCheck[]): { label: string; kind: 'critical' | 'warning' | 'operational' | 'healthy' } {
   const severities = checks.map(c => classifyCheckSeverity(c))
   if (severities.includes('CRITICAL')) return { label: 'Action Required', kind: 'critical' }
@@ -259,134 +261,134 @@ function getOperatorSummaryLead(checks: HealthCheck[]): string {
   }
   return 'Iranti is in a healthy state. Use the cards below only if you are checking specific capabilities.'
 }
-
-/* ------------------------------------------------------------------ */
-/*  Relative time helper                                                */
-/* ------------------------------------------------------------------ */
-
-function secondsAgo(isoTimestamp: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 1000))
-}
-
-function formatSecondsAgo(secs: number): string {
-  if (secs < 5) return 'just now'
-  if (secs < 60) return `${secs} seconds ago`
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`
-  const hours = Math.floor(mins / 60)
-  return `${hours} hour${hours !== 1 ? 's' : ''} ago`
-}
-
-/* ------------------------------------------------------------------ */
-/*  Overall status badge â€” CP-T028: uses severity taxonomy labels      */
-/* ------------------------------------------------------------------ */
-
-function OverallBadge({ checks }: { checks: HealthCheck[] }) {
-  const { label, kind } = getSummaryStatus(checks)
-  const classMap: Record<typeof kind, string> = {
-    critical:    styles.badgeCritical,
-    warning:     styles.badgeWarning,
-    operational: styles.badgeOperational,
-    healthy:     styles.badgeHealthy,
-  }
+
+/* ------------------------------------------------------------------ */
+/*  Relative time helper                                                */
+/* ------------------------------------------------------------------ */
+
+function secondsAgo(isoTimestamp: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 1000))
+}
+
+function formatSecondsAgo(secs: number): string {
+  if (secs < 5) return 'just now'
+  if (secs < 60) return `${secs} seconds ago`
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`
+  const hours = Math.floor(mins / 60)
+  return `${hours} hour${hours !== 1 ? 's' : ''} ago`
+}
+
+/* ------------------------------------------------------------------ */
+/*  Overall status badge — CP-T028: uses severity taxonomy labels      */
+/* ------------------------------------------------------------------ */
+
+function OverallBadge({ checks }: { checks: HealthCheck[] }) {
+  const { label, kind } = getSummaryStatus(checks)
+  const classMap: Record<typeof kind, string> = {
+    critical:    styles.badgeCritical,
+    warning:     styles.badgeWarning,
+    operational: styles.badgeOperational,
+    healthy:     styles.badgeHealthy,
+  }
   const iconMap: Record<typeof kind, string> = {
     critical:    'X',
     warning:     '!',
     operational: 'OK',
     healthy:     'OK',
   }
-  return (
-    <span className={`${styles.overallBadge} ${classMap[kind]}`} aria-label={`Overall status: ${label}`}>
-      <span aria-hidden="true">{iconMap[kind]}</span>
-      {' '}{label}
-    </span>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Countdown ring / progress bar                                       */
-/* ------------------------------------------------------------------ */
-
-function RefreshCountdown({ checkedAt, intervalMs }: { checkedAt: string; intervalMs: number }) {
-  const [elapsed, setElapsed] = useState(0)
-
-  useEffect(() => {
-    const tick = () => setElapsed(Math.min(Date.now() - new Date(checkedAt).getTime(), intervalMs))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [checkedAt, intervalMs])
-
-  const progress = Math.min(elapsed / intervalMs, 1)
-  const secondsLeft = Math.max(0, Math.round((intervalMs - elapsed) / 1000))
-
-  return (
-    <div className={styles.countdown} title={`Refreshing in ${secondsLeft}s`}>
-      <div className={styles.countdownBar} style={{ width: `${progress * 100}%` }} />
-      <span className={styles.countdownLabel}>Refreshes in {secondsLeft}s</span>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Health check card â€” CP-T028: four-tier severity taxonomy           */
-/* ------------------------------------------------------------------ */
-
-/** Severity badge displayed in the card header */
-function SeverityBadge({ severity }: { severity: Severity }) {
-  const labelMap: Record<Severity, string> = {
-    CRITICAL: 'Critical',
-    WARNING:  'Warning',
-    INFO:     'Info',
-    HEALTHY:  'Healthy',
-  }
-  const classMap: Record<Severity, string> = {
-    CRITICAL: styles.severityBadgeCritical,
-    WARNING:  styles.severityBadgeWarning,
-    INFO:     styles.severityBadgeInfo,
-    HEALTHY:  styles.severityBadgeHealthy,
-  }
-  return (
-    <span className={`${styles.severityBadge} ${classMap[severity]}`} aria-label={`Severity: ${labelMap[severity]}`}>
-      {labelMap[severity]}
-    </span>
-  )
-}
-
-function HealthCard({
-  check,
-  onRunDiagnostics,
-}: {
-  check: HealthCheck
-  onRunDiagnostics?: () => void
-}) {
-  const severity = classifyCheckSeverity(check)
-  const remediation = getRemediation(check.name, check.status)
-  const normalization = severity === 'INFO' ? getInfoNormalization(check.name) : null
-  const label = getCheckLabel(check.name)
-  const repairInfo = REPAIR_ENDPOINTS[check.name]
-
-  // CP-T033: Repair modal state for this card
-  const [showRepairModal, setShowRepairModal] = useState(false)
-  const [repairLoading, setRepairLoading] = useState(false)
-  const [repairResult, setRepairResult] = useState<RepairResult | null>(null)
-  const [repairError, setRepairError] = useState<string | null>(null)
-
-  // CP-T082: Contextual repair action state
-  const navigate = useNavigate()
-  const { activeInstance } = useInstanceContext()
-  const repairAction = REPAIR_ACTIONS[check.name]
-  const showRepairAction = (severity === 'CRITICAL' || severity === 'WARNING') && repairAction !== undefined
-  const [repairActionInFlight, setRepairActionInFlight] = useState(false)
-  const [repairActionFeedback, setRepairActionFeedback] = useState<string | null>(null)
-
-  const handleRepairAction = useCallback(async () => {
-    if (!repairAction) return
-    if (repairAction.action === 'navigate') {
-      navigate(repairAction.target)
-      return
-    }
-    // trigger actions
+  return (
+    <span className={`${styles.overallBadge} ${classMap[kind]}`} aria-label={`Overall status: ${label}`}>
+      <span aria-hidden="true">{iconMap[kind]}</span>
+      {' '}{label}
+    </span>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Countdown ring / progress bar                                       */
+/* ------------------------------------------------------------------ */
+
+function RefreshCountdown({ checkedAt, intervalMs }: { checkedAt: string; intervalMs: number }) {
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    const tick = () => setElapsed(Math.min(Date.now() - new Date(checkedAt).getTime(), intervalMs))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [checkedAt, intervalMs])
+
+  const progress = Math.min(elapsed / intervalMs, 1)
+  const secondsLeft = Math.max(0, Math.round((intervalMs - elapsed) / 1000))
+
+  return (
+    <div className={styles.countdown} title={`Refreshing in ${secondsLeft}s`}>
+      <div className={styles.countdownBar} style={{ width: `${progress * 100}%` }} />
+      <span className={styles.countdownLabel}>Refreshes in {secondsLeft}s</span>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Health check card — CP-T028: four-tier severity taxonomy           */
+/* ------------------------------------------------------------------ */
+
+/** Severity badge displayed in the card header */
+function SeverityBadge({ severity }: { severity: Severity }) {
+  const labelMap: Record<Severity, string> = {
+    CRITICAL: 'Critical',
+    WARNING:  'Warning',
+    INFO:     'Info',
+    HEALTHY:  'Healthy',
+  }
+  const classMap: Record<Severity, string> = {
+    CRITICAL: styles.severityBadgeCritical,
+    WARNING:  styles.severityBadgeWarning,
+    INFO:     styles.severityBadgeInfo,
+    HEALTHY:  styles.severityBadgeHealthy,
+  }
+  return (
+    <span className={`${styles.severityBadge} ${classMap[severity]}`} aria-label={`Severity: ${labelMap[severity]}`}>
+      {labelMap[severity]}
+    </span>
+  )
+}
+
+function HealthCard({
+  check,
+  onRunDiagnostics,
+}: {
+  check: HealthCheck
+  onRunDiagnostics?: () => void
+}) {
+  const severity = classifyCheckSeverity(check)
+  const remediation = getRemediation(check.name, check.status)
+  const normalization = severity === 'INFO' ? getInfoNormalization(check.name) : null
+  const label = getCheckLabel(check.name)
+  const repairInfo = REPAIR_ENDPOINTS[check.name]
+
+  // CP-T033: Repair modal state for this card
+  const [showRepairModal, setShowRepairModal] = useState(false)
+  const [repairLoading, setRepairLoading] = useState(false)
+  const [repairResult, setRepairResult] = useState<RepairResult | null>(null)
+  const [repairError, setRepairError] = useState<string | null>(null)
+
+  // CP-T082: Contextual repair action state
+  const navigate = useNavigate()
+  const { activeInstance } = useInstanceContext()
+  const repairAction = REPAIR_ACTIONS[check.name]
+  const showRepairAction = (severity === 'CRITICAL' || severity === 'WARNING') && repairAction !== undefined
+  const [repairActionInFlight, setRepairActionInFlight] = useState(false)
+  const [repairActionFeedback, setRepairActionFeedback] = useState<string | null>(null)
+
+  const handleRepairAction = useCallback(async () => {
+    if (!repairAction) return
+    if (repairAction.action === 'navigate') {
+      navigate(repairAction.target)
+      return
+    }
+    // trigger actions
     if (repairAction.target === 'run-diagnostics') {
       onRunDiagnostics?.()
       setRepairActionFeedback('Running...')
@@ -400,83 +402,83 @@ function HealthCard({
       try {
         await startInstance(instanceName)
         setRepairActionFeedback('Started - checking connectivity...')
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to start'
-        setRepairActionFeedback(msg)
-      } finally {
-        setRepairActionInFlight(false)
-        setTimeout(() => setRepairActionFeedback(null), 3000)
-      }
-    }
-  }, [repairAction, navigate, onRunDiagnostics, activeInstance])
-
-  const handleRepairConfirm = async () => {
-    if (!repairInfo) return
-    setRepairLoading(true)
-    setRepairError(null)
-    try {
-      const res = await fetch(`${repairInfo.url}?confirm=true`, { method: 'POST' })
-      const body = await res.json()
-      if (!res.ok) {
-        const errBody = body as { error?: string }
-        throw new Error(errBody.error ?? res.statusText)
-      }
-      setRepairResult({ kind: repairInfo.kind, data: body as RepairMcpJsonResponse | RepairClaudeMdResponse })
-    } catch (err) {
-      setRepairError(err instanceof Error ? err.message : 'Repair failed')
-    } finally {
-      setRepairLoading(false)
-      setShowRepairModal(false)
-    }
-  }
-
-  // Icon and class: use severity-based mapping (not raw status) for accessibility
-  // Using both icon and text label â€” do not rely on color alone (CP-T028 a11y req)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to start'
+        setRepairActionFeedback(msg)
+      } finally {
+        setRepairActionInFlight(false)
+        setTimeout(() => setRepairActionFeedback(null), 3000)
+      }
+    }
+  }, [repairAction, navigate, onRunDiagnostics, activeInstance])
+
+  const handleRepairConfirm = async () => {
+    if (!repairInfo) return
+    setRepairLoading(true)
+    setRepairError(null)
+    try {
+      const res = await fetch(`${repairInfo.url}?confirm=true`, { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) {
+        const errBody = body as { error?: string }
+        throw new Error(errBody.error ?? res.statusText)
+      }
+      setRepairResult({ kind: repairInfo.kind, data: body as RepairMcpJsonResponse | RepairClaudeMdResponse })
+    } catch (err) {
+      setRepairError(err instanceof Error ? err.message : 'Repair failed')
+    } finally {
+      setRepairLoading(false)
+      setShowRepairModal(false)
+    }
+  }
+
+  // Icon and class: use severity-based mapping (not raw status) for accessibility
+  // Using both icon and text label — do not rely on color alone (CP-T028 a11y req)
   const iconMap: Record<Severity, string> = {
     CRITICAL: 'X',
     WARNING:  '!',
     INFO:     'i',
     HEALTHY:  'OK',
   }
-  const iconClassMap: Record<Severity, string> = {
-    CRITICAL: styles.iconCritical,
-    WARNING:  styles.iconWarn,
-    INFO:     styles.iconInfo,
-    HEALTHY:  styles.iconOk,
-  }
-  const cardClassMap: Record<Severity, string> = {
-    CRITICAL: styles.cardCritical,
-    WARNING:  styles.cardWarn,
-    INFO:     styles.cardInfo,
-    HEALTHY:  styles.cardOk,
-  }
-
-  return (
-    <div
-      className={`${styles.card} ${cardClassMap[severity]}`}
-      aria-label={`${label}: ${severity.toLowerCase()}`}
-    >
-      <div className={styles.cardHeader}>
-        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
-          {iconMap[severity]}
-        </span>
-        <span className={styles.cardName}>{label}</span>
-        <SeverityBadge severity={severity} />
-        {/* CP-T033: Repair button â€” only shown for WARNING/CRITICAL checks with a repair action */}
-        {(severity === 'WARNING' || severity === 'CRITICAL') && repairInfo && !repairResult && (
-          <button
-            className={styles.repairBtn}
-            onClick={() => { setRepairResult(null); setRepairError(null); setShowRepairModal(true) }}
-            type="button"
-            aria-label={`Repair: ${repairInfo.label}`}
-          >
-            Repair
-          </button>
-        )}
-      </div>
-      <p className={styles.cardMessage}>{check.message}</p>
-
-      {/* CP-T033: Repair success result */}
+  const iconClassMap: Record<Severity, string> = {
+    CRITICAL: styles.iconCritical,
+    WARNING:  styles.iconWarn,
+    INFO:     styles.iconInfo,
+    HEALTHY:  styles.iconOk,
+  }
+  const cardClassMap: Record<Severity, string> = {
+    CRITICAL: styles.cardCritical,
+    WARNING:  styles.cardWarn,
+    INFO:     styles.cardInfo,
+    HEALTHY:  styles.cardOk,
+  }
+
+  return (
+    <div
+      className={`${styles.card} ${cardClassMap[severity]}`}
+      aria-label={`${label}: ${severity.toLowerCase()}`}
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
+          {iconMap[severity]}
+        </span>
+        <span className={styles.cardName}>{label}</span>
+        <SeverityBadge severity={severity} />
+        {/* CP-T033: Repair button — only shown for WARNING/CRITICAL checks with a repair action */}
+        {(severity === 'WARNING' || severity === 'CRITICAL') && repairInfo && !repairResult && (
+          <button
+            className={styles.repairBtn}
+            onClick={() => { setRepairResult(null); setRepairError(null); setShowRepairModal(true) }}
+            type="button"
+            aria-label={`Repair: ${repairInfo.label}`}
+          >
+            Repair
+          </button>
+        )}
+      </div>
+      <p className={styles.cardMessage}>{check.message}</p>
+
+      {/* CP-T033: Repair success result */}
       {repairResult && (
         <div className={styles.repairSuccess}>
           <span className={styles.repairSuccessIcon} aria-hidden="true">OK</span>
@@ -485,153 +487,153 @@ function HealthCard({
             <code className={styles.repairSuccessPath}>{repairResult.data.filePath}</code>
             <span className={styles.repairSuccessAction}> ({repairResult.data.action})</span>
             <p className={styles.repairSuccessWarning}>This action is not revertable.</p>
-          </div>
-        </div>
-      )}
-
-      {/* CP-T033: Repair error */}
+          </div>
+        </div>
+      )}
+
+      {/* CP-T033: Repair error */}
       {repairError && (
         <div className={styles.repairError}>
           <span aria-hidden="true">X</span> {repairError}
         </div>
       )}
-
-      {check.detail && Object.keys(check.detail).length > 0 && (
-        <dl className={styles.cardDetail}>
-          {Object.entries(check.detail).map(([k, v]) => (
-            <div key={k} className={styles.cardDetailRow}>
-              <dt className={styles.cardDetailKey}>{k}</dt>
-              <dd className={styles.cardDetailVal}>{String(v)}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      {/* INFO: normalization copy â€” explains why this state is expected */}
+
+      {check.detail && Object.keys(check.detail).length > 0 && (
+        <dl className={styles.cardDetail}>
+          {Object.entries(check.detail).map(([k, v]) => (
+            <div key={k} className={styles.cardDetailRow}>
+              <dt className={styles.cardDetailKey}>{k}</dt>
+              <dd className={styles.cardDetailVal}>{String(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {/* INFO: normalization copy — explains why this state is expected */}
       {severity === 'INFO' && normalization && (
         <div className={styles.normalization}>
           <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>{normalization}</p>
         </div>
       )}
-
-      {/* CRITICAL / WARNING: remediation copy â€” explains what to do */}
-      {(severity === 'CRITICAL' || severity === 'WARNING') && remediation && (
-        <div className={styles.remediation}>
-          <span className={styles.remediationLabel}>
-            {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
-          </span>
-          <p className={styles.remediationText}>{remediation}</p>
-        </div>
-      )}
-
-      {/* CP-T082: Contextual repair action button */}
-      {showRepairAction && repairAction && (
-        <div className={styles.repairActionRow}>
-          <button
-            className={styles.repairActionBtn}
-            type="button"
-            disabled={repairActionInFlight}
-            onClick={() => void handleRepairAction()}
-            aria-label={repairAction.label}
-          >
-            {repairActionInFlight && (
-              <span className={styles.repairActionSpinner} aria-hidden="true" />
-            )}
-            {repairActionFeedback ?? repairAction.label}
-          </button>
-        </div>
-      )}
-
-      {/* CP-T033: Repair confirmation modal */}
-      {showRepairModal && repairInfo && (
-        <ConfirmationModal
-          title={repairInfo.label}
-          description={`This will write to:\n${repairInfo.url}\n\nThe file will be generated using the current instance configuration.`}
-          warning="This action is not revertable. The file will be written immediately to the project directory."
-          confirmLabel="Run Repair"
-          loading={repairLoading}
-          onConfirm={() => void handleRepairConfirm()}
-          onCancel={() => setShowRepairModal(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T052: Capability Health â€” severity mapping for vectorBackend    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Map the vectorBackend API status string to the four-tier Severity enum.
- * vectorBackend.status is independent of the overall health field and
- * must not affect the page-level OverallBadge.
- *
- *   ok    â†’ HEALTHY (green)
- *   warn  â†’ WARNING (amber) â€” backend type set but URL not configured
- *   error â†’ CRITICAL (red)  â€” external service unreachable
- */
-function mapVectorBackendSeverity(status: 'ok' | 'warn' | 'error'): Severity {
-  switch (status) {
-    case 'ok':    return 'HEALTHY'
-    case 'warn':  return 'WARNING'
-    case 'error': return 'CRITICAL'
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T052: Memory Decay card                                         */
-/* ------------------------------------------------------------------ */
-
-function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
-  const { enabled, stabilityBase, stabilityMax, decayThreshold } = decay
-
-  // Amber = enabled (intentional â€” decay active is a notable operator state)
-  // Green = disabled
-  const iconClass = enabled ? styles.iconWarn : styles.iconOk
+
+      {/* CRITICAL / WARNING: remediation copy — explains what to do */}
+      {(severity === 'CRITICAL' || severity === 'WARNING') && remediation && (
+        <div className={styles.remediation}>
+          <span className={styles.remediationLabel}>
+            {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
+          </span>
+          <p className={styles.remediationText}>{remediation}</p>
+        </div>
+      )}
+
+      {/* CP-T082: Contextual repair action button */}
+      {showRepairAction && repairAction && (
+        <div className={styles.repairActionRow}>
+          <button
+            className={styles.repairActionBtn}
+            type="button"
+            disabled={repairActionInFlight}
+            onClick={() => void handleRepairAction()}
+            aria-label={repairAction.label}
+          >
+            {repairActionInFlight && (
+              <span className={styles.repairActionSpinner} aria-hidden="true" />
+            )}
+            {repairActionFeedback ?? repairAction.label}
+          </button>
+        </div>
+      )}
+
+      {/* CP-T033: Repair confirmation modal */}
+      {showRepairModal && repairInfo && (
+        <ConfirmationModal
+          title={repairInfo.label}
+          description={`This will write to:\n${repairInfo.url}\n\nThe file will be generated using the current instance configuration.`}
+          warning="This action is not revertable. The file will be written immediately to the project directory."
+          confirmLabel="Run Repair"
+          loading={repairLoading}
+          onConfirm={() => void handleRepairConfirm()}
+          onCancel={() => setShowRepairModal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Capability Health — severity mapping for vectorBackend    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Map the vectorBackend API status string to the four-tier Severity enum.
+ * vectorBackend.status is independent of the overall health field and
+ * must not affect the page-level OverallBadge.
+ *
+ *   ok    â†’ HEALTHY (green)
+ *   warn  â†’ WARNING (amber) — backend type set but URL not configured
+ *   error â†’ CRITICAL (red)  — external service unreachable
+ */
+function mapVectorBackendSeverity(status: 'ok' | 'warn' | 'error'): Severity {
+  switch (status) {
+    case 'ok':    return 'HEALTHY'
+    case 'warn':  return 'WARNING'
+    case 'error': return 'CRITICAL'
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Memory Decay card                                         */
+/* ------------------------------------------------------------------ */
+
+function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
+  const { enabled, stabilityBase, stabilityMax, decayThreshold } = decay
+
+  // Amber = enabled (intentional — decay active is a notable operator state)
+  // Green = disabled
+  const iconClass = enabled ? styles.iconWarn : styles.iconOk
   const icon      = enabled ? '~' : 'OK'
-  const dotLabel  = enabled ? 'Enabled' : 'Disabled'
-  const cardClass = enabled ? styles.cardWarn : styles.cardOk
-  const badge     = enabled ? <SeverityBadge severity="WARNING" /> : <SeverityBadge severity="HEALTHY" />
-
-  return (
-    <div
-      className={`${styles.card} ${cardClass}`}
-      aria-label={`Memory Decay: ${dotLabel}`}
-    >
-      <div className={styles.cardHeader}>
-        <span className={`${styles.statusIcon} ${iconClass}`} aria-hidden="true">
-          {icon}
-        </span>
-        <span className={styles.cardName}>Memory Decay</span>
-        {badge}
-      </div>
-
+  const dotLabel  = enabled ? 'Enabled' : 'Disabled'
+  const cardClass = enabled ? styles.cardWarn : styles.cardOk
+  const badge     = enabled ? <SeverityBadge severity="WARNING" /> : <SeverityBadge severity="HEALTHY" />
+
+  return (
+    <div
+      className={`${styles.card} ${cardClass}`}
+      aria-label={`Memory Decay: ${dotLabel}`}
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClass}`} aria-hidden="true">
+          {icon}
+        </span>
+        <span className={styles.cardName}>Memory Decay</span>
+        {badge}
+      </div>
+
       {/* Color direction note - operators must not mistake amber for a warning */}
       <p className={styles.cardMessage}>
         {enabled
           ? 'Decay is active - facts below the stability threshold will be archived automatically. Amber indicates decay is enabled, not an error.'
           : 'Memory decay is disabled. Facts are archived only by expiry, low confidence (< 30), or Resolutionist resolution.'}
       </p>
-
-      {enabled && (
-        <dl className={styles.cardDetail}>
-          <div className={styles.cardDetailRow}>
-            <dt className={styles.cardDetailKey}>stability base</dt>
-            <dd className={styles.cardDetailVal}>{stabilityBase} days until first decay cycle</dd>
-          </div>
-          <div className={styles.cardDetailRow}>
-            <dt className={styles.cardDetailKey}>stability range</dt>
+
+      {enabled && (
+        <dl className={styles.cardDetail}>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>stability base</dt>
+            <dd className={styles.cardDetailVal}>{stabilityBase} days until first decay cycle</dd>
+          </div>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>stability range</dt>
             <dd className={styles.cardDetailVal}>{stabilityBase}-{stabilityMax} days</dd>
-          </div>
-          <div className={styles.cardDetailRow}>
-            <dt className={styles.cardDetailKey}>decay threshold</dt>
-            <dd className={styles.cardDetailVal}>Archived below confidence {decayThreshold}</dd>
-          </div>
-        </dl>
-      )}
-
+          </div>
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>decay threshold</dt>
+            <dd className={styles.cardDetailVal}>Archived below confidence {decayThreshold}</dd>
+          </div>
+        </dl>
+      )}
+
       {/* Always-visible note clarifying amber color direction */}
       <div className={styles.normalization}>
         <span className={styles.normalizationLabel} aria-hidden="true">i</span>
@@ -641,658 +643,658 @@ function MemoryDecayCard({ decay }: { decay: HealthDecay }) {
             : 'Green means decay is off. No automatic archival by time/access pattern. Explicit actions (expiry, confidence threshold, Resolutionist) still apply.'}
         </p>
       </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T052: Vector Backend card                                       */
-/* ------------------------------------------------------------------ */
-
-function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBackend }) {
-  const { type, url, status } = vectorBackend
-  const severity = mapVectorBackendSeverity(status)
-
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Vector Backend card                                       */
+/* ------------------------------------------------------------------ */
+
+function VectorBackendCard({ vectorBackend }: { vectorBackend: HealthVectorBackend }) {
+  const { type, url, status } = vectorBackend
+  const severity = mapVectorBackendSeverity(status)
+
   const iconMap: Record<Severity, string> = {
     CRITICAL: 'X',
     WARNING:  '!',
     INFO:     'i',
     HEALTHY:  'OK',
   }
-  const iconClassMap: Record<Severity, string> = {
-    CRITICAL: styles.iconCritical,
-    WARNING:  styles.iconWarn,
-    INFO:     styles.iconInfo,
-    HEALTHY:  styles.iconOk,
-  }
-  const cardClassMap: Record<Severity, string> = {
-    CRITICAL: styles.cardCritical,
-    WARNING:  styles.cardWarn,
-    INFO:     styles.cardInfo,
-    HEALTHY:  styles.cardOk,
-  }
-
-  const typeLabel =
-    type === 'unknown'
-      ? 'unknown (defaulting to pgvector)'
-      : type
-
-  // Actionable hint when vector search may be inactive
-  const showActionableHint = status === 'warn' || status === 'error'
-  const actionableHint =
-    type === 'pgvector'
-      ? 'Check DB Reachability and pgvector extension. Run: SELECT * FROM pg_extension WHERE extname = \'vector\';'
-      : `Confirm the ${type} service is running at: ${url ?? '[URL not configured]'}. Check DB Reachability if using a local service.`
-
-  // pgvector hybrid fallback note (v0.2.13+)
-  const showHybridFallback = (type === 'pgvector' || type === 'unknown') && status === 'ok'
-
-  return (
-    <div
-      className={`${styles.card} ${cardClassMap[severity]}`}
+  const iconClassMap: Record<Severity, string> = {
+    CRITICAL: styles.iconCritical,
+    WARNING:  styles.iconWarn,
+    INFO:     styles.iconInfo,
+    HEALTHY:  styles.iconOk,
+  }
+  const cardClassMap: Record<Severity, string> = {
+    CRITICAL: styles.cardCritical,
+    WARNING:  styles.cardWarn,
+    INFO:     styles.cardInfo,
+    HEALTHY:  styles.cardOk,
+  }
+
+  const typeLabel =
+    type === 'unknown'
+      ? 'unknown (defaulting to pgvector)'
+      : type
+
+  // Actionable hint when vector search may be inactive
+  const showActionableHint = status === 'warn' || status === 'error'
+  const actionableHint =
+    type === 'pgvector'
+      ? 'Check DB Reachability and pgvector extension. Run: SELECT * FROM pg_extension WHERE extname = \'vector\';'
+      : `Confirm the ${type} service is running at: ${url ?? '[URL not configured]'}. Check DB Reachability if using a local service.`
+
+  // pgvector hybrid fallback note (v0.2.13+)
+  const showHybridFallback = (type === 'pgvector' || type === 'unknown') && status === 'ok'
+
+  return (
+    <div
+      className={`${styles.card} ${cardClassMap[severity]}`}
       aria-label={`Vector Backend: ${typeLabel} - ${severity.toLowerCase()}`}
-    >
-      <div className={styles.cardHeader}>
-        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
-          {iconMap[severity]}
-        </span>
-        <span className={styles.cardName}>Vector Backend</span>
-        <SeverityBadge severity={severity} />
-      </div>
-
-      <dl className={styles.cardDetail}>
-        <div className={styles.cardDetailRow}>
-          <dt className={styles.cardDetailKey}>backend</dt>
-          <dd className={styles.cardDetailVal}>{typeLabel}</dd>
-        </div>
-        {url && (
-          <div className={styles.cardDetailRow}>
-            <dt className={styles.cardDetailKey}>url</dt>
-            <dd className={styles.cardDetailVal}>{url}</dd>
-          </div>
-        )}
-        {(type === 'pgvector' || type === 'unknown') && (
-          <div className={styles.cardDetailRow}>
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
+          {iconMap[severity]}
+        </span>
+        <span className={styles.cardName}>Vector Backend</span>
+        <SeverityBadge severity={severity} />
+      </div>
+
+      <dl className={styles.cardDetail}>
+        <div className={styles.cardDetailRow}>
+          <dt className={styles.cardDetailKey}>backend</dt>
+          <dd className={styles.cardDetailVal}>{typeLabel}</dd>
+        </div>
+        {url && (
+          <div className={styles.cardDetailRow}>
+            <dt className={styles.cardDetailKey}>url</dt>
+            <dd className={styles.cardDetailVal}>{url}</dd>
+          </div>
+        )}
+        {(type === 'pgvector' || type === 'unknown') && (
+          <div className={styles.cardDetailRow}>
             <dt className={styles.cardDetailKey}>connection</dt>
             <dd className={styles.cardDetailVal}>Uses primary database connection - see DB Reachability check</dd>
           </div>
         )}
-      </dl>
-
-      {/* Hybrid fallback note â€” informational, not a warning */}
+      </dl>
+
+      {/* Hybrid fallback note — informational, not a warning */}
       {showHybridFallback && (
         <div className={styles.normalization}>
           <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>
             Iranti v0.2.13+ falls back to in-process semantic scoring if pgvector is unavailable. Search quality may be reduced in fallback mode.
-          </p>
-        </div>
-      )}
-
-      {/* Actionable hint for warn/error states */}
-      {showActionableHint && (
-        <div className={styles.remediation}>
-          <span className={styles.remediationLabel}>
-            {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
-          </span>
-          <p className={styles.remediationText}>{actionableHint}</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T052: Attendant Status card                                     */
-/* ------------------------------------------------------------------ */
-
-function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
-  const severity: Severity =
-    attendant.status === 'ok' ? 'HEALTHY' :
-    attendant.status === 'warn' ? 'WARNING' :
-    attendant.status === 'unreachable' ? 'INFO' :
-    'WARNING'
-
+          </p>
+        </div>
+      )}
+
+      {/* Actionable hint for warn/error states */}
+      {showActionableHint && (
+        <div className={styles.remediation}>
+          <span className={styles.remediationLabel}>
+            {severity === 'CRITICAL' ? 'Action required' : 'How to fix'}
+          </span>
+          <p className={styles.remediationText}>{actionableHint}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Attendant Status card                                     */
+/* ------------------------------------------------------------------ */
+
+function AttendantStatusCard({ attendant }: { attendant: HealthAttendant }) {
+  const severity: Severity =
+    attendant.status === 'ok' ? 'HEALTHY' :
+    attendant.status === 'warn' ? 'WARNING' :
+    attendant.status === 'unreachable' ? 'INFO' :
+    'WARNING'
+
   const iconMap: Record<Severity, string> = {
     CRITICAL: 'X',
     WARNING:  '!',
     INFO:     'i',
     HEALTHY:  'OK',
   }
-  const iconClassMap: Record<Severity, string> = {
-    CRITICAL: styles.iconCritical,
-    WARNING:  styles.iconWarn,
-    INFO:     styles.iconInfo,
-    HEALTHY:  styles.iconOk,
-  }
-  const cardClassMap: Record<Severity, string> = {
-    CRITICAL: styles.cardCritical,
-    WARNING:  styles.cardWarn,
-    INFO:     styles.cardInfo,
-    HEALTHY:  styles.cardOk,
-  }
-
-  return (
-    <div
-      className={`${styles.card} ${cardClassMap[severity]}`}
-      aria-label={`Attendant Status: ${severity.toLowerCase()}`}
-    >
-      <div className={styles.cardHeader}>
-        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
-          {iconMap[severity]}
-        </span>
-        <span className={styles.cardName}>Attendant</span>
-        <SeverityBadge severity={severity} />
-      </div>
-
-      <p className={styles.cardMessage}>{attendant.message}</p>
-
-      {attendant.status === 'warn' && (
-        <div className={styles.remediation}>
-          <span className={styles.remediationLabel}>What this means</span>
-          <p className={styles.remediationText}>
-            The Attendant responded, but this synthetic health probe did not trigger a confident
-            memory-injection decision. That usually indicates probe ambiguity rather than an
-            outage. If real agent prompts also miss useful memory, re-test with a clearer task
-            prompt and inspect the live session or attend behavior.
-          </p>
-        </div>
-      )}
-
+  const iconClassMap: Record<Severity, string> = {
+    CRITICAL: styles.iconCritical,
+    WARNING:  styles.iconWarn,
+    INFO:     styles.iconInfo,
+    HEALTHY:  styles.iconOk,
+  }
+  const cardClassMap: Record<Severity, string> = {
+    CRITICAL: styles.cardCritical,
+    WARNING:  styles.cardWarn,
+    INFO:     styles.cardInfo,
+    HEALTHY:  styles.cardOk,
+  }
+
+  return (
+    <div
+      className={`${styles.card} ${cardClassMap[severity]}`}
+      aria-label={`Attendant Status: ${severity.toLowerCase()}`}
+    >
+      <div className={styles.cardHeader}>
+        <span className={`${styles.statusIcon} ${iconClassMap[severity]}`} aria-hidden="true">
+          {iconMap[severity]}
+        </span>
+        <span className={styles.cardName}>Attendant</span>
+        <SeverityBadge severity={severity} />
+      </div>
+
+      <p className={styles.cardMessage}>{attendant.message}</p>
+
+      {attendant.status === 'warn' && (
+        <div className={styles.remediation}>
+          <span className={styles.remediationLabel}>What this means</span>
+          <p className={styles.remediationText}>
+            The Attendant responded, but this synthetic health probe did not trigger a confident
+            memory-injection decision. That usually indicates probe ambiguity rather than an
+            outage. If real agent prompts also miss useful memory, re-test with a clearer task
+            prompt and inspect the live session or attend behavior.
+          </p>
+        </div>
+      )}
+
       {attendant.status === 'unreachable' && (
         <div className={styles.normalization}>
           <span className={styles.normalizationLabel} aria-hidden="true">i</span>
           <p className={styles.normalizationText}>
             Start Iranti to enable the Attendant: <code className={styles.capabilityInlineCode}>iranti run --instance local</code>
           </p>
-        </div>
-      )}
-
-      <dl className={styles.cardDetail}>
-        <div className={styles.cardDetailRow}>
-          <dt className={styles.cardDetailKey}>checked</dt>
-          <dd className={styles.cardDetailVal}>{new Date(attendant.checkedAt).toLocaleTimeString()}</dd>
-        </div>
-      </dl>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T052: Capability Health section wrapper                        */
-/* ------------------------------------------------------------------ */
-
-function CapabilityHealthSection({
-  decay,
-  vectorBackend,
-  attendant,
-}: {
-  decay?: HealthDecay
-  vectorBackend?: HealthVectorBackend
-  attendant?: HealthAttendant
-}) {
-  const hasAny = decay !== undefined || vectorBackend !== undefined || attendant !== undefined
-  if (!hasAny) return null
-
-  return (
-    <section className={styles.capabilitySection} aria-labelledby="capability-health-heading">
-      <div className={styles.capabilitySectionHeader}>
-        <h2 id="capability-health-heading" className={styles.capabilitySectionTitle}>
-          Capability Health
-        </h2>
+        </div>
+      )}
+
+      <dl className={styles.cardDetail}>
+        <div className={styles.cardDetailRow}>
+          <dt className={styles.cardDetailKey}>checked</dt>
+          <dd className={styles.cardDetailVal}>{new Date(attendant.checkedAt).toLocaleTimeString()}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T052: Capability Health section wrapper                        */
+/* ------------------------------------------------------------------ */
+
+function CapabilityHealthSection({
+  decay,
+  vectorBackend,
+  attendant,
+}: {
+  decay?: HealthDecay
+  vectorBackend?: HealthVectorBackend
+  attendant?: HealthAttendant
+}) {
+  const hasAny = decay !== undefined || vectorBackend !== undefined || attendant !== undefined
+  if (!hasAny) return null
+
+  return (
+    <section className={styles.capabilitySection} aria-labelledby="capability-health-heading">
+      <div className={styles.capabilitySectionHeader}>
+        <h2 id="capability-health-heading" className={styles.capabilitySectionTitle}>
+          Capability Health
+        </h2>
         <span className={styles.capabilitySectionMeta}>Decay · Vector · Attendant</span>
-      </div>
-      <div className={styles.grid}>
-        {decay       !== undefined && <MemoryDecayCard   decay={decay} />}
-        {vectorBackend !== undefined && <VectorBackendCard vectorBackend={vectorBackend} />}
-        {attendant   !== undefined && <AttendantStatusCard attendant={attendant} />}
-      </div>
-    </section>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  CP-T059: Diagnostics panel                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Human-friendly labels for the 7 diagnostic checks.
- * Internal key â†’ display name.
- */
-const DIAG_CHECK_LABELS: Record<string, string> = {
-  iranti_connectivity: 'Iranti Connectivity',
-  iranti_auth:         'API Key Auth',
-  db_connectivity:     'Database',
-  vector_backend:      'Vector Backend',
-  ingest_roundtrip:    'Memory Round-Trip',
-  attend_check:        'Attendant',
-  vector_search_check: 'Vector Search',
-}
-
-function getDiagCheckLabel(check: string): string {
-  return DIAG_CHECK_LABELS[check] ?? check.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-}
-
-/**
- * Render a fix hint string, converting `iranti ...` command tokens into
- * inline monospace spans. Detects substrings matching /iranti \S+/ pattern.
- */
-function DiagFixHint({ hint }: { hint: string }) {
-  // Split on `iranti <command>` tokens to inline-highlight them
-  const parts = hint.split(/(iranti\s+\S+(?:\s+\S+)*)/g)
-  return (
-    <span className={styles.diagFixHint}>
-      {parts.map((part, i) =>
-        /^iranti\s/.test(part)
-          ? <code key={i} className={styles.diagInlineCode}>{part}</code>
-          : part
-      )}
-    </span>
-  )
-}
-
-function DiagHintActions({ hint }: { hint: string }) {
-  const command = extractFirstCommand(hint)
-  if (!command) return null
-  return (
-    <CommandAction
-      command={command}
-      allowRun={canRunCommand(command)}
-      compact
-    />
-  )
-}
-
-/** Status badge for a diagnostic check â€” pass/warn/fail */
-function DiagStatusBadge({ status }: { status: DiagnosticCheckResult['status'] }) {
-  const labelMap: Record<DiagnosticCheckResult['status'], string> = {
-    pass: 'Pass',
-    warn: 'Warn',
-    fail: 'Fail',
-  }
-  const classMap: Record<DiagnosticCheckResult['status'], string> = {
-    pass: styles.diagBadgePass,
-    warn: styles.diagBadgeWarn,
-    fail: styles.diagBadgeFail,
-  }
-  return (
-    <span className={`${styles.diagStatusBadge} ${classMap[status]}`} aria-label={`Status: ${labelMap[status]}`}>
-      {labelMap[status]}
-    </span>
-  )
-}
-
-/** Summary banner at top of results panel */
-function DiagSummaryBanner({ result }: { result: DiagnosticRunResult }) {
-  const failCount = result.checks.filter(c => c.status === 'fail').length
-  const warnCount = result.checks.filter(c => c.status === 'warn').length
-
-  if (result.overallStatus === 'pass') {
-    return (
+      </div>
+      <div className={styles.grid}>
+        {decay       !== undefined && <MemoryDecayCard   decay={decay} />}
+        {vectorBackend !== undefined && <VectorBackendCard vectorBackend={vectorBackend} />}
+        {attendant   !== undefined && <AttendantStatusCard attendant={attendant} />}
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  CP-T059: Diagnostics panel                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Human-friendly labels for the 7 diagnostic checks.
+ * Internal key â†’ display name.
+ */
+const DIAG_CHECK_LABELS: Record<string, string> = {
+  iranti_connectivity: 'Iranti Connectivity',
+  iranti_auth:         'API Key Auth',
+  db_connectivity:     'Database',
+  vector_backend:      'Vector Backend',
+  ingest_roundtrip:    'Memory Round-Trip',
+  attend_check:        'Attendant',
+  vector_search_check: 'Vector Search',
+}
+
+function getDiagCheckLabel(check: string): string {
+  return DIAG_CHECK_LABELS[check] ?? check.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+/**
+ * Render a fix hint string, converting `iranti ...` command tokens into
+ * inline monospace spans. Detects substrings matching /iranti \S+/ pattern.
+ */
+function DiagFixHint({ hint }: { hint: string }) {
+  // Split on `iranti <command>` tokens to inline-highlight them
+  const parts = hint.split(/(iranti\s+\S+(?:\s+\S+)*)/g)
+  return (
+    <span className={styles.diagFixHint}>
+      {parts.map((part, i) =>
+        /^iranti\s/.test(part)
+          ? <code key={i} className={styles.diagInlineCode}>{part}</code>
+          : part
+      )}
+    </span>
+  )
+}
+
+function DiagHintActions({ hint }: { hint: string }) {
+  const command = extractFirstCommand(hint)
+  if (!command) return null
+  return (
+    <CommandAction
+      command={command}
+      allowRun={canRunCommand(command)}
+      compact
+    />
+  )
+}
+
+/** Status badge for a diagnostic check — pass/warn/fail */
+function DiagStatusBadge({ status }: { status: DiagnosticCheckResult['status'] }) {
+  const labelMap: Record<DiagnosticCheckResult['status'], string> = {
+    pass: 'Pass',
+    warn: 'Warn',
+    fail: 'Fail',
+  }
+  const classMap: Record<DiagnosticCheckResult['status'], string> = {
+    pass: styles.diagBadgePass,
+    warn: styles.diagBadgeWarn,
+    fail: styles.diagBadgeFail,
+  }
+  return (
+    <span className={`${styles.diagStatusBadge} ${classMap[status]}`} aria-label={`Status: ${labelMap[status]}`}>
+      {labelMap[status]}
+    </span>
+  )
+}
+
+/** Summary banner at top of results panel */
+function DiagSummaryBanner({ result }: { result: DiagnosticRunResult }) {
+  const failCount = result.checks.filter(c => c.status === 'fail').length
+  const warnCount = result.checks.filter(c => c.status === 'warn').length
+
+  if (result.overallStatus === 'pass') {
+    return (
       <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryPass}`} role="status">
         <span aria-hidden="true">OK</span>
         All checks passed
       </div>
-    )
-  }
-  if (result.overallStatus === 'warn') {
-    return (
+    )
+  }
+  if (result.overallStatus === 'warn') {
+    return (
       <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryWarn}`} role="status">
         <span aria-hidden="true">!</span>
         {warnCount} warning{warnCount !== 1 ? 's' : ''} - system functional but degraded
       </div>
-    )
-  }
-  return (
+    )
+  }
+  return (
     <div className={`${styles.diagSummaryBanner} ${styles.diagSummaryFail}`} role="alert">
       <span aria-hidden="true">X</span>
       {failCount} failure{failCount !== 1 ? 's' : ''} detected - action required
     </div>
-  )
-}
-
-/** Full diagnostics results panel â€” renders when expanded */
-function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
-  return (
-    <div className={styles.diagPanelContainer} aria-label="Diagnostic results">
-      <DiagSummaryBanner result={result} />
-      <table className={styles.diagTable} aria-label="Diagnostic check results">
-        <thead>
-          <tr>
-            <th>Check</th>
-            <th>Status</th>
-            <th>Message</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.checks.map(check => (
-            <tr key={check.check}>
-              <td className={styles.diagCheckName}>{getDiagCheckLabel(check.check)}</td>
-              <td><DiagStatusBadge status={check.status} /></td>
-              <td>
-                <div className={styles.diagMessageCell}>
-                  <span className={styles.diagMessage}>{check.message}</span>
-                  {check.fixHint && <DiagFixHint hint={check.fixHint} />}
-                  {check.fixHint && <DiagHintActions hint={check.fixHint} />}
-                </div>
-              </td>
-              <td className={styles.diagDuration}>{check.durationMs}ms</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/**
- * Interactive Diagnostics Panel â€” CP-T059.
- *
- * Renders:
- *  - "Run Diagnostics" button (with loading state)
- *  - Error strip on failure
- *  - Results panel (collapsible; expanded after a run, collapsed on page load)
- *  - "Last Run" collapsed summary on page load if a previous result exists
- *
- * Accepts an optional `onRunRequest` callback so the command palette can
- * trigger a run from outside the component via a CustomEvent.
- */
-function diagnosticsUrl(path: 'last' | 'run', instanceId?: string): string {
-  const url = new URL(`/api/control-plane/diagnostics/${path}`, window.location.origin)
-  if (instanceId) {
-    url.searchParams.set('instanceId', instanceId)
-  }
-  return url.toString()
-}
-
-function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal: number; instanceId?: string }) {
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<DiagnosticRunResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
-  const [lastRun, setLastRun] = useState<DiagnosticRunResult | null>(null)
-  const [lastRunLoaded, setLastRunLoaded] = useState(false)
-  // Track whether the current result came from a user-triggered run (expanded) or page load (collapsed)
-  const [resultIsFromRun, setResultIsFromRun] = useState(false)
-
-  // On mount: fetch last run result; 404 = no previous run (show nothing)
-  useEffect(() => {
-    let cancelled = false
-    const fetchLast = async () => {
-      try {
-        const res = await fetch(diagnosticsUrl('last', instanceId))
-        if (res.status === 404) {
-          if (!cancelled) setLastRunLoaded(true)
-          return
-        }
-        if (res.ok) {
-          const data = await res.json() as DiagnosticRunResult
-          if (!cancelled) {
-            setLastRun(data)
-            setLastRunLoaded(true)
-          }
-        } else {
-          if (!cancelled) setLastRunLoaded(true)
-        }
-      } catch {
-        if (!cancelled) setLastRunLoaded(true)
-      }
-    }
-    void fetchLast()
-    return () => { cancelled = true }
-  }, [instanceId])
-
-  const runDiagnostics = useCallback(async () => {
-    if (running) return // guard against double-trigger
-    setRunning(true)
-    setError(null)
-    try {
-      const res = await fetch(diagnosticsUrl('run', instanceId), { method: 'POST' })
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`)
-      }
-      const data = await res.json() as DiagnosticRunResult
-      setResult(data)
-      setResultIsFromRun(true)
-      setExpanded(true)
-      // Update the last-run record too
-      setLastRun(data)
-    } catch {
-      setError('Diagnostics unavailable. Check that the control plane server is running.')
-    } finally {
-      setRunning(false)
-    }
-  }, [running])
-
-  // Listen for external run signal (command palette)
-  const prevSignalRef = useRef(0)
-  useEffect(() => {
-    if (externalRunSignal > prevSignalRef.current) {
-      prevSignalRef.current = externalRunSignal
-      void runDiagnostics()
-    }
-  }, [externalRunSignal, runDiagnostics])
-
-  // The active result: prefer the live run result; fall back to lastRun for the collapsed last-run UI
-  const activeResult = result ?? (resultIsFromRun ? null : lastRun)
-
-  return (
-    <section className={styles.diagnosticsSection} aria-labelledby="diagnostics-heading">
-      <div className={styles.diagnosticsSectionHeader}>
-        <h2 id="diagnostics-heading" className={styles.diagnosticsSectionTitle}>
-          Diagnostics
-        </h2>
-        <button
-          className={styles.runDiagnosticsBtn}
-          onClick={() => void runDiagnostics()}
-          disabled={running}
-          type="button"
-          aria-label="Run diagnostic checks"
-          aria-busy={running}
-        >
-          {running && <span className={styles.diagSpinner} aria-hidden="true" />}
+  )
+}
+
+/** Full diagnostics results panel — renders when expanded */
+function DiagResultsPanel({ result }: { result: DiagnosticRunResult }) {
+  return (
+    <div className={styles.diagPanelContainer} aria-label="Diagnostic results">
+      <DiagSummaryBanner result={result} />
+      <table className={styles.diagTable} aria-label="Diagnostic check results">
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Status</th>
+            <th>Message</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.checks.map(check => (
+            <tr key={check.check}>
+              <td className={styles.diagCheckName}>{getDiagCheckLabel(check.check)}</td>
+              <td><DiagStatusBadge status={check.status} /></td>
+              <td>
+                <div className={styles.diagMessageCell}>
+                  <span className={styles.diagMessage}>{check.message}</span>
+                  {check.fixHint && <DiagFixHint hint={check.fixHint} />}
+                  {check.fixHint && <DiagHintActions hint={check.fixHint} />}
+                </div>
+              </td>
+              <td className={styles.diagDuration}>{check.durationMs}ms</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/**
+ * Interactive Diagnostics Panel — CP-T059.
+ *
+ * Renders:
+ *  - "Run Diagnostics" button (with loading state)
+ *  - Error strip on failure
+ *  - Results panel (collapsible; expanded after a run, collapsed on page load)
+ *  - "Last Run" collapsed summary on page load if a previous result exists
+ *
+ * Accepts an optional `onRunRequest` callback so the command palette can
+ * trigger a run from outside the component via a CustomEvent.
+ */
+function diagnosticsUrl(path: 'last' | 'run', instanceId?: string): string {
+  const url = new URL(`/api/control-plane/diagnostics/${path}`, window.location.origin)
+  if (instanceId) {
+    url.searchParams.set('instanceId', instanceId)
+  }
+  return url.toString()
+}
+
+function DiagnosticsPanel({ externalRunSignal, instanceId }: { externalRunSignal: number; instanceId?: string }) {
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<DiagnosticRunResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [lastRun, setLastRun] = useState<DiagnosticRunResult | null>(null)
+  const [lastRunLoaded, setLastRunLoaded] = useState(false)
+  // Track whether the current result came from a user-triggered run (expanded) or page load (collapsed)
+  const [resultIsFromRun, setResultIsFromRun] = useState(false)
+
+  // On mount: fetch last run result; 404 = no previous run (show nothing)
+  useEffect(() => {
+    let cancelled = false
+    const fetchLast = async () => {
+      try {
+        const res = await fetch(diagnosticsUrl('last', instanceId))
+        if (res.status === 404) {
+          if (!cancelled) setLastRunLoaded(true)
+          return
+        }
+        if (res.ok) {
+          const data = await res.json() as DiagnosticRunResult
+          if (!cancelled) {
+            setLastRun(data)
+            setLastRunLoaded(true)
+          }
+        } else {
+          if (!cancelled) setLastRunLoaded(true)
+        }
+      } catch {
+        if (!cancelled) setLastRunLoaded(true)
+      }
+    }
+    void fetchLast()
+    return () => { cancelled = true }
+  }, [instanceId])
+
+  const runDiagnostics = useCallback(async () => {
+    if (running) return // guard against double-trigger
+    setRunning(true)
+    setError(null)
+    try {
+      const res = await fetch(diagnosticsUrl('run', instanceId), { method: 'POST' })
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`)
+      }
+      const data = await res.json() as DiagnosticRunResult
+      setResult(data)
+      setResultIsFromRun(true)
+      setExpanded(true)
+      // Update the last-run record too
+      setLastRun(data)
+    } catch {
+      setError('Diagnostics unavailable. Check that the control plane server is running.')
+    } finally {
+      setRunning(false)
+    }
+  }, [running])
+
+  // Listen for external run signal (command palette)
+  const prevSignalRef = useRef(0)
+  useEffect(() => {
+    if (externalRunSignal > prevSignalRef.current) {
+      prevSignalRef.current = externalRunSignal
+      void runDiagnostics()
+    }
+  }, [externalRunSignal, runDiagnostics])
+
+  // The active result: prefer the live run result; fall back to lastRun for the collapsed last-run UI
+  const activeResult = result ?? (resultIsFromRun ? null : lastRun)
+
+  return (
+    <section className={styles.diagnosticsSection} aria-labelledby="diagnostics-heading">
+      <div className={styles.diagnosticsSectionHeader}>
+        <h2 id="diagnostics-heading" className={styles.diagnosticsSectionTitle}>
+          Diagnostics
+        </h2>
+        <button
+          className={styles.runDiagnosticsBtn}
+          onClick={() => void runDiagnostics()}
+          disabled={running}
+          type="button"
+          aria-label="Run diagnostic checks"
+          aria-busy={running}
+        >
+          {running && <span className={styles.diagSpinner} aria-hidden="true" />}
           {running ? 'Running diagnostics...' : 'Run Diagnostics'}
-        </button>
-
-        {/* Collapse/expand toggle â€” only visible when there is a result to show */}
-        {activeResult && (
-          <button
-            className={styles.diagPanelToggle}
-            onClick={() => setExpanded(e => !e)}
-            type="button"
-            aria-expanded={expanded}
-            aria-controls="diag-results-panel"
-          >
+        </button>
+
+        {/* Collapse/expand toggle — only visible when there is a result to show */}
+        {activeResult && (
+          <button
+            className={styles.diagPanelToggle}
+            onClick={() => setExpanded(e => !e)}
+            type="button"
+            aria-expanded={expanded}
+            aria-controls="diag-results-panel"
+          >
             {expanded ? 'Collapse' : 'Expand'}
-          </button>
-        )}
-
-        {/* Last-run timestamp metadata */}
-        {lastRun && lastRunLoaded && !running && (
-          <span className={styles.diagLastRunMeta} aria-live="polite">
-            Last run: {new Date(lastRun.runAt).toLocaleTimeString()}
-            {lastRun.scope ? ` for ${lastRun.scope.instanceName}` : ''}
-          </span>
-        )}
-      </div>
-
-      {/* Error state */}
+          </button>
+        )}
+
+        {/* Last-run timestamp metadata */}
+        {lastRun && lastRunLoaded && !running && (
+          <span className={styles.diagLastRunMeta} aria-live="polite">
+            Last run: {new Date(lastRun.runAt).toLocaleTimeString()}
+            {lastRun.scope ? ` for ${lastRun.scope.instanceName}` : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Error state */}
       {error && (
         <div className={styles.diagErrorStrip} role="alert">
           <span aria-hidden="true">X</span>
           {error}
         </div>
       )}
-
-      {/* Collapsed last-run summary â€” shown on page load if last run exists and panel is not expanded */}
-      {lastRunLoaded && lastRun && !expanded && !running && (
-        <div className={styles.diagLastRunCollapsed}>
-          <DiagStatusBadge status={lastRun.overallStatus} />
-          <span>
-            {lastRun.overallStatus === 'pass' && 'All checks passed'}
-            {lastRun.overallStatus === 'warn' && `${lastRun.checks.filter(c => c.status === 'warn').length} warning(s)`}
-            {lastRun.overallStatus === 'fail' && `${lastRun.checks.filter(c => c.status === 'fail').length} failure(s) detected`}
-          </span>
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
-            {lastRun.totalDurationMs}ms total
-          </span>
-        </div>
-      )}
-
-      {/* Expanded results panel */}
-      {expanded && activeResult && (
-        <div id="diag-results-panel">
-          <DiagResultsPanel result={activeResult} />
-        </div>
-      )}
-    </section>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Main component                                                      */
-/* ------------------------------------------------------------------ */
-
-export function HealthDashboard() {
-  const [refreshingManual, setRefreshingManual] = useState(false)
-  const manualRefetchRef = useRef<(() => Promise<unknown>) | null>(null)
-  const { activeInstance } = useInstanceContext()
-
-  // CP-T059: Signal from command palette to trigger a diagnostics run
-  // Incremented each time the palette fires `iranti:run-diagnostics`
-  const [diagRunSignal, setDiagRunSignal] = useState(0)
-
-  const { data, isLoading, error, refetch, isFetching } = useQuery<HealthResponse, Error>({
-    queryKey: ['health', activeInstance?.id ?? 'binding'],
-    queryFn: () => apiFetch<HealthResponse>('/health', { instanceId: activeInstance?.id }),
-    refetchInterval: REFRESH_INTERVAL_MS,
-    staleTime: 0,
-  })
-
-  // CP-T078: Version sync â€” compare installed vs npm latest
-  // Version changes rarely; 5-minute refetch interval is sufficient.
-  const { data: versionSync } = useQuery<VersionSyncResult, Error>({
-    queryKey: ['version-sync', activeInstance?.id ?? 'binding'],
-    queryFn: () => fetchVersionSync(activeInstance?.id),
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
-  })
-
-  const unreachableProviders: Array<never> = []
-
-  manualRefetchRef.current = refetch
-
-  // CP-T059: Listen for `iranti:run-diagnostics` event dispatched by command palette
-  useEffect(() => {
-    const handler = () => setDiagRunSignal(s => s + 1)
-    window.addEventListener('iranti:run-diagnostics', handler)
-    return () => window.removeEventListener('iranti:run-diagnostics', handler)
-  }, [])
-
-  const handleManualRefresh = async () => {
-    setRefreshingManual(true)
-    try {
-      await manualRefetchRef.current?.()
-    } finally {
-      setRefreshingManual(false)
-    }
-  }
-
-  // CP-T028: Sort by severity taxonomy â€” CRITICAL first, then WARNING, then INFO, then HEALTHY
-  const sortedChecks = data
-    ? [...data.checks].sort(
-        (a, b) => severitySortKey(classifyCheckSeverity(a)) - severitySortKey(classifyCheckSeverity(b))
-      )
-    : []
-
-  const isRefreshing = isFetching || refreshingManual
-
-  // Error state: health endpoint itself failed (503)
-  if (!isLoading && error) {
-    return (
-      <div className={styles.page}>
+
+      {/* Collapsed last-run summary — shown on page load if last run exists and panel is not expanded */}
+      {lastRunLoaded && lastRun && !expanded && !running && (
+        <div className={styles.diagLastRunCollapsed}>
+          <DiagStatusBadge status={lastRun.overallStatus} />
+          <span>
+            {lastRun.overallStatus === 'pass' && 'All checks passed'}
+            {lastRun.overallStatus === 'warn' && `${lastRun.checks.filter(c => c.status === 'warn').length} warning(s)`}
+            {lastRun.overallStatus === 'fail' && `${lastRun.checks.filter(c => c.status === 'fail').length} failure(s) detected`}
+          </span>
+          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
+            {lastRun.totalDurationMs}ms total
+          </span>
+        </div>
+      )}
+
+      {/* Expanded results panel */}
+      {expanded && activeResult && (
+        <div id="diag-results-panel">
+          <DiagResultsPanel result={activeResult} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                      */
+/* ------------------------------------------------------------------ */
+
+export function HealthDashboard() {
+  const [refreshingManual, setRefreshingManual] = useState(false)
+  const manualRefetchRef = useRef<(() => Promise<unknown>) | null>(null)
+  const { activeInstance } = useInstanceContext()
+
+  // CP-T059: Signal from command palette to trigger a diagnostics run
+  // Incremented each time the palette fires `iranti:run-diagnostics`
+  const [diagRunSignal, setDiagRunSignal] = useState(0)
+
+  const { data, isLoading, error, refetch, isFetching } = useQuery<HealthResponse, Error>({
+    queryKey: ['health', activeInstance?.id ?? 'binding'],
+    queryFn: () => apiFetch<HealthResponse>('/health', { instanceId: activeInstance?.id }),
+    refetchInterval: REFRESH_INTERVAL_MS,
+    staleTime: 0,
+  })
+
+  // CP-T078: Version sync — compare installed vs npm latest
+  // Version changes rarely; 5-minute refetch interval is sufficient.
+  const { data: versionSync } = useQuery<VersionSyncResult, Error>({
+    queryKey: ['version-sync', activeInstance?.id ?? 'binding'],
+    queryFn: () => fetchVersionSync(activeInstance?.id),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
+
+  const unreachableProviders: Array<never> = []
+
+  manualRefetchRef.current = refetch
+
+  // CP-T059: Listen for `iranti:run-diagnostics` event dispatched by command palette
+  useEffect(() => {
+    const handler = () => setDiagRunSignal(s => s + 1)
+    window.addEventListener('iranti:run-diagnostics', handler)
+    return () => window.removeEventListener('iranti:run-diagnostics', handler)
+  }, [])
+
+  const handleManualRefresh = async () => {
+    setRefreshingManual(true)
+    try {
+      await manualRefetchRef.current?.()
+    } finally {
+      setRefreshingManual(false)
+    }
+  }
+
+  // CP-T028: Sort by severity taxonomy — CRITICAL first, then WARNING, then INFO, then HEALTHY
+  const sortedChecks = data
+    ? [...data.checks].sort(
+        (a, b) => severitySortKey(classifyCheckSeverity(a)) - severitySortKey(classifyCheckSeverity(b))
+      )
+    : []
+
+  const isRefreshing = isFetching || refreshingManual
+
+  // Error state: health endpoint itself failed (503)
+  if (!isLoading && error) {
+    return (
+      <div className={styles.page}>
         <div className={styles.unavailableState}>
           <span className={styles.unavailableIcon}>X</span>
-          <h2 className={styles.unavailableTitle}>Diagnostics unavailable</h2>
-          <p className={styles.unavailableBody}>
-            The health endpoint returned an error. Iranti may not be running, or the control plane server is unreachable.
-          </p>
-          <p className={styles.unavailableDetail}>{error.message}</p>
-          <button
-            className={styles.retryBtn}
-            onClick={() => void handleManualRefresh()}
-            type="button"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className={styles.page}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          {data && <OverallBadge checks={data.checks} />}
+          <h2 className={styles.unavailableTitle}>Diagnostics unavailable</h2>
+          <p className={styles.unavailableBody}>
+            The health endpoint returned an error. Iranti may not be running, or the control plane server is unreachable.
+          </p>
+          <p className={styles.unavailableDetail}>{error.message}</p>
+          <button
+            className={styles.retryBtn}
+            onClick={() => void handleManualRefresh()}
+            type="button"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.page}>
+      {/* Header */}
+      <div className={styles.header}>
+        <div className={styles.headerLeft}>
+          {data && <OverallBadge checks={data.checks} />}
           {isLoading && <span className={styles.overallLoading}>Checking...</span>}
-          <div className={styles.headerMeta}>
-            {data?.scope && (
-              <span className={styles.checkedAt}>
-                Instance: {data.scope.instanceName}
-              </span>
-            )}
-            {data && (
-              <span className={styles.checkedAt}>
-                {isRefreshing
+          <div className={styles.headerMeta}>
+            {data?.scope && (
+              <span className={styles.checkedAt}>
+                Instance: {data.scope.instanceName}
+              </span>
+            )}
+            {data && (
+              <span className={styles.checkedAt}>
+                {isRefreshing
                   ? 'Refreshing...'
                   : `Last checked: ${formatSecondsAgo(secondsAgo(data.checkedAt))}`
-                }
-              </span>
-            )}
-            {/* CP-T078: Version sync status â€” shown only when data is available */}
-            {versionSync && versionSync.installedVersion !== null && (
-              <span className={styles.versionStatus}>
-                <span className={styles.versionPrefix}>Iranti</span>
-                {' '}
-                {versionSync.status === 'equal' ? (
-                  <span className={styles.versionUpToDate}>
-                    v{versionSync.installedVersion} - up to date
-                  </span>
-                ) : versionSync.status === 'behind' ? (
-                  <span className={styles.versionUpdateAvailable}>
-                    v{versionSync.installedVersion} - update available:{' '}
-                    <a
-                      href={versionSync.releaseUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={styles.versionReleaseLink}
-                    >
-                      v{versionSync.latestVersion}
-                    </a>
-                  </span>
-                ) : versionSync.status === 'ahead' ? (
-                  <span className={styles.versionUpToDate}>
-                    v{versionSync.installedVersion} - ahead of npm latest v{versionSync.latestVersion}
-                  </span>
-                ) : null}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className={styles.headerRight}>
-          {data && (
-            <RefreshCountdown checkedAt={data.checkedAt} intervalMs={REFRESH_INTERVAL_MS} />
-          )}
-          <button
-            className={`${styles.refreshBtn} ${isRefreshing ? styles.refreshBtnSpinning : ''}`}
-            onClick={() => void handleManualRefresh()}
-            disabled={isRefreshing}
-            type="button"
-            aria-label="Refresh health checks"
-          >
+                }
+              </span>
+            )}
+            {/* CP-T078: Version sync status — shown only when data is available */}
+            {versionSync && versionSync.installedVersion !== null && (
+              <span className={styles.versionStatus}>
+                <span className={styles.versionPrefix}>Iranti</span>
+                {' '}
+                {versionSync.status === 'equal' ? (
+                  <span className={styles.versionUpToDate}>
+                    v{versionSync.installedVersion} - up to date
+                  </span>
+                ) : versionSync.status === 'behind' ? (
+                  <span className={styles.versionUpdateAvailable}>
+                    v{versionSync.installedVersion} - update available:{' '}
+                    <a
+                      href={versionSync.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.versionReleaseLink}
+                    >
+                      v{versionSync.latestVersion}
+                    </a>
+                  </span>
+                ) : versionSync.status === 'ahead' ? (
+                  <span className={styles.versionUpToDate}>
+                    v{versionSync.installedVersion} - ahead of npm latest v{versionSync.latestVersion}
+                  </span>
+                ) : null}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className={styles.headerRight}>
+          {data && (
+            <RefreshCountdown checkedAt={data.checkedAt} intervalMs={REFRESH_INTERVAL_MS} />
+          )}
+          <button
+            className={`${styles.refreshBtn} ${isRefreshing ? styles.refreshBtnSpinning : ''}`}
+            onClick={() => void handleManualRefresh()}
+            disabled={isRefreshing}
+            type="button"
+            aria-label="Refresh health checks"
+          >
             Refresh
           </button>
         </div>
@@ -1319,9 +1321,9 @@ export function HealthDashboard() {
           </div>
         </div>
       )}
-
-      {/* CP-T046: Unreachable provider banner â€” shown when any configured provider cannot be reached */}
-      {unreachableProviders.length > 0 && (
+
+      {/* CP-T046: Unreachable provider banner — shown when any configured provider cannot be reached */}
+      {unreachableProviders.length > 0 && (
         <div className={styles.setupBannerWarning} role="alert">
           <span className={styles.setupBannerIcon} aria-hidden="true">!</span>
           <div>
@@ -1329,58 +1331,58 @@ export function HealthDashboard() {
             {' '}- check your API keys and network.
             {' '}
             <Link to="/providers" className={styles.providerBannerLink}>
-              Open Provider Manager
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Scrollable content area â€” grid + all sections below banners */}
-      <div className={styles.scrollContainer}>
-        {/* Loading state */}
-        {isLoading && (
-          <div
-            style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}
-            aria-busy="true"
-            aria-label="Loading health checks"
-          >
-            <Spinner size="md" label="Loading health checks" />
-          </div>
-        )}
-
-        {/* Health check cards */}
-        {!isLoading && data && (
-          <div className={styles.grid}>
-            {sortedChecks.map(check => (
-              <HealthCard
-                key={check.name}
-                check={check}
-                onRunDiagnostics={() => setDiagRunSignal(s => s + 1)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* CP-T052: Capability Health section â€” Decay, Vector Backend, Attendant */}
-        {!isLoading && data && (
-          <CapabilityHealthSection
-            decay={data.decay}
-            vectorBackend={data.vectorBackend}
-            attendant={data.attendant}
-          />
-        )}
-
-        {/* CP-T059: Interactive Diagnostics Panel */}
-        <DiagnosticsPanel externalRunSignal={diagRunSignal} instanceId={activeInstance?.id} />
-
-        {/* CP-T034: Provider status section â€” key presence, reachability, models */}
-        {!isLoading && <ProviderStatusSection instanceId={activeInstance?.id} />}
-
-        {/* CP-T096: Attendant Debug Tools â€” collapsed by default */}
-        <AttendantDebugPanel />
-      </div>
-    </div>
-  )
-}
-
-
+              Open Provider Manager
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable content area — grid + all sections below banners */}
+      <div className={styles.scrollContainer}>
+        {/* Loading state */}
+        {isLoading && (
+          <div
+            style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}
+            aria-busy="true"
+            aria-label="Loading health checks"
+          >
+            <Spinner size="md" label="Loading health checks" />
+          </div>
+        )}
+
+        {/* Health check cards */}
+        {!isLoading && data && (
+          <div className={styles.grid}>
+            {sortedChecks.map(check => (
+              <HealthCard
+                key={check.name}
+                check={check}
+                onRunDiagnostics={() => setDiagRunSignal(s => s + 1)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* CP-T052: Capability Health section — Decay, Vector Backend, Attendant */}
+        {!isLoading && data && (
+          <CapabilityHealthSection
+            decay={data.decay}
+            vectorBackend={data.vectorBackend}
+            attendant={data.attendant}
+          />
+        )}
+
+        {/* CP-T059: Interactive Diagnostics Panel */}
+        <DiagnosticsPanel externalRunSignal={diagRunSignal} instanceId={activeInstance?.id} />
+
+        {/* CP-T034: Provider status section — key presence, reachability, models */}
+        {!isLoading && <ProviderStatusSection instanceId={activeInstance?.id} />}
+
+        {/* CP-T096: Attendant Debug Tools — collapsed by default */}
+        <AttendantDebugPanel />
+      </div>
+    </div>
+  )
+}
+
+

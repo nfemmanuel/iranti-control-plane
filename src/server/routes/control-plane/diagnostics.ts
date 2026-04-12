@@ -1,3 +1,14 @@
+/**
+ * Diagnostics routes — CP-T013
+ *
+ * Routes:
+ *   GET  /diagnostics        — run all diagnostic checks and return results
+ *   GET  /diagnostics/last   — return cached result from the last diagnostic run
+ *
+ * Checks performed: DB connectivity, round-trip write/read, pgvector search,
+ * embedding model availability, and KB fact count. Results are cached per
+ * instance for quick re-display without re-running all probes.
+ */
 import { Router, Request, Response, NextFunction } from 'express'
 import pg from 'pg'
 import { ApiError, InstanceScopeSummary } from '../../types.js'

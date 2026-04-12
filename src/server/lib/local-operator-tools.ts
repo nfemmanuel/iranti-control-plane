@@ -1,3 +1,18 @@
+/**
+ * local-operator-tools.ts — Sandboxed command runner and native path picker.
+ *
+ * Provides two capabilities for the Control Plane UI:
+ *   1. runLocalCommand — executes a small whitelist of approved shell commands
+ *      (iranti CLI commands, npm run migrate, npm install -g iranti@x) on the
+ *      operator's machine. All other commands are rejected with a clear error.
+ *   2. pickLocalPath — opens the OS-native file/folder picker (PowerShell on
+ *      Windows, osascript on macOS, zenity/kdialog on Linux) and returns the
+ *      selected path.
+ *
+ * Security contract: nothing in this module spawns arbitrary user input.
+ * parseRunnableCommand() enforces the whitelist before any process is started.
+ */
+
 import { spawn } from 'child_process'
 import { access, constants, stat } from 'fs/promises'
 import { delimiter, join } from 'path'

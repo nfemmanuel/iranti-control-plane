@@ -1,7 +1,9 @@
-/* Iranti Control Plane — Staff Logs View */
-/* Route: /logs */
-/* CP-T050 — Persistent, filterable log history over staff_events table */
-/*            Distinct from ActivityStream (/activity) which is a live SSE tail. */
+/**
+ * Iranti Control Plane — Staff Logs View
+ * Route: /logs
+ * CP-T050 — Persistent, filterable log history over staff_events table
+ * Distinct from ActivityStream (/activity) which is a live SSE tail.
+ */
 
 import { Fragment, useState, useReducer, useEffect, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'

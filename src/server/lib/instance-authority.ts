@@ -1,9 +1,26 @@
+/**
+ * instance-authority.ts — Instance resolution: the single source of truth for
+ *                         locating and describing a running Iranti instance.
+ *
+ * Given an optional instanceRef (name or derived ID), resolves the full
+ * ResolvedInstanceAuthority — the instance directory, env file, API base URL,
+ * API key, database URL, and list of bound projects.
+ *
+ * Resolution order:
+ *   1. Explicit query match: instanceRef matches an instance name or derived ID.
+ *   2. Binding match: IRANTI_INSTANCE / IRANTI_INSTANCE_NAME in the CP env
+ *      matches an instance name in the scanned runtime roots.
+ *
+ * The derived instanceId is a stable 8-hex-char SHA-256 of the lowercased,
+ * forward-slash-normalised instance directory path.
+ */
+
 import { createHash } from 'crypto'
 import { access, readFile } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { join, basename, dirname, resolve } from 'path'
 import { env as controlPlaneEnv } from '../db.js'
-import { runtimeRootCandidates as discoverRuntimeRootCandidates } from './runtime-roots.js'
+import { runtimeRootCandidates as discoverRuntimeRootCandidates, parseSimpleEnv } from './runtime-roots.js'
 
 export interface BoundProjectRef {
   projectPath: string
@@ -47,19 +64,8 @@ export function deriveInstanceId(instanceDir: string): string {
   return createHash('sha256').update(normalized).digest('hex').slice(0, 8)
 }
 
-export function parseSimpleEnv(content: string): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const idx = trimmed.indexOf('=')
-    if (idx === -1) continue
-    const key = trimmed.slice(0, idx).trim()
-    const value = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '')
-    if (key) result[key] = value
-  }
-  return result
-}
+/** Re-exported from runtime-roots.ts; kept here for backwards-compatible imports. */
+export { parseSimpleEnv }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

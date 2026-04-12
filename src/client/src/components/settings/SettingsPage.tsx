@@ -1,3 +1,11 @@
+/**
+ * SettingsPage.tsx — Control Plane user-preferences and system settings page.
+ *
+ * Route: /settings
+ * Sections: appearance (theme), behavior, instance creation defaults,
+ * timezone, danger zone (stop / uninstall control plane).
+ */
+
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { stopControlPlane, uninstallControlPlane, getCpConfig, setCpConfig } from '../../api/client'

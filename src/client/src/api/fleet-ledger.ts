@@ -1,5 +1,9 @@
-/* Iranti Control Plane — Fleet Ledger API client */
-/* Covers the /api/control-plane/session-ledger surface */
+/**
+ * fleet-ledger.ts — Fleet Ledger API client.
+ *
+ * Covers the /api/control-plane/session-ledger surface: list/export mirrored
+ * fleet events, manage ingestion status, and poll ledger stats.
+ */
 
 import { apiFetch } from './client'
 

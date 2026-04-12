@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Configure Instance Panel */
-/* CP-T090 — Compact edit panel for port, provider, provider key */
+/**
+ * Iranti Control Plane — Configure Instance Panel
+ * CP-T090 — Compact edit panel for port, provider, provider key
+ */
 
 import { useState, useCallback, useEffect } from 'react'
 import { configureInstance, restartInstance } from '../../api/client'

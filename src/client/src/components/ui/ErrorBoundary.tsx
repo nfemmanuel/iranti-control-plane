@@ -1,3 +1,10 @@
+/**
+ * ErrorBoundary.tsx — React error boundary for graceful UI error recovery.
+ *
+ * Wraps subtrees to catch unhandled render errors and display a user-visible
+ * fallback with a "Try again" reset and a link back to /overview.
+ */
+
 import { Component, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 

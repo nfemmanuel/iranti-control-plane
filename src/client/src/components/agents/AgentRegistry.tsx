@@ -1,6 +1,8 @@
-/* Iranti Control Plane — Agent Registry */
-/* Route: /agents */
-/* CP-T051 — Read-only view of all registered agents via GET /api/control-plane/agents */
+/**
+ * Iranti Control Plane — Agent Registry
+ * Route: /agents
+ * CP-T051 — Read-only view of all registered agents via GET /api/control-plane/agents
+ */
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'

@@ -1,5 +1,9 @@
-/* Iranti Control Plane — Shared API response types */
-/* Mirrors server response shapes from docs/specs/control-plane-api.md */
+/**
+ * types.ts — Shared API response types for the Iranti Control Plane client.
+ *
+ * Mirrors server response shapes from docs/specs/control-plane-api.md.
+ * Keep in sync with src/server/types.ts when adding or changing API contracts.
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Generic paginated wrapper                                           */

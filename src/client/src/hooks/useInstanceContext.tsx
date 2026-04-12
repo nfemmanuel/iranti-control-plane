@@ -1,8 +1,11 @@
-/* Iranti Control Plane — Instance Context */
-/* Provides the currently active Iranti instance to all child route views. */
-/* CP-T013 through CP-T016 read active instance from this context. */
-/* Instance list fetched from /api/control-plane/instances (CP-T011). */
-/* Falls back to a stub "local" instance if CP-T011 is not yet ready. */
+/**
+ * useInstanceContext.tsx — Instance context and hook for the Control Plane UI.
+ *
+ * Provides the currently active Iranti instance to all child route views.
+ * CP-T013 through CP-T016 read the active instance from this context.
+ * Instance list is fetched from /api/control-plane/instances (CP-T011).
+ * Falls back to a stub "local" instance if CP-T011 is not yet ready.
+ */
 
 import {
   createContext,

@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Spinner component */
-/* PM decision: css-loaders.com/spinner/ loader #3 — conic-gradient arc */
+/**
+ * Iranti Control Plane — Spinner component
+ * PM decision: css-loaders.com/spinner/ loader #3 — conic-gradient arc
+ */
 
 import styles from './Spinner.module.css'
 

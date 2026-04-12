@@ -1,3 +1,16 @@
+/**
+ * runtime-roots.ts — Discovery of Iranti runtime root directories.
+ *
+ * A "runtime root" is the directory that contains an `instances/` subdirectory
+ * (e.g. ~/.iranti-runtime or ~/.iranti). This module builds an ordered list of
+ * candidate roots from env vars, binding files, ancestor directories, and the
+ * user's home directory — with the most-specific candidates first.
+ *
+ * Exports:
+ *   runtimeRootCandidates() — returns existing roots only (non-existent paths filtered out)
+ *   classifyRuntimeRoot()   — labels a root as 'primary', 'legacy', or 'custom'
+ */
+
 import { existsSync, readFileSync } from 'fs'
 import { dirname } from 'path'
 import { homedir } from 'os'
@@ -6,7 +19,13 @@ import { basenamePortable, dirnamePortable, joinPortable, resolvePortable } from
 
 export type RuntimeRootKind = 'primary' | 'legacy' | 'custom'
 
-function parseSimpleEnv(content: string): Record<string, string> {
+/**
+ * Parse a .env file content into a key→value map.
+ * Handles CRLF line endings, ignores blank lines and # comments,
+ * and strips leading/trailing single or double quotes from values.
+ * Exported so callers in instance-authority.ts can share one implementation.
+ */
+export function parseSimpleEnv(content: string): Record<string, string> {
   const result: Record<string, string> = {}
   for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim()

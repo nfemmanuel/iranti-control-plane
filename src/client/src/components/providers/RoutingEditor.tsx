@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Provider Task-Model Routing Editor */
-/* CP-T087: per-task model override configuration */
+/**
+ * Iranti Control Plane — Provider Task-Model Routing Editor
+ * CP-T087: per-task model override configuration
+ */
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'

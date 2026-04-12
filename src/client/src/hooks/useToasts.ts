@@ -1,5 +1,10 @@
-/* Iranti Control Plane — Toast State Hook */
-/* CP-T069 — Proactive Health Alert Toasts */
+/**
+ * useToasts.ts — Toast notification state hook.
+ *
+ * CP-T069 — Proactive Health Alert Toasts.
+ * Manages a list of toast notifications (error/warn/info) with add/dismiss
+ * actions. Used by HealthDashboard and other components to surface alerts.
+ */
 
 import { useReducer, useCallback } from 'react'
 

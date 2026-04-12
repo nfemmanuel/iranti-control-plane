@@ -1,3 +1,11 @@
+/**
+ * settings.ts — Control Plane user preferences: types, defaults, serialization.
+ *
+ * Defines `ControlPlaneSettings`, the default values, and
+ * `loadSettings`/`saveSettings` which persist to localStorage.
+ * Legacy keys (pre-v1 theme/chatPanel) are migrated on first load.
+ */
+
 export type LandingPage =
   | '/overview'
   | '/instances'

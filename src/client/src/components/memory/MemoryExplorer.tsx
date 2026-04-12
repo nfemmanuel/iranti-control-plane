@@ -1,8 +1,10 @@
-/* Iranti Control Plane — Memory Explorer */
-/* Route: /memory */
-/* CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5 */
-/* CP-T066 — KB Full-Text Search mode */
-/* CP-T067 — Entity Type Browser landing panel */
+/**
+ * Iranti Control Plane — Memory Explorer
+ * Route: /memory
+ * CP-T013 — Wired to GET /api/control-plane/kb via TanStack Query v5
+ * CP-T066 — KB Full-Text Search mode
+ * CP-T067 — Entity Type Browser landing panel
+ */
 
 import { Fragment, useState, useReducer, useEffect, useRef, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'

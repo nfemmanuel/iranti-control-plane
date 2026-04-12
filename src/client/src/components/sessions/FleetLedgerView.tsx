@@ -1,5 +1,7 @@
-/* Iranti Control Plane — Fleet Ledger View */
-/* Cross-instance event stream with human-readable descriptions */
+/**
+ * Iranti Control Plane — Fleet Ledger View
+ * Cross-instance event stream with human-readable descriptions
+ */
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

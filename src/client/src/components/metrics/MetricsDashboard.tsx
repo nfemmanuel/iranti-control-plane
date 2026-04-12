@@ -1,7 +1,9 @@
-/* Iranti Control Plane — Metrics Dashboard */
-/* Route: /metrics */
-/* CP-T060 — Summary stat cards, SVG-native KB growth line chart, */
-/*           SVG-native agent activity bar chart, 7d/30d period toggle */
+/**
+ * Iranti Control Plane — Metrics Dashboard
+ * Route: /metrics
+ * CP-T060 — Summary stat cards, SVG-native KB growth line chart,
+ * SVG-native agent activity bar chart, 7d/30d period toggle
+ */
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
