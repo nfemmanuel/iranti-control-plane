@@ -309,6 +309,25 @@ function spawnControlPlane({ port, openBrowser, detached }) {
   if (port) env.CONTROL_PLANE_PORT = String(port);
   if (!openBrowser) env.IRANTI_CP_NO_OPEN = '1';
 
+  // On Windows, spawning node.exe directly causes Windows Terminal (wt.exe)
+  // to intercept the new console process and flash a tab, even with
+  // windowsHide:true. windowsHide suppresses a standalone console window but
+  // does not prevent Windows Terminal from attaching.
+  //
+  // Routing through `cmd /c start "" /b node bundle.cjs` creates the child
+  // with the DETACHED_PROCESS flag implicitly, so no console is allocated and
+  // Windows Terminal never attaches.  This is only needed for the detached
+  // (background) case; foreground start keeps stdio:inherit as usual.
+  if (process.platform === 'win32' && detached) {
+    const child = spawn(
+      'cmd',
+      ['/d', '/s', '/c', 'start', '', '/b', process.execPath, BUNDLE],
+      { env, detached: true, stdio: 'ignore', windowsHide: true },
+    );
+    child.unref();
+    return child;
+  }
+
   const child = spawn(process.execPath, [BUNDLE], {
     env,
     stdio: detached ? 'ignore' : 'inherit',

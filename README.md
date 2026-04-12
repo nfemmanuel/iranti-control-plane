@@ -1,15 +1,17 @@
 # Iranti Control Plane
 
-Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti) - inspect memory, watch Staff activity, manage instances, and diagnose your setup without raw SQL.
+Local-first operator dashboard for [Iranti](https://github.com/nfemmanuel/iranti) — inspect memory, watch Staff activity, manage instances, and diagnose your setup without raw SQL.
 
 ## Status
 
-Current package version: `0.4.3`.
-The operator surface is live and under active UX hardening.
+Current package version: `0.5.4`.
+The operator surface is live and under active development.
+
+Available on npm and mirrored by jsDelivr:
+- npm: `npm install -g iranti-control-plane`
+- jsDelivr CDN: `https://cdn.jsdelivr.net/npm/iranti-control-plane/`
 
 ## Install
-
-For the packaged control-plane CLI path (after npm publish, or from a locally packed tarball):
 
 ```bash
 npm install -g iranti-control-plane

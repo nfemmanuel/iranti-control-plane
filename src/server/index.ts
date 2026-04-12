@@ -282,3 +282,15 @@ main().catch((err: unknown) => {
   console.error('[iranti-cp] Fatal startup error:', (err as Error).message ?? err)
   process.exit(1)
 })
+
+// Catch unhandled promise rejections and exceptions so the process does not
+// die silently mid-session. Logging the error gives the operator a clear
+// signal instead of a Windows Terminal tab that just closes unexpectedly.
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('[iranti-cp] Unhandled rejection:', reason instanceof Error ? reason.message : reason)
+})
+
+process.on('uncaughtException', (err: Error) => {
+  console.error('[iranti-cp] Uncaught exception:', err.message)
+  console.error(err.stack)
+})
