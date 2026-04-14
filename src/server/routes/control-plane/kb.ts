@@ -1515,5 +1515,81 @@ kbRouter.get('/kb/entity-types', async (req: Request, res: Response, next: NextF
   }
 })
 
+// ---------------------------------------------------------------------------
+// Rules (operating rules stored as rule/* entities)
+// ---------------------------------------------------------------------------
+
+interface RuleRow {
+  id: number
+  entityId: string
+  key: string
+  valueSummary: string | null
+  properties: unknown
+  updatedAt: Date | string | null
+}
+
+kbRouter.get('/rules', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await withRequestQueryable(req, async (db) => {
+      const result = await db.query<RuleRow>(
+        `SELECT id, "entityId", key, "valueSummary", properties, "updatedAt"
+         FROM knowledge_base
+         WHERE "entityType" = 'rule'
+         ORDER BY "updatedAt" DESC`
+      )
+
+      const rules = result.rows.map((row) => {
+        const props = row.properties && typeof row.properties === 'object' && !Array.isArray(row.properties)
+          ? row.properties as Record<string, unknown>
+          : null
+        return {
+          id: row.id,
+          ruleId: row.entityId,
+          key: row.key,
+          rule: row.valueSummary ?? '',
+          triggers: Array.isArray(props?.triggers) ? props!.triggers : [],
+          enforcement: props?.enforcement ?? 'soft',
+          scope: props?.scope ?? 'project',
+          updatedAt: toIso(row.updatedAt),
+        }
+      })
+
+      res.json({ total: rules.length, rules })
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+kbRouter.delete('/rules/:ruleId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await withRequestQueryable(req, async (db) => {
+      const ruleId = req.params.ruleId?.trim()
+      if (!ruleId) {
+        throw createApiError('ruleId is required', 'INVALID_PARAM', 400)
+      }
+
+      const result = await db.query<{ id: number }>(
+        `SELECT id FROM knowledge_base WHERE "entityType" = 'rule' AND "entityId" = $1`,
+        [ruleId]
+      )
+
+      if (result.rows.length === 0) {
+        throw createApiError(`Rule '${ruleId}' not found`, 'RULE_NOT_FOUND', 404)
+      }
+
+      const ids = result.rows.map((r) => r.id)
+      await db.query(
+        `DELETE FROM knowledge_base WHERE id = ANY($1::int[])`,
+        [ids]
+      )
+
+      res.json({ deleted: ruleId, entriesRemoved: ids.length })
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Error handler must be last
 kbRouter.use(errorHandler)

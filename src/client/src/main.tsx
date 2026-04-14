@@ -33,6 +33,7 @@ import { FleetLedgerView } from './components/sessions/FleetLedgerView'
 import { MetricsDashboard } from './components/metrics/MetricsDashboard'
 import { OverviewDashboard } from './components/overview/OverviewDashboard'
 import { SettingsPage } from './components/settings/SettingsPage'
+import { RulesManager } from './components/rules/RulesManager'
 import { InstanceProvider, useInstanceContext } from './hooks/useInstanceContext'
 import { SettingsProvider, useSettings } from './hooks/useSettings'
 import { LoadingPage } from './components/ui/LoadingPage'
@@ -89,6 +90,7 @@ createRoot(rootEl).render(
                   <Route path="agents" element={<AgentRegistry />} />
                   <Route path="sessions" element={<SessionsView />} />
                   <Route path="fleet-ledger" element={<FleetLedgerView />} />
+                  <Route path="rules" element={<RulesManager />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Routes>

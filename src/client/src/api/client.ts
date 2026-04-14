@@ -671,6 +671,39 @@ export function getCpConfig(): Promise<{ defaultPort: number | null }> {
   return apiFetch<{ defaultPort: number | null }>('/cp-config')
 }
 
+// ---------------------------------------------------------------------------
+// Rules (operating rules stored as rule/* entities)
+// ---------------------------------------------------------------------------
+
+export interface Rule {
+  id: number
+  ruleId: string
+  key: string
+  rule: string
+  triggers: string[]
+  enforcement: string
+  scope: string
+  updatedAt: string | null
+}
+
+export interface RulesListResponse {
+  total: number
+  rules: Rule[]
+}
+
+export function fetchRules(instanceId?: string): Promise<RulesListResponse> {
+  return apiFetch<RulesListResponse>('/rules', { instanceId })
+}
+
+export async function deleteRule(ruleId: string, instanceId?: string): Promise<{ deleted: string; entriesRemoved: number }> {
+  const url = new URL(`${BASE}/rules/${encodeURIComponent(ruleId)}`, window.location.origin)
+  if (instanceId) url.searchParams.set('instanceId', instanceId)
+  const res = await fetch(url.toString(), { method: 'DELETE' })
+  const data = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText)
+  return data as { deleted: string; entriesRemoved: number }
+}
+
 /**
  * Persist a new Control Plane default port (or null to clear it).
  * Takes effect on next iranti-cp start.
